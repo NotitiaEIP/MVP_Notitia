@@ -53,6 +53,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.3.8
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -94,3 +96,35 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Configuration du logo et splash screen
+flutter_launcher_icons:
+  image_path: "assets/notitia_logo.png"
+  image_path_android: "assets/notitia_logo.png"
+  image_path_ios: "assets/notitia_logo.png"
+  android:
+    notification_icon: "ic_notification"
+    generate: true
+  ios:
+    generate: true
+  windows:
+    generate: true
+  macos:
+    generate: true
+  linux:
+    generate: true
+  web:
+    generate: true
+    background_color: "#001a33"
+
+flutter_native_splash:
+  color: "#001a33"
+  image: assets/notitia_logo.png
+  branding: assets/notitia_logo.png
+  color_dark: "#001a33"
+  image_dark: assets/notitia_logo.png
+  android_12:
+    image: assets/notitia_logo.png
+    image_dark: assets/notitia_logo.png
+  ios: true
+  web: false

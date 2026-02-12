@@ -12,6 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'pages/capture_page.dart';
 import 'pages/history_page.dart';
 import 'pages/search_page.dart';
+import 'pages/splash_screen.dart';
 import 'services/foreground_service.dart';
 import 'theme.dart';
 
@@ -47,7 +48,10 @@ class NotitiaApp extends StatelessWidget {
         ),
         textTheme: GoogleFonts.orbitronTextTheme(ThemeData.dark().textTheme),
       ),
-      home: const WithForegroundTask(child: MainNavigation()),
+      home: const SplashScreen(),
+      routes: {
+        '/main': (context) => const WithForegroundTask(child: MainNavigation()),
+      },
     );
   }
 }

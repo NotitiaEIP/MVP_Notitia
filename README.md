@@ -1,5 +1,202 @@
 # 📝 Notitia - Application de Prise de Notes Intelligente
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+**Happy coding! 🎉**---- 💬 Contactez l'équipe de développement- 🐛 Créez une issue si vous avez des problèmes- 📖 [Documentation Flutter](https://flutter.dev/docs)## 🆘 Aide Supplémentaire---```flutter build web      # Webflutter build ios      # iOSflutter build apk      # Android# Build de productionflutter test# Lancer les testsflutter analyze# Analyser le code```bash## ✅ Vérifier que Tout Marche---```flutter rundart run flutter_native_splash:createflutter pub getflutter clean# Recompiler```bash### "Le splash screen ne s'affiche pas"```cd ..pod install --repo-updaterm -rf Pods Podfile.lockcd ios```bash### "Erreur iOS: Pods"```dart run flutter_launcher_icons --verbose# Régénérezls assets/notitia_logo.png# Vérifiez que l'image existe```bash### "Erreur à la génération des icônes"```flutter pub getflutter cleanflutter devices```bash### "Flutter ne trouve pas le device"## 📞 Dépannage---⚠️ **À exécuter une seule fois**, puis les fichiers générés sont commitables.- Configurable via `pubspec.yaml`- Affiche le logo au lancementGénère l'écran de splash (loading screen) :### `dart run flutter_native_splash:create`- Windows/Linux/macOS: Icônes natives- Web: `web/favicon.png`- iOS: `ios/Runner/Assets.xcassets/AppIcon.appiconset/`- Android: `android/app/src/main/res/mipmap-*/ic_launcher.png`Génère les icônes de l'application pour toutes les plateformes :### `dart run flutter_launcher_icons`## 🎯 Qu'Est-ce que les Commandes d'Icônes Font ?---```flutter run -d windows   # ou -d linux ou -d macos# Lancerdart run flutter_launcher_icons# Générer les icônesflutter pub get# Les dépendances s'installent automatiquement```bash### Windows / Linux / macOS---```flutter build web# Build productionflutter run -d chrome# Lancer en devdart run flutter_launcher_icons# Générer les assetsflutter config --enable-web# Activer le support web```bash### Web---- Accepter les licences : `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer`- Xcode installé**Prérequis :**```flutter run -d ios# Lancer sur iOSdart run flutter_launcher_icons# Générer les icônescd ..pod install --repo-updatecd ios# Installer les pods```bash### iOS (macOS uniquement)---- `gradle failed` → `flutter clean` et réessayez- `JAVA_HOME not found` → Installez Android Studio**Problèmes courants :**```flutter run -d android# Lancer sur Androiddart run flutter_launcher_icons# Générer les icônescd .../gradlew cleancd android# Nettoyer et rebuildflutter doctor -v# Vérifier la config```bash### Android (Tous les OS)## 🔧 Setup Détaillé par Plateforme---- [ ] L'app se lance sans erreur- [ ] Commandes de setup lancées (icons + splash)- [ ] `flutter pub get` exécuté- [ ] Repository cloné- [ ] Un émulateur ou device connecté (`flutter devices`)- [ ] Flutter installé et à jour (`flutter --version`)## 📋 Checklist Initiale---```flutter run# 4. Lancer l'appdart run flutter_native_splash:createdart run flutter_launcher_icons# 3. Générer les icônes et splash screen (TRÈS IMPORTANT!)flutter pub get# 2. Installer les dépendancescd notitia-mvpgit clone https://github.com/VOTRE_ORGANISATION/notitia-mvp.git# 1. Cloner le repo```bash## ⚡ TL;DR (Les Essentiels)<div align="center">
+  <img src="assets/notitia_logo.png" alt="Notitia Logo" width="200" height="200">
+</div>
+
 Bienvenue sur le projet **Notitia MVP** ! Une application Flutter combinant la **prise de notes**, la **reconnaissance vocale** et des **capacités IA** pour une productivité accrue.
 
 ---
@@ -64,7 +261,19 @@ cd notitia-mvp
 flutter pub get
 \`\`\`
 
-### 3. Configuration spécifique par plateforme
+### 3. Générer les icônes et splash screen (IMPORTANT !)
+
+\`\`\`bash
+# Générer les icônes de l'application
+dart run flutter_launcher_icons
+
+# Générer l'écran de splash
+dart run flutter_native_splash:create
+\`\`\`
+
+⚠️ **TRÈS IMPORTANT** : Cette étape doit être exécutée une seule fois, elle génère les assets pour toutes les plateformes.
+
+### 4. Configuration spécifique par plateforme
 
 #### Android
 \`\`\`bash
@@ -89,6 +298,12 @@ flutter config --enable-web
 
 #### Linux / macOS / Windows
 Les dépendances natives sont téléchargées automatiquement.
+
+### 5. Lancer l'application
+
+\`\`\`bash
+flutter run
+\`\`\`
 
 ---
 
@@ -168,6 +383,8 @@ flutter pub outdated
 # Nettoyer le cache
 flutter clean
 \`\`\`
+
+---
 
 ---
 
