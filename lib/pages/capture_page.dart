@@ -1,0 +1,906 @@
+// =============================================================================
+// NOTITIA — Page de capture vocale (Speech-to-Text)
+// =============================================================================
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+
+import '../models/transcription.dart';
+import '../services/foreground_service.dart';
+import '../services/mistral_service.dart';
+import '../services/storage_service.dart';
+import '../theme.dart';
+import '../widgets/pulsing_dot.dart';
+
+class CapturePage extends StatefulWidget {
+  final VoidCallback? onTranscriptionSaved;
+  const CapturePage({super.key, this.onTranscriptionSaved});
+
+  @override
+  State<CapturePage> createState() => _CapturePageState();
+}
+
+class _CapturePageState extends State<CapturePage>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  // ---------------------------------------------------------------------------
+  // Speech-to-Text
+  // ---------------------------------------------------------------------------
+  final stt.SpeechToText _speechToText = stt.SpeechToText();
+  bool _speechEnabled = false;
+  bool _isListening = false;
+  String _liveText = '';
+  String _fullTranscript = '';
+  double _confidence = 0.0;
+  Duration _listenDuration = Duration.zero;
+  Timer? _durationTimer;
+
+  // ---------------------------------------------------------------------------
+  // IA Mistral — correction automatique des transcriptions
+  // ---------------------------------------------------------------------------
+  bool _isEnhancing = false; // Pendant la correction Mistral
+  int _iaCorrectionCount = 0; // Nombre de corrections IA
+
+  // ---------------------------------------------------------------------------
+  // Écoute active (background)
+  // ---------------------------------------------------------------------------
+  bool _isActiveMode = false;
+
+  // ---------------------------------------------------------------------------
+  // Animation pulse
+  // ---------------------------------------------------------------------------
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initSpeech();
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    _pulseController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) _pulseController.reverse();
+      if (status == AnimationStatus.dismissed && _isListening) {
+        _pulseController.forward();
+      }
+    });
+  }
+
+  Future<void> _initSpeech() async {
+    _speechEnabled = await _speechToText.initialize(
+      onError: (error) {
+        debugPrint('Speech error: ${error.errorMsg}');
+        if (_isListening && error.errorMsg == 'error_speech_timeout') {
+          _restartListening();
+        }
+      },
+      onStatus: (status) {
+        debugPrint('Speech status: $status');
+        if (_isListening && (status == 'done' || status == 'notListening')) {
+          _restartListening();
+        }
+      },
+    );
+    debugPrint('Speech enabled: $_speechEnabled');
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _durationTimer?.cancel();
+    _pulseController.dispose();
+    _speechToText.stop();
+    if (_isActiveMode) ActiveListeningService.stop();
+    super.dispose();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle — Détecte quand l'app passe en arrière-plan / revient
+  // ---------------------------------------------------------------------------
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _isListening) {
+      // L'app revient au premier plan — rafraîchir l'UI avec le transcript accumulé
+      debugPrint('[Notitia] App resumed — refreshing UI');
+      setState(() {});
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Permissions
+  // ---------------------------------------------------------------------------
+  Future<bool> _requestMicPermission() async {
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      _showSnackBar('Permission microphone refusée');
+      return false;
+    }
+    return true;
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.poppins()),
+        backgroundColor: NotitiaTheme.neonPink,
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Contrôle de la transcription
+  // ---------------------------------------------------------------------------
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      await _stopListening();
+    } else {
+      await _startListening();
+    }
+  }
+
+  Future<void> _startListening() async {
+    if (!await _requestMicPermission()) return;
+    if (!_speechEnabled) {
+      _showSnackBar('Service de reconnaissance vocale non disponible');
+      return;
+    }
+
+    setState(() {
+      _isListening = true;
+      _liveText = '';
+      _fullTranscript = '';
+      _confidence = 0.0;
+      _listenDuration = Duration.zero;
+    });
+
+    _pulseController.forward();
+
+    // Démarrer le foreground service si écoute active
+    if (_isActiveMode && !kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      await ActiveListeningService.start();
+    }
+
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _listenDuration += const Duration(seconds: 1));
+        // Mettre à jour la notification avec la durée
+        if (_isActiveMode && ActiveListeningService.isRunning) {
+          ActiveListeningService.updateNotification(
+            'Transcription en cours… ${_formatDuration(_listenDuration)}',
+          );
+        }
+      }
+    });
+
+    await _doListen();
+  }
+
+  Future<void> _doListen() async {
+    try {
+      await _speechToText.listen(
+        onResult: (result) {
+          setState(() {
+            _liveText = result.recognizedWords;
+            if (result.hasConfidenceRating && result.confidence > 0) {
+              _confidence = result.confidence;
+            }
+            if (result.finalResult && result.recognizedWords.isNotEmpty) {
+              if (_fullTranscript.isNotEmpty) _fullTranscript += ' ';
+              _fullTranscript += result.recognizedWords;
+              _liveText = '';
+            }
+          });
+        },
+        localeId: 'fr_FR',
+        listenOptions: stt.SpeechListenOptions(
+          listenMode: stt.ListenMode.dictation,
+          cancelOnError: false,
+          partialResults: true,
+          autoPunctuation: true,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Listen error: $e');
+    }
+  }
+
+  Future<void> _restartListening() async {
+    if (!_isListening || !mounted) return;
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (_isListening && mounted) await _doListen();
+  }
+
+  Future<void> _stopListening() async {
+    await _speechToText.stop();
+    _durationTimer?.cancel();
+    _pulseController.stop();
+    _pulseController.reset();
+
+    // Arrêter le foreground service
+    if (_isActiveMode && ActiveListeningService.isRunning) {
+      await ActiveListeningService.stop();
+    }
+
+    if (_liveText.isNotEmpty) {
+      if (_fullTranscript.isNotEmpty) _fullTranscript += ' ';
+      _fullTranscript += _liveText;
+    }
+
+    setState(() {
+      _isListening = false;
+      _liveText = '';
+    });
+
+    // Correction automatique par Mistral AI
+    if (_fullTranscript.trim().isNotEmpty) {
+      await _enhanceWithMistral();
+    }
+  }
+
+  /// Corrige et améliore la transcription via Mistral AI (appel cloud direct)
+  Future<void> _enhanceWithMistral() async {
+    if (_fullTranscript.trim().isEmpty) return;
+
+    setState(() {
+      _isEnhancing = true;
+      _iaCorrectionCount = 0;
+    });
+
+    try {
+      debugPrint('[Notitia] Correction Mistral en cours...');
+      final original = _fullTranscript;
+      final corrected = await MistralService.instance.correctTranscription(
+        _fullTranscript,
+      );
+
+      if (corrected != original && mounted) {
+        // Calculer le nombre de différences
+        final originalWords = original.split(' ');
+        final correctedWords = corrected.split(' ');
+        int diffCount = 0;
+        final maxLen = correctedWords.length > originalWords.length
+            ? correctedWords.length
+            : originalWords.length;
+        for (int i = 0; i < maxLen; i++) {
+          final a = i < originalWords.length ? originalWords[i] : '';
+          final b = i < correctedWords.length ? correctedWords[i] : '';
+          if (a != b) diffCount++;
+        }
+
+        setState(() {
+          _fullTranscript = corrected;
+          _iaCorrectionCount = diffCount;
+          _isEnhancing = false;
+        });
+
+        debugPrint('[Notitia] Mistral: $diffCount corrections appliquées');
+      } else {
+        if (mounted) setState(() => _isEnhancing = false);
+        debugPrint('[Notitia] Mistral: Aucune correction nécessaire');
+      }
+    } catch (e) {
+      debugPrint('[Notitia] Erreur Mistral: $e');
+      if (mounted) setState(() => _isEnhancing = false);
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.inMinutes.remainder(60))}:${two(d.inSeconds.remainder(60))}';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sauvegarde
+  // ---------------------------------------------------------------------------
+  Future<void> _saveTranscription() async {
+    if (_fullTranscript.trim().isEmpty) return;
+
+    final now = DateTime.now();
+    final defaultTitle =
+        'Transcription ${now.day.toString().padLeft(2, '0')}/'
+        '${now.month.toString().padLeft(2, '0')}/${now.year} '
+        '${now.hour.toString().padLeft(2, '0')}:'
+        '${now.minute.toString().padLeft(2, '0')}';
+
+    final titleController = TextEditingController(text: defaultTitle);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NotitiaTheme.darkBlue,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.5)),
+        ),
+        title: Text(
+          'SAUVEGARDER',
+          style: GoogleFonts.orbitron(
+            fontSize: 16,
+            color: NotitiaTheme.neonPink,
+            letterSpacing: 2,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Donnez un titre à cette transcription :',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: NotitiaTheme.grey,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: titleController,
+              style: GoogleFonts.poppins(
+                color: NotitiaTheme.white,
+                fontSize: 14,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Titre…',
+                hintStyle: GoogleFonts.poppins(color: NotitiaTheme.grey),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: NotitiaTheme.neonPink.withValues(alpha: 0.3),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: NotitiaTheme.neonPink),
+                ),
+                filled: true,
+                fillColor: NotitiaTheme.deepBlue,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'ANNULER',
+              style: GoogleFonts.orbitron(
+                fontSize: 11,
+                color: NotitiaTheme.grey,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: NotitiaTheme.neonPink,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'SAUVEGARDER',
+              style: GoogleFonts.orbitron(
+                fontSize: 11,
+                color: NotitiaTheme.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final transcription = Transcription.create(
+        content: _fullTranscript.trim(),
+        title: titleController.text.trim().isEmpty
+            ? defaultTitle
+            : titleController.text.trim(),
+      );
+      await StorageService.save(transcription);
+
+      setState(() {
+        _fullTranscript = '';
+        _liveText = '';
+      });
+
+      _showSnackBar('Transcription sauvegardée ✓');
+      widget.onTranscriptionSaved?.call();
+    }
+
+    titleController.dispose();
+  }
+
+  // ---------------------------------------------------------------------------
+  // BUILD UI
+  // ---------------------------------------------------------------------------
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          children: [
+            const SizedBox(height: 24),
+            _buildHeader(),
+            const SizedBox(height: 36),
+            _buildSectionTitle(),
+            const SizedBox(height: 20),
+            _buildActiveToggle(),
+            const SizedBox(height: 20),
+            _buildMicButton(),
+            const SizedBox(height: 16),
+            _buildStatusIndicator(),
+            const SizedBox(height: 24),
+            _buildTranscriptionBox(),
+            const SizedBox(height: 20),
+            if (_fullTranscript.isNotEmpty && !_isListening)
+              _buildFinalResult(),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===== HEADER =====
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        Image.asset(
+          'assets/notitia_logo.png',
+          height: 110,
+          width: 110,
+          errorBuilder: (context, error, stackTrace) => Container(
+            height: 110,
+            width: 110,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [NotitiaTheme.neonPink, Colors.blue.shade900],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                'N',
+                style: GoogleFonts.orbitron(
+                  fontSize: 56,
+                  fontWeight: FontWeight.bold,
+                  color: NotitiaTheme.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            'NOTITIA',
+            style: GoogleFonts.orbitron(
+              fontSize: 30,
+              fontWeight: FontWeight.bold,
+              color: NotitiaTheme.white,
+              letterSpacing: 8,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Assistant Mémoire IA',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: NotitiaTheme.grey,
+            letterSpacing: 2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle() {
+    return Text(
+      '[ VOICE TO TEXT ]',
+      style: GoogleFonts.orbitron(
+        fontSize: 13,
+        color: NotitiaTheme.grey,
+        letterSpacing: 4,
+      ),
+    );
+  }
+
+  // ===== TOGGLE ÉCOUTE ACTIVE =====
+  Widget _buildActiveToggle() {
+    final bool showToggle = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+    if (!showToggle) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: _isActiveMode
+            ? NotitiaTheme.neonCyan.withValues(alpha: 0.08)
+            : NotitiaTheme.darkBlue,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: _isActiveMode
+              ? NotitiaTheme.neonCyan.withValues(alpha: 0.5)
+              : NotitiaTheme.neonPink.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _isActiveMode ? Icons.hearing_rounded : Icons.hearing_disabled,
+            color: _isActiveMode ? NotitiaTheme.neonCyan : NotitiaTheme.grey,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ÉCOUTE ACTIVE',
+                  style: GoogleFonts.orbitron(
+                    fontSize: 11,
+                    color: _isActiveMode
+                        ? NotitiaTheme.neonCyan
+                        : NotitiaTheme.grey,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _isActiveMode
+                      ? 'Transcription en arrière-plan'
+                      : 'Continue même écran verrouillé',
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    color: NotitiaTheme.grey.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: _isActiveMode,
+            onChanged: _isListening
+                ? null // Ne pas changer pendant l'écoute
+                : (value) => setState(() => _isActiveMode = value),
+            activeTrackColor: NotitiaTheme.neonCyan.withValues(alpha: 0.5),
+            activeThumbColor: NotitiaTheme.neonCyan,
+            inactiveThumbColor: NotitiaTheme.grey,
+            inactiveTrackColor: NotitiaTheme.grey.withValues(alpha: 0.2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===== BOUTON MICRO =====
+  Widget _buildMicButton() {
+    return ScaleTransition(
+      scale: _pulseAnimation,
+      child: GestureDetector(
+        onTap: _toggleListening,
+        child: Container(
+          width: 130,
+          height: 130,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _isListening
+                ? NotitiaTheme.redRecording
+                : NotitiaTheme.neonPink,
+            boxShadow: [
+              BoxShadow(
+                color:
+                    (_isListening
+                            ? NotitiaTheme.redRecording
+                            : NotitiaTheme.neonPink)
+                        .withValues(alpha: 0.6),
+                blurRadius: 40,
+                spreadRadius: 8,
+              ),
+            ],
+          ),
+          child: Icon(
+            _isListening ? Icons.stop_rounded : Icons.mic_rounded,
+            size: 64,
+            color: NotitiaTheme.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===== INDICATEUR D'ÉTAT =====
+  Widget _buildStatusIndicator() {
+    // État: Amélioration IA en cours
+    if (_isEnhancing) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: NotitiaTheme.neonPink,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'AMÉLIORATION IA EN COURS...',
+            style: GoogleFonts.orbitron(
+              fontSize: 14,
+              color: NotitiaTheme.neonPink,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // État: Écoute en cours
+    if (_isListening) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: NotitiaTheme.redRecording,
+              boxShadow: [
+                BoxShadow(
+                  color: NotitiaTheme.redRecording.withValues(alpha: 0.5),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'ÉCOUTE ${_formatDuration(_listenDuration)}',
+            style: GoogleFonts.orbitron(
+              fontSize: 18,
+              color: NotitiaTheme.redRecording,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Text(
+      _fullTranscript.isEmpty
+          ? 'Appuyez pour dicter'
+          : (_iaCorrectionCount > 0
+                ? 'Amélioré par IA ($_iaCorrectionCount corrections)'
+                : 'Transcription terminée'),
+      style: GoogleFonts.poppins(
+        fontSize: 15,
+        color: _iaCorrectionCount > 0
+            ? NotitiaTheme.neonPink
+            : NotitiaTheme.grey,
+      ),
+    );
+  }
+
+  // ===== BOÎTE DE TRANSCRIPTION EN DIRECT =====
+  Widget _buildTranscriptionBox() {
+    final String displayText;
+    if (_isListening) {
+      final buffer = StringBuffer();
+      if (_fullTranscript.isNotEmpty) buffer.write(_fullTranscript);
+      if (_liveText.isNotEmpty) {
+        if (buffer.isNotEmpty) buffer.write(' ');
+        buffer.write(_liveText);
+      }
+      displayText = buffer.toString();
+    } else {
+      displayText = _fullTranscript;
+    }
+
+    final bool isEmpty = displayText.isEmpty;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      constraints: const BoxConstraints(minHeight: 160),
+      decoration: BoxDecoration(
+        color: NotitiaTheme.deepBlue,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isListening
+              ? NotitiaTheme.neonPink
+              : NotitiaTheme.neonPink.withValues(alpha: 0.25),
+          width: _isListening ? 2 : 1,
+        ),
+        boxShadow: _isListening
+            ? [
+                BoxShadow(
+                  color: NotitiaTheme.neonPink.withValues(alpha: 0.25),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ]
+            : [],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _isListening ? Icons.auto_awesome : Icons.text_fields,
+                color: NotitiaTheme.neonPink,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  _isListening ? 'TRANSCRIPTION EN DIRECT' : 'TRANSCRIPTION',
+                  style: GoogleFonts.orbitron(
+                    fontSize: 10,
+                    color: NotitiaTheme.neonPink,
+                    letterSpacing: 2,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (_isListening && _confidence > 0) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${(_confidence * 100).toStringAsFixed(0)}%',
+                    style: GoogleFonts.orbitron(
+                      fontSize: 10,
+                      color: NotitiaTheme.neonPink,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            isEmpty
+                ? (_isListening
+                      ? 'En attente de parole…'
+                      : 'Le texte transcrit apparaîtra ici')
+                : displayText,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              height: 1.6,
+              color: isEmpty ? NotitiaTheme.grey : NotitiaTheme.white,
+              fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
+            ),
+          ),
+          if (_isListening && isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  3,
+                  (i) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: PulsingDot(index: i),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ===== RÉSULTAT FINAL + BOUTON SAUVEGARDER =====
+  Widget _buildFinalResult() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.check_circle,
+                color: Colors.greenAccent,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'RÉSULTAT FINAL',
+                  style: GoogleFonts.orbitron(
+                    fontSize: 10,
+                    color: Colors.greenAccent,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ),
+              // ── Bouton Sauvegarder ──
+              GestureDetector(
+                onTap: _saveTranscription,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: NotitiaTheme.neonPink,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: NotitiaTheme.neonPink.withValues(alpha: 0.4),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.save_rounded,
+                        color: NotitiaTheme.white,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'SAUVER',
+                        style: GoogleFonts.orbitron(
+                          fontSize: 10,
+                          color: NotitiaTheme.white,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SelectableText(
+            _fullTranscript,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              color: NotitiaTheme.white,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
