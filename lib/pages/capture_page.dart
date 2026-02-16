@@ -204,11 +204,14 @@ class _CapturePageState extends State<CapturePage>
           });
         },
         localeId: 'fr_FR',
+        listenFor: const Duration(seconds: 120),
+        pauseFor: const Duration(seconds: 10),
         listenOptions: stt.SpeechListenOptions(
           listenMode: stt.ListenMode.dictation,
           cancelOnError: false,
           partialResults: true,
           autoPunctuation: true,
+          enableHapticFeedback: true,
         ),
       );
     } catch (e) {
@@ -442,9 +445,6 @@ class _CapturePageState extends State<CapturePage>
             _buildStatusIndicator(),
             const SizedBox(height: 24),
             _buildTranscriptionBox(),
-            const SizedBox(height: 20),
-            if (_fullTranscript.isNotEmpty && !_isListening)
-              _buildFinalResult(),
             const SizedBox(height: 40),
           ],
         ),
@@ -716,6 +716,12 @@ class _CapturePageState extends State<CapturePage>
     }
 
     final bool isEmpty = displayText.isEmpty;
+    final bool showSaveButton = !_isListening && _fullTranscript.isNotEmpty;
+
+    // Couleur d'accent : vert quand terminé avec texte, rose sinon
+    final Color accentColor = showSaveButton
+        ? Colors.greenAccent
+        : NotitiaTheme.neonPink;
 
     return Container(
       width: double.infinity,
@@ -727,7 +733,9 @@ class _CapturePageState extends State<CapturePage>
         border: Border.all(
           color: _isListening
               ? NotitiaTheme.neonPink
-              : NotitiaTheme.neonPink.withValues(alpha: 0.25),
+              : (showSaveButton
+                    ? Colors.greenAccent.withValues(alpha: 0.4)
+                    : NotitiaTheme.neonPink.withValues(alpha: 0.25)),
           width: _isListening ? 2 : 1,
         ),
         boxShadow: _isListening
@@ -746,8 +754,10 @@ class _CapturePageState extends State<CapturePage>
           Row(
             children: [
               Icon(
-                _isListening ? Icons.auto_awesome : Icons.text_fields,
-                color: NotitiaTheme.neonPink,
+                _isListening
+                    ? Icons.auto_awesome
+                    : (showSaveButton ? Icons.check_circle : Icons.text_fields),
+                color: accentColor,
                 size: 16,
               ),
               const SizedBox(width: 8),
@@ -756,7 +766,7 @@ class _CapturePageState extends State<CapturePage>
                   _isListening ? 'TRANSCRIPTION EN DIRECT' : 'TRANSCRIPTION',
                   style: GoogleFonts.orbitron(
                     fontSize: 10,
-                    color: NotitiaTheme.neonPink,
+                    color: accentColor,
                     letterSpacing: 2,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -782,22 +792,73 @@ class _CapturePageState extends State<CapturePage>
                   ),
                 ),
               ],
+              if (showSaveButton) ...[
+                const Spacer(),
+                GestureDetector(
+                  onTap: _saveTranscription,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: NotitiaTheme.neonPink,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: NotitiaTheme.neonPink.withValues(alpha: 0.4),
+                          blurRadius: 10,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.save_rounded,
+                          color: NotitiaTheme.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'SAUVER',
+                          style: GoogleFonts.orbitron(
+                            fontSize: 10,
+                            color: NotitiaTheme.white,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 14),
-          Text(
-            isEmpty
-                ? (_isListening
-                      ? 'En attente de parole…'
-                      : 'Le texte transcrit apparaîtra ici')
-                : displayText,
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              height: 1.6,
-              color: isEmpty ? NotitiaTheme.grey : NotitiaTheme.white,
-              fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
-            ),
-          ),
+          showSaveButton
+              ? SelectableText(
+                  displayText,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    height: 1.6,
+                    color: NotitiaTheme.white,
+                  ),
+                )
+              : Text(
+                  isEmpty
+                      ? (_isListening
+                            ? 'En attente de parole…'
+                            : 'Le texte transcrit apparaîtra ici')
+                      : displayText,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    height: 1.6,
+                    color: isEmpty ? NotitiaTheme.grey : NotitiaTheme.white,
+                    fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
+                  ),
+                ),
           if (_isListening && isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 16),
@@ -812,93 +873,6 @@ class _CapturePageState extends State<CapturePage>
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  // ===== RÉSULTAT FINAL + BOUTON SAUVEGARDER =====
-  Widget _buildFinalResult() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.check_circle,
-                color: Colors.greenAccent,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'RÉSULTAT FINAL',
-                  style: GoogleFonts.orbitron(
-                    fontSize: 10,
-                    color: Colors.greenAccent,
-                    letterSpacing: 2,
-                  ),
-                ),
-              ),
-              // ── Bouton Sauvegarder ──
-              GestureDetector(
-                onTap: _saveTranscription,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: NotitiaTheme.neonPink,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: NotitiaTheme.neonPink.withValues(alpha: 0.4),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.save_rounded,
-                        color: NotitiaTheme.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'SAUVER',
-                        style: GoogleFonts.orbitron(
-                          fontSize: 10,
-                          color: NotitiaTheme.white,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SelectableText(
-            _fullTranscript,
-            style: GoogleFonts.poppins(
-              fontSize: 15,
-              color: NotitiaTheme.white,
-              height: 1.5,
-            ),
-          ),
         ],
       ),
     );

@@ -21,7 +21,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
     <application
-        android:label="Notitia PoC"
+        android:label="Notitia"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

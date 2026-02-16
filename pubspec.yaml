@@ -100,13 +100,14 @@ flutter:
 # Configuration du logo et splash screen
 flutter_launcher_icons:
   image_path: "assets/notitia_logo.png"
-  image_path_android: "assets/notitia_logo.png"
-  image_path_ios: "assets/notitia_logo.png"
-  android:
-    notification_icon: "ic_notification"
-    generate: true
-  ios:
-    generate: true
+  android: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#001a33"
+  adaptive_icon_foreground: "assets/notitia_logo.png"
+  adaptive_icon_round: "assets/notitia_logo.png"
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#001a33"
   windows:
     generate: true
   macos:

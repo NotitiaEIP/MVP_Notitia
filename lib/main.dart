@@ -37,7 +37,7 @@ class NotitiaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Notitia PoC',
+      title: 'Notitia',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         scaffoldBackgroundColor: NotitiaTheme.deepBlue,
