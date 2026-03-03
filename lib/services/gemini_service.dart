@@ -215,7 +215,8 @@ $contextText''';
             final content = candidates[0]['content'] as Map<String, dynamic>?;
             final parts = content?['parts'] as List<dynamic>?;
             if (parts != null && parts.isNotEmpty) {
-              return (parts[0]['text'] as String).trim();
+              final rawText = (parts[0]['text'] as String).trim();
+              return _cleanMarkdown(rawText);
             }
           }
         } else if (response.statusCode == 429) {
@@ -282,7 +283,8 @@ $contextText''';
             final content = candidates[0]['content'] as Map<String, dynamic>?;
             final parts = content?['parts'] as List<dynamic>?;
             if (parts != null && parts.isNotEmpty) {
-              return (parts[0]['text'] as String).trim();
+              final rawText = (parts[0]['text'] as String).trim();
+              return _cleanMarkdown(rawText);
             }
           }
         } else if (response.statusCode == 429) {
@@ -344,6 +346,43 @@ $contextText''';
       debugPrint('[Gemini] API non accessible: $e');
       return false;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // UTILITAIRE — Nettoyage des réponses
+  // ---------------------------------------------------------------------------
+
+  /// Supprime les marqueurs Markdown (**, *, #, etc.) de la réponse
+  static String _cleanMarkdown(String text) {
+    // Supprimer les ** (gras)
+    var result = text.replaceAllMapped(
+      RegExp(r'\*\*(.+?)\*\*'),
+      (m) => m.group(1) ?? '',
+    );
+    // Supprimer les * simples (italique)
+    result = result.replaceAllMapped(
+      RegExp(r'\*(.+?)\*'),
+      (m) => m.group(1) ?? '',
+    );
+    // Supprimer les __ (gras alt)
+    result = result.replaceAllMapped(
+      RegExp(r'__(.+?)__'),
+      (m) => m.group(1) ?? '',
+    );
+    // Supprimer les _ simples (italique alt)
+    result = result.replaceAllMapped(
+      RegExp(r'_(.+?)_'),
+      (m) => m.group(1) ?? '',
+    );
+    // Supprimer les # (titres) au début de lignes
+    result = result.replaceAll(RegExp(r'^#+\s+', multiLine: true), '');
+    // Supprimer les > (citations) au début de lignes
+    result = result.replaceAll(RegExp(r'^>\s+', multiLine: true), '');
+    // Supprimer les listes avec - ou * ou +
+    result = result.replaceAll(RegExp(r'^\s*[-*+]\s+', multiLine: true), '• ');
+    // Supprimer les doubles espaces
+    result = result.replaceAll(RegExp(r'\s{2,}'), ' ');
+    return result.trim();
   }
 
   void dispose() {

@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../services/rag_service.dart';
-import '../services/vector_store_service.dart';
 import '../theme.dart';
 
 class AssistantPage extends StatefulWidget {
@@ -397,61 +396,62 @@ class _AssistantPageState extends State<AssistantPage>
     );
   }
 
-  // ---------------------------------------------------------------------------
   // ÉTAT D'ACCUEIL (pas de messages)
   // ---------------------------------------------------------------------------
   Widget _buildWelcomeState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: NotitiaTheme.neonPink.withValues(alpha: 0.1),
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: NotitiaTheme.neonPink.withValues(alpha: 0.1),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  size: 48,
+                  color: NotitiaTheme.neonPink,
+                ),
               ),
-              child: const Icon(
-                Icons.auto_awesome,
-                size: 48,
-                color: NotitiaTheme.neonPink,
+              const SizedBox(height: 24),
+              Text(
+                'Salut ! Je suis ton assistant mémoire.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: NotitiaTheme.white,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Salut ! Je suis ton assistant mémoire.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: NotitiaTheme.white,
-                fontWeight: FontWeight.w500,
+              const SizedBox(height: 8),
+              Text(
+                'Je connais toutes tes conversations enregistrées. '
+                'Pose-moi une question !',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: NotitiaTheme.grey,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Je connais toutes tes conversations enregistrées. '
-              'Pose-moi une question !',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: NotitiaTheme.grey,
+              const SizedBox(height: 24),
+              // Suggestions de questions
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  _buildSuggestionChip('De quoi a-t-on parlé récemment ?'),
+                  _buildSuggestionChip('Résume mes dernières conversations'),
+                  _buildSuggestionChip('Qu\'a-t-on dit sur le budget ?'),
+                ],
               ),
-            ),
-            const SizedBox(height: 24),
-            // Suggestions de questions
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                _buildSuggestionChip('De quoi a-t-on parlé récemment ?'),
-                _buildSuggestionChip('Résume mes dernières conversations'),
-                _buildSuggestionChip('Qu\'a-t-on dit sur le budget ?'),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -551,53 +551,11 @@ class _AssistantPageState extends State<AssistantPage>
                     ),
                   ),
                 ),
-                // Sources (pour les réponses de l'assistant)
-                if (!isUser &&
-                    message.sources != null &&
-                    message.sources!.isNotEmpty)
-                  _buildSourcesChips(message.sources!),
+                // Sources supprimées
               ],
             ),
           ),
           if (isUser) const SizedBox(width: 8),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSourcesChips(List<VectorSearchResult> sources) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Wrap(
-        spacing: 4,
-        runSpacing: 4,
-        children: [
-          Text(
-            'Sources :',
-            style: GoogleFonts.poppins(fontSize: 10, color: NotitiaTheme.grey),
-          ),
-          ...sources.take(3).map((s) {
-            final title = s.chunk.metadata['title'] ?? '?';
-            final similarity = (s.similarity * 100).toStringAsFixed(0);
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: NotitiaTheme.neonCyan.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: NotitiaTheme.neonCyan.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Text(
-                '$title ($similarity%)',
-                style: GoogleFonts.poppins(
-                  fontSize: 10,
-                  color: NotitiaTheme.neonCyan,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            );
-          }),
         ],
       ),
     );
@@ -721,7 +679,7 @@ class _AssistantPageState extends State<AssistantPage>
                   borderSide: const BorderSide(color: NotitiaTheme.neonPink),
                 ),
                 filled: true,
-                fillColor: NotitiaTheme.deepBlue,
+                fillColor: Colors.transparent,
               ),
             ),
           ),
