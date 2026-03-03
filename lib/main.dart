@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'pages/assistant_page.dart';
 import 'pages/capture_page.dart';
 import 'pages/history_page.dart';
 import 'pages/search_page.dart';
@@ -91,6 +92,7 @@ class _MainNavigationState extends State<MainNavigation> {
           CapturePage(onTranscriptionSaved: _onTranscriptionSaved),
           HistoryPage(refreshNotifier: _refreshNotifier),
           SearchPage(refreshNotifier: _refreshNotifier),
+          AssistantPage(refreshNotifier: _refreshNotifier),
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -114,6 +116,7 @@ class _MainNavigationState extends State<MainNavigation> {
         unselectedItemColor: NotitiaTheme.grey,
         selectedLabelStyle: GoogleFonts.orbitron(fontSize: 10),
         unselectedLabelStyle: GoogleFonts.orbitron(fontSize: 10),
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.mic_rounded),
@@ -126,6 +129,10 @@ class _MainNavigationState extends State<MainNavigation> {
           BottomNavigationBarItem(
             icon: Icon(Icons.search_rounded),
             label: 'RECHERCHE',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.auto_awesome),
+            label: 'ASSISTANT',
           ),
         ],
       ),

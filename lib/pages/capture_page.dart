@@ -14,6 +14,7 @@ import '../models/transcription.dart';
 import '../services/deepgram_service.dart';
 import '../services/foreground_service.dart';
 import '../services/mistral_service.dart';
+import '../services/rag_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../widgets/pulsing_dot.dart';
@@ -514,6 +515,9 @@ class _CapturePageState extends State<CapturePage>
             : titleController.text.trim(),
       );
       await StorageService.save(transcription);
+
+      // Indexation RAG automatique (en arrière-plan)
+      RAGService.instance.indexSingleTranscription(transcription);
 
       setState(() {
         _fullTranscript = '';
