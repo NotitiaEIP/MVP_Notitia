@@ -88,7 +88,7 @@ def health():
     return jsonify({
         "status": "ok",
         "service": "Notitia STT API",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "timestamp": datetime.now().isoformat(),
         "features": {
             "whisper": True,
@@ -444,9 +444,9 @@ def main():
     
     print(f"""
 ╔══════════════════════════════════════════════════════════════╗
-║           🎤 Notitia STT API Server v2.0                     ║
+║           🎤 Notitia STT API Server v2.1                     ║
 ╠══════════════════════════════════════════════════════════════╣
-║  Endpoints Standard:                                         ║
+║  Endpoints Whisper (Local):                                  ║
 ║    GET  /health             - État du serveur                ║
 ║    GET  /models             - Liste des modèles              ║
 ║    POST /transcribe/file    - Transcription fichier          ║

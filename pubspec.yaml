@@ -42,6 +42,10 @@ dependencies:
   
   # IA Integration (Whisper + Mistral)
   http: ^1.2.0
+  
+  # Deepgram Nova-3 (Transcription temps réel)
+  web_socket_channel: ^3.0.2
+  record: ^6.0.0
 
 dev_dependencies:
   flutter_test:

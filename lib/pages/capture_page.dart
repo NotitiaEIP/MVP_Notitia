@@ -11,11 +11,18 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../models/transcription.dart';
+import '../services/deepgram_service.dart';
 import '../services/foreground_service.dart';
 import '../services/mistral_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../widgets/pulsing_dot.dart';
+
+/// Choix du moteur de transcription
+enum STTEngine {
+  native,    // speech_to_text (Google/Apple natif)
+  deepgram,  // Deepgram Nova-3 (cloud, haute précision)
+}
 
 class CapturePage extends StatefulWidget {
   final VoidCallback? onTranscriptionSaved;
@@ -28,10 +35,25 @@ class CapturePage extends StatefulWidget {
 class _CapturePageState extends State<CapturePage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   // ---------------------------------------------------------------------------
-  // Speech-to-Text
+  // Choix du moteur STT
+  // ---------------------------------------------------------------------------
+  STTEngine _sttEngine = STTEngine.deepgram; // Par défaut: Deepgram Nova-3
+  
+  // ---------------------------------------------------------------------------
+  // Speech-to-Text (Natif)
   // ---------------------------------------------------------------------------
   final stt.SpeechToText _speechToText = stt.SpeechToText();
   bool _speechEnabled = false;
+  
+  // ---------------------------------------------------------------------------
+  // Deepgram Nova-3
+  // ---------------------------------------------------------------------------
+  late DeepgramService _deepgram;
+  bool _deepgramConnected = false;
+  
+  // ---------------------------------------------------------------------------
+  // État commun
+  // ---------------------------------------------------------------------------
   bool _isListening = false;
   String _liveText = '';
   String _fullTranscript = '';
@@ -61,6 +83,7 @@ class _CapturePageState extends State<CapturePage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initSpeech();
+    _initDeepgram();
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -76,17 +99,60 @@ class _CapturePageState extends State<CapturePage>
     });
   }
 
+  /// Initialise le service Deepgram Nova-3
+  void _initDeepgram() {
+    _deepgram = DeepgramService(
+      language: 'fr',
+      model: 'nova-3',
+      punctuate: true,
+      smartFormat: true,
+      interimResults: true,
+    );
+    
+    // Callbacks Deepgram
+    _deepgram.onTranscript = (text, isFinal) {
+      if (!mounted) return;
+      setState(() {
+        if (isFinal) {
+          if (_fullTranscript.isNotEmpty) _fullTranscript += ' ';
+          _fullTranscript += text;
+          _liveText = '';
+        } else {
+          _liveText = text;
+        }
+        _confidence = _deepgram.confidence;
+      });
+    };
+    
+    _deepgram.onError = (error) {
+      debugPrint('❌ Deepgram error: $error');
+      _showSnackBar('Erreur Deepgram: $error');
+    };
+    
+    _deepgram.onConnected = () {
+      if (mounted) setState(() => _deepgramConnected = true);
+      debugPrint('✅ Deepgram connecté');
+    };
+    
+    _deepgram.onDisconnected = () {
+      if (mounted) setState(() => _deepgramConnected = false);
+      debugPrint('🔌 Deepgram déconnecté');
+    };
+  }
+
   Future<void> _initSpeech() async {
     _speechEnabled = await _speechToText.initialize(
       onError: (error) {
         debugPrint('Speech error: ${error.errorMsg}');
-        if (_isListening && error.errorMsg == 'error_speech_timeout') {
+        if (_isListening && _sttEngine == STTEngine.native && 
+            error.errorMsg == 'error_speech_timeout') {
           _restartListening();
         }
       },
       onStatus: (status) {
         debugPrint('Speech status: $status');
-        if (_isListening && (status == 'done' || status == 'notListening')) {
+        if (_isListening && _sttEngine == STTEngine.native && 
+            (status == 'done' || status == 'notListening')) {
           _restartListening();
         }
       },
@@ -101,6 +167,7 @@ class _CapturePageState extends State<CapturePage>
     _durationTimer?.cancel();
     _pulseController.dispose();
     _speechToText.stop();
+    _deepgram.dispose();
     if (_isActiveMode) ActiveListeningService.stop();
     super.dispose();
   }
@@ -152,8 +219,10 @@ class _CapturePageState extends State<CapturePage>
 
   Future<void> _startListening() async {
     if (!await _requestMicPermission()) return;
-    if (!_speechEnabled) {
-      _showSnackBar('Service de reconnaissance vocale non disponible');
+    
+    // Vérifier la disponibilité selon le moteur
+    if (_sttEngine == STTEngine.native && !_speechEnabled) {
+      _showSnackBar('Service de reconnaissance vocale natif non disponible');
       return;
     }
 
@@ -188,6 +257,31 @@ class _CapturePageState extends State<CapturePage>
   }
 
   Future<void> _doListen() async {
+    if (_sttEngine == STTEngine.deepgram) {
+      // 🎙️ Deepgram Nova-3
+      await _doListenDeepgram();
+    } else {
+      // 📱 Speech-to-Text natif
+      await _doListenNative();
+    }
+  }
+  
+  /// Écoute avec Deepgram Nova-3
+  Future<void> _doListenDeepgram() async {
+    try {
+      final success = await _deepgram.startListening();
+      if (!success) {
+        _showSnackBar('Impossible de démarrer Deepgram');
+        await _stopListening();
+      }
+    } catch (e) {
+      debugPrint('❌ Deepgram listen error: $e');
+      _showSnackBar('Erreur Deepgram: $e');
+    }
+  }
+  
+  /// Écoute avec le moteur natif (Google/Apple)
+  Future<void> _doListenNative() async {
     try {
       await _speechToText.listen(
         onResult: (result) {
@@ -221,12 +315,22 @@ class _CapturePageState extends State<CapturePage>
 
   Future<void> _restartListening() async {
     if (!_isListening || !mounted) return;
+    // Ne pas redémarrer si on utilise Deepgram (gère son propre flux)
+    if (_sttEngine == STTEngine.deepgram) return;
     await Future.delayed(const Duration(milliseconds: 200));
     if (_isListening && mounted) await _doListen();
   }
 
   Future<void> _stopListening() async {
-    await _speechToText.stop();
+    // Arrêter selon le moteur
+    if (_sttEngine == STTEngine.deepgram) {
+      await _deepgram.stopListening();
+      // Récupérer le transcript final depuis Deepgram
+      _fullTranscript = _deepgram.fullTranscript;
+    } else {
+      await _speechToText.stop();
+    }
+    
     _durationTimer?.cancel();
     _pulseController.stop();
     _pulseController.reset();
@@ -437,7 +541,9 @@ class _CapturePageState extends State<CapturePage>
             _buildHeader(),
             const SizedBox(height: 36),
             _buildSectionTitle(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            _buildEngineSelector(),
+            const SizedBox(height: 12),
             _buildActiveToggle(),
             const SizedBox(height: 20),
             _buildMicButton(),
@@ -448,6 +554,127 @@ class _CapturePageState extends State<CapturePage>
             const SizedBox(height: 40),
           ],
         ),
+      ),
+    );
+  }
+
+  // ===== SÉLECTEUR MOTEUR STT =====
+  Widget _buildEngineSelector() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: NotitiaTheme.darkBlue.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Bouton Deepgram Nova-3
+          Expanded(
+            child: GestureDetector(
+              onTap: _isListening
+                  ? null
+                  : () => setState(() => _sttEngine = STTEngine.deepgram),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: _sttEngine == STTEngine.deepgram
+                      ? NotitiaTheme.neonPink.withValues(alpha: 0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  border: _sttEngine == STTEngine.deepgram
+                      ? Border.all(color: NotitiaTheme.neonPink.withValues(alpha: 0.5))
+                      : null,
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.cloud_outlined,
+                      size: 20,
+                      color: _sttEngine == STTEngine.deepgram
+                          ? NotitiaTheme.neonPink
+                          : NotitiaTheme.grey,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'DEEPGRAM',
+                      style: GoogleFonts.orbitron(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: _sttEngine == STTEngine.deepgram
+                            ? NotitiaTheme.neonPink
+                            : NotitiaTheme.grey,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    Text(
+                      'Nova-3 • Cloud',
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        color: NotitiaTheme.grey.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Bouton Natif
+          Expanded(
+            child: GestureDetector(
+              onTap: _isListening
+                  ? null
+                  : () => setState(() => _sttEngine = STTEngine.native),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: _sttEngine == STTEngine.native
+                      ? NotitiaTheme.neonCyan.withValues(alpha: 0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  border: _sttEngine == STTEngine.native
+                      ? Border.all(color: NotitiaTheme.neonCyan.withValues(alpha: 0.5))
+                      : null,
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.phone_android_outlined,
+                      size: 20,
+                      color: _sttEngine == STTEngine.native
+                          ? NotitiaTheme.neonCyan
+                          : NotitiaTheme.grey,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'NATIF',
+                      style: GoogleFonts.orbitron(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: _sttEngine == STTEngine.native
+                            ? NotitiaTheme.neonCyan
+                            : NotitiaTheme.grey,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    Text(
+                      Platform.isAndroid ? 'Google • Local' : 'Apple • Local',
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        color: NotitiaTheme.grey.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -654,31 +881,51 @@ class _CapturePageState extends State<CapturePage>
 
     // État: Écoute en cours
     if (_isListening) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      final engineName = _sttEngine == STTEngine.deepgram 
+          ? 'NOVA-3' 
+          : 'NATIF';
+      final engineColor = _sttEngine == STTEngine.deepgram 
+          ? NotitiaTheme.neonPink 
+          : NotitiaTheme.neonCyan;
+      
+      return Column(
         children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: NotitiaTheme.redRecording,
-              boxShadow: [
-                BoxShadow(
-                  color: NotitiaTheme.redRecording.withValues(alpha: 0.5),
-                  blurRadius: 10,
-                  spreadRadius: 2,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: NotitiaTheme.redRecording,
+                  boxShadow: [
+                    BoxShadow(
+                      color: NotitiaTheme.redRecording.withValues(alpha: 0.5),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'ÉCOUTE ${_formatDuration(_listenDuration)}',
+                style: GoogleFonts.orbitron(
+                  fontSize: 18,
+                  color: NotitiaTheme.redRecording,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
+          const SizedBox(height: 6),
           Text(
-            'ÉCOUTE ${_formatDuration(_listenDuration)}',
+            '[ $engineName ]',
             style: GoogleFonts.orbitron(
-              fontSize: 18,
-              color: NotitiaTheme.redRecording,
-              fontWeight: FontWeight.bold,
+              fontSize: 10,
+              color: engineColor,
+              letterSpacing: 2,
             ),
           ),
         ],
