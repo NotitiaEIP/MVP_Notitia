@@ -1,4 +1,4 @@
-package com.example.notitia_poc
+package com.example.notitia
 
 import io.flutter.embedding.android.FlutterActivity
 

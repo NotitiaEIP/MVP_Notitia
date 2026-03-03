@@ -1,6 +1,6 @@
 {
-    "name": "notitia_poc",
-    "short_name": "notitia_poc",
+    "name": "notitia",
+    "short_name": "notitia",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#001a33",

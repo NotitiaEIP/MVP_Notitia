@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:notitia_poc/theme.dart';
+import 'package:notitia/theme.dart';
 
 import 'capture_page.dart';
 

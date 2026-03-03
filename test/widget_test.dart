@@ -4,7 +4,7 @@
 // =============================================================================
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:notitia_poc/main.dart';
+import 'package:notitia/main.dart';
 
 void main() {
   testWidgets('Notitia app smoke test', (WidgetTester tester) async {
