@@ -12,6 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'pages/assistant_page.dart';
 import 'pages/capture_page.dart';
 import 'pages/history_page.dart';
+import 'pages/mind_map_page.dart';
 import 'pages/search_page.dart';
 import 'pages/splash_screen.dart';
 import 'services/foreground_service.dart';
@@ -83,16 +84,26 @@ class _MainNavigationState extends State<MainNavigation> {
     super.dispose();
   }
 
+  void _onTabChanged(int index) {
+    setState(() => _currentIndex = index);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
+      body: Stack(
         children: [
-          CapturePage(onTranscriptionSaved: _onTranscriptionSaved),
-          HistoryPage(refreshNotifier: _refreshNotifier),
-          SearchPage(refreshNotifier: _refreshNotifier),
-          AssistantPage(refreshNotifier: _refreshNotifier),
+          // Contenu principal
+          IndexedStack(
+            index: _currentIndex,
+            children: [
+              CapturePage(onTranscriptionSaved: _onTranscriptionSaved),
+              HistoryPage(refreshNotifier: _refreshNotifier),
+              MindMapPage(refreshNotifier: _refreshNotifier),
+              SearchPage(refreshNotifier: _refreshNotifier),
+              AssistantPage(refreshNotifier: _refreshNotifier),
+            ],
+          ),
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -109,7 +120,7 @@ class _MainNavigationState extends State<MainNavigation> {
       ),
       child: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: _onTabChanged,
         backgroundColor: Colors.transparent,
         elevation: 0,
         selectedItemColor: NotitiaTheme.neonPink,
@@ -125,6 +136,10 @@ class _MainNavigationState extends State<MainNavigation> {
           BottomNavigationBarItem(
             icon: Icon(Icons.history_rounded),
             label: 'HISTORIQUE',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_tree_rounded),
+            label: 'MIND MAP',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.search_rounded),

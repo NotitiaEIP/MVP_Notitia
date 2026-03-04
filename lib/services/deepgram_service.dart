@@ -24,7 +24,7 @@ class DeepgramService {
   // ---------------------------------------------------------------------------
   
   /// Clé API Deepgram (à mettre en variable d'environnement en production)
-  static const String _apiKey = 'bba474908eadfb71cbde0c343d4babdf18e9d9ec';
+  static const String _apiKey = 'f7a04f3710a4b823fc325c44cae2c39b52a007e7';
   
   /// URL WebSocket Deepgram
   static const String _wsBaseUrl = 'wss://api.deepgram.com/v1/listen';
@@ -210,24 +210,26 @@ class DeepgramService {
     
     debugPrint('🔌 Deepgram: Connexion à $wsUrl');
     
-    // Créer la connexion WebSocket avec l'authentification
-    _channel = WebSocketChannel.connect(
-      Uri.parse(wsUrl),
-      protocols: ['token', _apiKey],
-    );
-    
-    // Alternative: Header Authorization (si protocols ne fonctionne pas)
-    // On utilise IOWebSocketChannel pour pouvoir passer des headers
-    if (!kIsWeb) {
-      try {
+    // Créer la connexion WebSocket avec l'authentification via Header
+    // Deepgram requiert le header Authorization: Token <api_key>
+    try {
+      if (!kIsWeb) {
+        // Mobile/Desktop: utiliser IOWebSocketChannel avec headers
         final socket = await WebSocket.connect(
           wsUrl,
           headers: {'Authorization': 'Token $_apiKey'},
         );
         _channel = IOWebSocketChannel(socket);
-      } catch (e) {
-        debugPrint('⚠️ Fallback WebSocket connection: $e');
+        debugPrint('✅ Deepgram: WebSocket connecté (IOWebSocketChannel)');
+      } else {
+        // Web: utiliser WebSocketChannel standard (limité, pas de headers custom)
+        // Note: Sur web, l'auth par header n'est pas supportée
+        _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+        debugPrint('⚠️ Deepgram: WebSocket web (auth limitée)');
       }
+    } catch (e) {
+      debugPrint('❌ Deepgram WebSocket error: $e');
+      throw Exception('Erreur WebSocket: $e');
     }
     
     // Écouter les messages entrants
@@ -238,7 +240,6 @@ class DeepgramService {
     );
     
     onConnected?.call();
-    debugPrint('✅ Deepgram: WebSocket connecté');
   }
   
   void _onMessage(dynamic message) {

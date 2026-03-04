@@ -57,7 +57,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.3.8
 
 # For information on the generic Dart part of this file, see the
@@ -74,6 +74,7 @@ flutter:
   # Assets Notitia
   assets:
     - assets/
+    - assets/mascotte/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
