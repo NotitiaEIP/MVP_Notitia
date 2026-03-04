@@ -80,6 +80,7 @@ class MindMapNode {
   final String id;
   final String label;
   final String? description;
+  final String? sourceText; // Extrait exact de la transcription
   final MindMapNodeType type;
   final List<String> tags;
   final int priority; // 1-5, 5 = très important
@@ -93,6 +94,7 @@ class MindMapNode {
     required this.id,
     required this.label,
     this.description,
+    this.sourceText,
     required this.type,
     this.tags = const [],
     this.priority = 3,
@@ -106,6 +108,7 @@ class MindMapNode {
       id: json['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
       label: json['label'] as String? ?? '',
       description: json['description'] as String?,
+      sourceText: json['sourceText'] as String?,
       type: _parseNodeType(json['type'] as String?),
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
       priority: json['priority'] as int? ?? 3,
@@ -119,6 +122,7 @@ class MindMapNode {
     'id': id,
     'label': label,
     'description': description,
+    'sourceText': sourceText,
     'type': type.name,
     'tags': tags,
     'priority': priority,
