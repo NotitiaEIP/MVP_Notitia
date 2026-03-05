@@ -8,12 +8,20 @@ import 'package:flutter/material.dart';
 import '../models/mind_map.dart';
 import '../theme.dart';
 
+/// Mode d'affichage de la Mind Map
+enum MindMapViewMode {
+  radial, // Vue circulaire/araignée (défaut)
+  organigramme, // Vue arbre top-down
+  horizontal, // Vue flux gauche→droite
+}
+
 /// Widget principal pour afficher une Mind Map interactive
 class MindMapWidget extends StatefulWidget {
   final MindMap mindMap;
   final Function(MindMapNode)? onNodeTap;
   final bool showLabels;
   final bool animateOnLoad;
+  final MindMapViewMode viewMode;
 
   const MindMapWidget({
     super.key,
@@ -21,6 +29,7 @@ class MindMapWidget extends StatefulWidget {
     this.onNodeTap,
     this.showLabels = true,
     this.animateOnLoad = true,
+    this.viewMode = MindMapViewMode.radial,
   });
 
   @override
@@ -75,7 +84,8 @@ class _MindMapWidgetState extends State<MindMapWidget>
   @override
   void didUpdateWidget(MindMapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.mindMap != widget.mindMap) {
+    if (oldWidget.mindMap != widget.mindMap ||
+        oldWidget.viewMode != widget.viewMode) {
       _calculateLayout();
       if (widget.animateOnLoad) {
         _animController.reset();
@@ -92,14 +102,33 @@ class _MindMapWidgetState extends State<MindMapWidget>
     _nodes.clear();
     _connections.clear();
 
-    _layoutRadial(
-      widget.mindMap.root,
-      _canvasCenter,
-      _canvasCenter,
-      0,
-      2 * math.pi,
-      0,
-    );
+    switch (widget.viewMode) {
+      case MindMapViewMode.radial:
+        _layoutRadial(
+          widget.mindMap.root,
+          _canvasCenter,
+          _canvasCenter,
+          0,
+          2 * math.pi,
+          0,
+        );
+      case MindMapViewMode.organigramme:
+        final subtreeWidth = _measureSubtreeWidth(widget.mindMap.root);
+        _layoutOrganigramme(
+          widget.mindMap.root,
+          _canvasCenter - subtreeWidth / 2,
+          _canvasCenter - 200,
+          0,
+        );
+      case MindMapViewMode.horizontal:
+        final subtreeHeight = _measureSubtreeHeight(widget.mindMap.root);
+        _layoutHorizontal(
+          widget.mindMap.root,
+          _canvasCenter - 400,
+          _canvasCenter - subtreeHeight / 2,
+          0,
+        );
+    }
 
     setState(() {});
 
@@ -195,6 +224,108 @@ class _MindMapWidgetState extends State<MindMapWidget>
         depth + 1,
       );
     }
+  }
+
+  // ===========================================================================
+  // Layout Organigramme (top → down)
+  // ===========================================================================
+  static const double _orgaNodeSpacingX = 160.0;
+  static const double _orgaLevelSpacingY = 180.0;
+
+  double _measureSubtreeWidth(MindMapNode node) {
+    if (node.children.isEmpty) return _orgaNodeSpacingX;
+    double total = 0;
+    for (final child in node.children) {
+      total += _measureSubtreeWidth(child);
+    }
+    return math.max(total, _orgaNodeSpacingX);
+  }
+
+  double _layoutOrganigramme(
+    MindMapNode node,
+    double leftX,
+    double y,
+    int depth,
+  ) {
+    final subtreeW = _measureSubtreeWidth(node);
+    final nodeX = leftX + subtreeW / 2;
+    final nodeY = y;
+
+    _nodes.add(_PositionedNode(node: node, x: nodeX, y: nodeY, depth: depth));
+
+    if (node.children.isEmpty) return subtreeW;
+
+    double childLeft = leftX;
+    final childY = y + _orgaLevelSpacingY;
+
+    for (final child in node.children) {
+      final childW = _measureSubtreeWidth(child);
+      _layoutOrganigramme(child, childLeft, childY, depth + 1);
+
+      // Connexion parent → enfant
+      final childNode = _nodes.lastWhere((n) => n.node == child);
+      _connections.add(
+        _Connection(
+          fromX: nodeX,
+          fromY: nodeY,
+          toX: childNode.x,
+          toY: childNode.y,
+          fromNode: node,
+          toNode: child,
+        ),
+      );
+
+      childLeft += childW;
+    }
+    return subtreeW;
+  }
+
+  // ===========================================================================
+  // Layout Horizontal (left → right)
+  // ===========================================================================
+  static const double _horizLevelSpacingX = 250.0;
+  static const double _horizNodeSpacingY = 100.0;
+
+  double _measureSubtreeHeight(MindMapNode node) {
+    if (node.children.isEmpty) return _horizNodeSpacingY;
+    double total = 0;
+    for (final child in node.children) {
+      total += _measureSubtreeHeight(child);
+    }
+    return math.max(total, _horizNodeSpacingY);
+  }
+
+  double _layoutHorizontal(MindMapNode node, double x, double topY, int depth) {
+    final subtreeH = _measureSubtreeHeight(node);
+    final nodeX = x;
+    final nodeY = topY + subtreeH / 2;
+
+    _nodes.add(_PositionedNode(node: node, x: nodeX, y: nodeY, depth: depth));
+
+    if (node.children.isEmpty) return subtreeH;
+
+    double childTop = topY;
+    final childX = x + _horizLevelSpacingX;
+
+    for (final child in node.children) {
+      final childH = _measureSubtreeHeight(child);
+      _layoutHorizontal(child, childX, childTop, depth + 1);
+
+      final childNode = _nodes.lastWhere((n) => n.node == child);
+      _connections.add(
+        _Connection(
+          fromX: nodeX,
+          fromY: nodeY,
+          toX: childNode.x,
+          toY: childNode.y,
+          fromNode: node,
+          toNode: child,
+        ),
+      );
+
+      childTop += childH;
+    }
+    return subtreeH;
   }
 
   @override

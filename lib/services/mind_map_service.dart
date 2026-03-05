@@ -101,7 +101,8 @@ Extraire TOUTES les informations importantes de la transcription:
 - Mind map avec moins de 15 nœuds
 - Informations inventées non présentes dans le texte
 - Résumés trop vagues
-- Nœuds sans sourceText (sauf la racine si le sujet est implicite)''';
+- Nœuds sans sourceText (sauf la racine si le sujet est implicite)
+- Caractères spéciaux de contrôle (tabs, retours chariot) dans les strings JSON''';
 
   // ---------------------------------------------------------------------------
   // Gemini — Configuration (gratuit)
@@ -156,7 +157,8 @@ root, topic, subtopic, idea, action, question, decision, person, date, location
 - Vocabulaire EXACT de la transcription
 - Minimum 10 nœuds
 - Labels INFORMATIFS (pas vagues)
-- Réponds UNIQUEMENT avec le JSON, rien d'autre''';
+- Réponds UNIQUEMENT avec le JSON, rien d'autre
+- PAS de caractères de contrôle (tabs, retours chariot) dans les strings''';
 
   // ---------------------------------------------------------------------------
   // API Publique
@@ -167,15 +169,29 @@ root, topic, subtopic, idea, action, question, decision, person, date, location
     Transcription transcription, {
     MindMapEngine engine = MindMapEngine.claude,
   }) async {
-    if (transcription.content.trim().isEmpty) {
-      return MindMapResult.error('La transcription est vide.');
+    return generateFromTranscriptions([transcription], engine: engine);
+  }
+
+  /// Génère une mind map à partir de PLUSIEURS transcriptions
+  Future<MindMapResult> generateFromTranscriptions(
+    List<Transcription> transcriptions, {
+    MindMapEngine engine = MindMapEngine.claude,
+  }) async {
+    if (transcriptions.isEmpty) {
+      return MindMapResult.error('Aucune transcription fournie.');
+    }
+    final nonEmpty = transcriptions
+        .where((t) => t.content.trim().isNotEmpty)
+        .toList();
+    if (nonEmpty.isEmpty) {
+      return MindMapResult.error('Toutes les transcriptions sont vides.');
     }
 
     switch (engine) {
       case MindMapEngine.claude:
-        return _generateWithClaude(transcription);
+        return _generateWithClaude(nonEmpty);
       case MindMapEngine.gemini:
-        return _generateWithGemini(transcription);
+        return _generateWithGemini(nonEmpty);
     }
   }
 
@@ -195,34 +211,43 @@ root, topic, subtopic, idea, action, question, decision, person, date, location
   // ---------------------------------------------------------------------------
   // Claude (Premium) — Mind map riche avec sourceText
   // ---------------------------------------------------------------------------
-  Future<MindMapResult> _generateWithClaude(Transcription transcription) async {
+  Future<MindMapResult> _generateWithClaude(
+    List<Transcription> transcriptions,
+  ) async {
     if (!_claude.isConfigured) {
       return MindMapResult.error('Clé API Claude non configurée.');
     }
 
+    final titles = transcriptions.map((t) => t.title).join(', ');
     debugPrint(
-      '🧠 MindMap [Claude Premium]: Génération pour "${transcription.title}"...',
+      '🧠 MindMap [Claude Premium]: Génération pour $titles (${transcriptions.length} source(s))...',
     );
 
+    final transcriptionBlocks = transcriptions
+        .map(
+          (t) =>
+              '''
+### ${t.title} (${t.formattedDate})
+---
+${t.content}
+---''',
+        )
+        .join('\n\n');
+
+    final plural = transcriptions.length > 1;
     final userPrompt =
-        '''Analyse cette transcription et génère une mind map structurée.
+        '''Analyse ${plural ? 'ces ${transcriptions.length} transcriptions' : 'cette transcription'} et génère une mind map structurée${plural ? ' qui synthétise l\'ensemble des sources' : ''}.
 
-## TRANSCRIPTION
+## ${plural ? 'TRANSCRIPTIONS' : 'TRANSCRIPTION'}
+$transcriptionBlocks
 
-Titre: ${transcription.title}
-Date: ${transcription.formattedDate}
-
----
-${transcription.content}
----
-
-Génère la mind map en JSON selon le format spécifié.''';
+Génère la mind map en JSON selon le format spécifié.${plural ? ' Regroupe les thèmes communs et mentionne les différences entre les sources.' : ''}''';
 
     try {
       final response = await _claude.generateJson(
         prompt: userPrompt,
         systemPrompt: _systemPrompt,
-        maxTokens: 4096,
+        maxTokens: 8192,
       );
 
       if (!response.success) {
@@ -240,8 +265,8 @@ Génère la mind map en JSON selon le format spécifié.''';
 
       final mindMap = MindMap(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: jsonData['title'] as String? ?? transcription.title,
-        sourceTranscriptionId: transcription.id,
+        title: jsonData['title'] as String? ?? transcriptions.first.title,
+        sourceTranscriptionIds: transcriptions.map((t) => t.id).toList(),
         createdAt: DateTime.now(),
         root: MindMapNode.fromJson(jsonData['root'] as Map<String, dynamic>),
         metadata: {
@@ -249,6 +274,7 @@ Génère la mind map en JSON selon le format spécifié.''';
           'engine': 'claude',
           'inputTokens': response.inputTokens,
           'outputTokens': response.outputTokens,
+          'sourceCount': transcriptions.length,
         },
       );
 
@@ -265,22 +291,32 @@ Génère la mind map en JSON selon le format spécifié.''';
   // ---------------------------------------------------------------------------
   // Gemini (Gratuit) — Mind map plus simple, sans sourceText
   // ---------------------------------------------------------------------------
-  Future<MindMapResult> _generateWithGemini(Transcription transcription) async {
+  Future<MindMapResult> _generateWithGemini(
+    List<Transcription> transcriptions,
+  ) async {
+    final titles = transcriptions.map((t) => t.title).join(', ');
     debugPrint(
-      '🧠 MindMap [Gemini Gratuit]: Génération pour "${transcription.title}"...',
+      '🧠 MindMap [Gemini Gratuit]: Génération pour $titles (${transcriptions.length} source(s))...',
     );
 
+    final transcriptionBlocks = transcriptions
+        .map(
+          (t) =>
+              '''
+Titre: ${t.title}
+Date: ${t.formattedDate}
+---
+${t.content}
+---''',
+        )
+        .join('\n\n');
+
+    final plural = transcriptions.length > 1;
     final userPrompt =
-        '''Analyse cette transcription et génère une mind map structurée en JSON.
+        '''Analyse ${plural ? 'ces ${transcriptions.length} transcriptions' : 'cette transcription'} et génère une mind map structurée en JSON.
+$transcriptionBlocks
 
-Titre: ${transcription.title}
-Date: ${transcription.formattedDate}
-
----
-${transcription.content}
----
-
-Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.''';
+Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.${plural ? ' Regroupe les thèmes communs.' : ''}''';
 
     try {
       final response = await _httpClient
@@ -303,7 +339,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.''';
               ],
               'generationConfig': {
                 'temperature': 0.4,
-                'maxOutputTokens': 4096,
+                'maxOutputTokens': 8192,
                 'topP': 0.9,
               },
             }),
@@ -331,11 +367,15 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.''';
 
         final mindMap = MindMap(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
-          title: jsonData['title'] as String? ?? transcription.title,
-          sourceTranscriptionId: transcription.id,
+          title: jsonData['title'] as String? ?? transcriptions.first.title,
+          sourceTranscriptionIds: transcriptions.map((t) => t.id).toList(),
           createdAt: DateTime.now(),
           root: MindMapNode.fromJson(jsonData['root'] as Map<String, dynamic>),
-          metadata: {'summary': jsonData['summary'], 'engine': 'gemini'},
+          metadata: {
+            'summary': jsonData['summary'],
+            'engine': 'gemini',
+            'sourceCount': transcriptions.length,
+          },
         );
 
         debugPrint(
@@ -379,13 +419,165 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.''';
 
       cleaned = cleaned.trim();
 
-      // Parser le JSON
-      return jsonDecode(cleaned) as Map<String, dynamic>;
+      // Sanitiser les caractères de contrôle dans les valeurs JSON
+      // (tabs, retours chariot, etc. que l'IA peut insérer dans sourceText)
+      cleaned = _sanitizeJsonControlChars(cleaned);
+
+      // Tenter le parsing
+      try {
+        return jsonDecode(cleaned) as Map<String, dynamic>;
+      } on FormatException catch (e) {
+        // Si JSON tronqué ("Unexpected end of input"), tenter de réparer
+        if (e.toString().contains('end of input') ||
+            e.toString().contains('Unexpected')) {
+          debugPrint('⚠️ MindMap: JSON tronqué, tentative de réparation...');
+          final repaired = _repairTruncatedJson(cleaned);
+          if (repaired != null) {
+            return jsonDecode(repaired) as Map<String, dynamic>;
+          }
+        }
+        rethrow;
+      }
     } catch (e) {
       debugPrint('⚠️ MindMap: Erreur parsing JSON - $e');
       debugPrint(
         'Contenu reçu: ${content.substring(0, content.length > 500 ? 500 : content.length)}...',
       );
+      return null;
+    }
+  }
+
+  /// Remplace les caractères de contrôle (tab, CR, etc.) DANS les strings JSON
+  /// par des espaces, sans casser la structure JSON.
+  String _sanitizeJsonControlChars(String jsonStr) {
+    final buf = StringBuffer();
+    bool inString = false;
+    bool escaped = false;
+
+    for (int i = 0; i < jsonStr.length; i++) {
+      final char = jsonStr[i];
+      final code = jsonStr.codeUnitAt(i);
+
+      if (escaped) {
+        buf.write(char);
+        escaped = false;
+        continue;
+      }
+
+      if (char == '\\' && inString) {
+        buf.write(char);
+        escaped = true;
+        continue;
+      }
+
+      if (char == '"') {
+        inString = !inString;
+        buf.write(char);
+        continue;
+      }
+
+      if (inString && code < 0x20) {
+        // Caractère de contrôle dans une string → remplacer par espace
+        buf.write(' ');
+      } else {
+        buf.write(char);
+      }
+    }
+    return buf.toString();
+  }
+
+  /// Tente de fermer un JSON tronqué en trouvant le dernier point de coupure
+  /// valide (après un } ou ] complet) puis en fermant les délimiteurs ouverts.
+  String? _repairTruncatedJson(String json) {
+    try {
+      // Stratégie : trouver la dernière position où on a un } ou ] valide
+      // (pas dans une string), couper là, puis fermer ce qui reste ouvert.
+
+      // D'abord, trouver tous les indices de } et ] hors string
+      final closingPositions = <int>[];
+      bool inStr = false;
+      bool esc = false;
+
+      for (int i = 0; i < json.length; i++) {
+        final c = json[i];
+        if (esc) {
+          esc = false;
+          continue;
+        }
+        if (c == '\\' && inStr) {
+          esc = true;
+          continue;
+        }
+        if (c == '"') {
+          inStr = !inStr;
+          continue;
+        }
+        if (inStr) continue;
+        if (c == '}' || c == ']') {
+          closingPositions.add(i);
+        }
+      }
+
+      // Tenter depuis le point de coupure le plus loin possible
+      for (int attempt = closingPositions.length - 1; attempt >= 0; attempt--) {
+        final cutIndex = closingPositions[attempt] + 1;
+        String repaired = json.substring(0, cutIndex);
+
+        // Compter les délimiteurs ouverts restants
+        int braces = 0;
+        int brackets = 0;
+        inStr = false;
+        esc = false;
+
+        for (int i = 0; i < repaired.length; i++) {
+          final c = repaired[i];
+          if (esc) {
+            esc = false;
+            continue;
+          }
+          if (c == '\\' && inStr) {
+            esc = true;
+            continue;
+          }
+          if (c == '"') {
+            inStr = !inStr;
+            continue;
+          }
+          if (inStr) continue;
+          if (c == '{') braces++;
+          if (c == '}') braces--;
+          if (c == '[') brackets++;
+          if (c == ']') brackets--;
+        }
+
+        // Si on est dans une string non fermée, skip
+        if (inStr) continue;
+
+        // Fermer les délimiteurs ouverts (brackets d'abord, puis braces)
+        for (int i = 0; i < brackets; i++) {
+          repaired += ']';
+        }
+        for (int i = 0; i < braces; i++) {
+          repaired += '}';
+        }
+
+        // Tenter le parsing
+        try {
+          jsonDecode(repaired);
+          debugPrint(
+            '✅ MindMap: JSON réparé (coupé à position $cutIndex/${json.length})',
+          );
+          return repaired;
+        } catch (_) {
+          // Ce point de coupure ne marche pas, essayer le précédent
+          continue;
+        }
+      }
+
+      debugPrint('❌ MindMap: Aucun point de coupure valide trouvé');
+      return null;
+    } catch (e) {
+      debugPrint('❌ MindMap: Impossible de réparer le JSON tronqué - $e');
       return null;
     }
   }
