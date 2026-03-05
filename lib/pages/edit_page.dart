@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/transcription.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
+import 'tap_to_share_page.dart';
 
 class EditPage extends StatefulWidget {
   final Transcription transcription;
@@ -229,6 +230,7 @@ class _EditPageState extends State<EditPage> {
             ),
           ),
           actions: [
+            NfcShareButton(transcription: widget.transcription),
             IconButton(
               icon: const Icon(
                 Icons.delete_outline,

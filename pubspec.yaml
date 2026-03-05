@@ -47,6 +47,10 @@ dependencies:
   web_socket_channel: ^3.0.2
   record: ^6.0.0
 
+  # NFC Tap-to-Share — Crypto pour le format .notitia
+  crypto: ^3.0.6
+  encrypt: ^5.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
