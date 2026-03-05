@@ -14,53 +14,61 @@ import '../widgets/mind_map_widget.dart';
 class MindMapPage extends StatefulWidget {
   final Transcription? transcription;
   final ValueNotifier<int>? refreshNotifier;
-  
+
   const MindMapPage({super.key, this.transcription, this.refreshNotifier});
-  
+
   @override
   State<MindMapPage> createState() => _MindMapPageState();
 }
 
 class _MindMapPageState extends State<MindMapPage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  
   final MindMapService _mindMapService = MindMapService();
-  
+
   final TextEditingController _textController = TextEditingController();
-  
+
   late TabController _tabController;
-  
+
   bool _isLoading = false;
   MindMap? _currentMindMap;
-  MindMapNode? _selectedNode;
   String? _errorMessage;
-  
+  MindMapEngine? _selectedEngine;
+  MindMapViewMode _viewMode = MindMapViewMode.radial;
+
   List<Transcription> _transcriptions = [];
-  Transcription? _selectedTranscription;
-  
+  final Set<String> _selectedTranscriptionIds = {};
+
+  // Saved mind maps
+  List<MindMap> _savedMindMaps = [];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) return;
+      setState(() {}); // Rebuild FAB visibility on tab change
+    });
     _loadTranscriptions();
-    
+    _loadSavedMindMaps();
+
     // Si une transcription est passée, la sélectionner
     if (widget.transcription != null) {
-      _selectedTranscription = widget.transcription;
+      _selectedTranscriptionIds.add(widget.transcription!.id);
     }
-    
+
     // Écouter les nouvelles transcriptions
     widget.refreshNotifier?.addListener(_loadTranscriptions);
   }
-  
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _loadTranscriptions();
     }
   }
-  
+
   @override
   void dispose() {
     widget.refreshNotifier?.removeListener(_loadTranscriptions);
@@ -69,7 +77,7 @@ class _MindMapPageState extends State<MindMapPage>
     _textController.dispose();
     super.dispose();
   }
-  
+
   Future<void> _loadTranscriptions() async {
     // Invalider le cache pour avoir les dernières transcriptions
     StorageService.invalidateCache();
@@ -81,29 +89,136 @@ class _MindMapPageState extends State<MindMapPage>
     }
     debugPrint('📋 MindMap: ${transcriptions.length} transcriptions chargées');
   }
-  
-  Future<void> _generateMindMap() async {
+
+  Future<void> _loadSavedMindMaps() async {
+    StorageService.invalidateMindMapsCache();
+    final mindMaps = await StorageService.loadAllMindMaps();
+    if (mounted) {
+      setState(() {
+        _savedMindMaps = mindMaps;
+      });
+    }
+    debugPrint('📋 MindMap: ${mindMaps.length} mind maps sauvegardées');
+  }
+
+  /// Sauvegarde la mind map courante
+  Future<void> _saveCurrentMindMap() async {
+    if (_currentMindMap == null) return;
+    await StorageService.saveMindMap(_currentMindMap!);
+    await _loadSavedMindMaps();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.greenAccent),
+              const SizedBox(width: 8),
+              Text('Mind map « ${_currentMindMap!.title} » sauvegardée'),
+            ],
+          ),
+          backgroundColor: NotitiaTheme.darkBlue,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Charge une mind map sauvegardée
+  void _openSavedMindMap(MindMap mindMap) {
+    final engine = mindMap.metadata['engine'] as String?;
+    setState(() {
+      _currentMindMap = mindMap;
+      _selectedEngine = engine == 'gemini'
+          ? MindMapEngine.gemini
+          : MindMapEngine.claude;
+    });
+  }
+
+  /// Supprime une mind map sauvegardée
+  Future<void> _deleteSavedMindMap(MindMap mindMap) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NotitiaTheme.darkBlue,
+        title: const Text(
+          'Supprimer cette mind map ?',
+          style: TextStyle(color: NotitiaTheme.white),
+        ),
+        content: Text(
+          '« ${mindMap.title} » sera supprimée définitivement.',
+          style: const TextStyle(color: NotitiaTheme.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'Annuler',
+              style: TextStyle(color: NotitiaTheme.grey),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await StorageService.deleteMindMap(mindMap.id);
+      await _loadSavedMindMaps();
+    }
+  }
+
+  /// Helper: get selected transcription objects
+  List<Transcription> get _selectedTranscriptions {
+    return _transcriptions
+        .where((t) => _selectedTranscriptionIds.contains(t.id))
+        .toList();
+  }
+
+  /// Affiche le choix du moteur puis lance la génération
+  Future<void> _showEnginePickerAndGenerate() async {
+    final engine = await showModalBottomSheet<MindMapEngine>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _buildEnginePicker(ctx),
+    );
+
+    if (engine == null) return; // Annulé
+    _generateMindMap(engine);
+  }
+
+  Future<void> _generateMindMap(MindMapEngine engine) async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _selectedEngine = engine;
     });
-    
+
     MindMapResult result;
-    
-    if (_tabController.index == 0 && _selectedTranscription != null) {
-      // Générer depuis une transcription
-      result = await _mindMapService.generateFromTranscription(_selectedTranscription!);
+
+    if (_tabController.index == 0 && _selectedTranscriptionIds.isNotEmpty) {
+      result = await _mindMapService.generateFromTranscriptions(
+        _selectedTranscriptions,
+        engine: engine,
+      );
     } else if (_tabController.index == 1 && _textController.text.isNotEmpty) {
-      // Générer depuis du texte brut
-      result = await _mindMapService.generateFromText(_textController.text);
+      result = await _mindMapService.generateFromText(
+        _textController.text,
+        engine: engine,
+      );
     } else {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Veuillez sélectionner une transcription ou entrer du texte';
+        _errorMessage =
+            'Veuillez sélectionner au moins une transcription ou entrer du texte';
       });
       return;
     }
-    
+
     setState(() {
       _isLoading = false;
       if (result.success) {
@@ -114,12 +229,161 @@ class _MindMapPageState extends State<MindMapPage>
       }
     });
   }
-  
+
+  Widget _buildEnginePicker(BuildContext ctx) {
+    return Container(
+      decoration: BoxDecoration(
+        color: NotitiaTheme.darkBlue,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: NotitiaTheme.neonCyan.withValues(alpha: 0.3)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: NotitiaTheme.grey.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Choisir le moteur IA',
+            style: TextStyle(
+              color: NotitiaTheme.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Option Gemini — Gratuit
+          _buildEngineOption(
+            ctx: ctx,
+            engine: MindMapEngine.gemini,
+            icon: Icons.auto_awesome,
+            color: Colors.blueAccent,
+            title: 'Gemini',
+            subtitle: 'Gratuit',
+            description:
+                'Mind map rapide avec les thèmes principaux.\nIdéal pour un aperçu rapide.',
+            badge: 'GRATUIT',
+            badgeColor: Colors.green,
+          ),
+          const SizedBox(height: 12),
+
+          // Option Claude — Premium
+          _buildEngineOption(
+            ctx: ctx,
+            engine: MindMapEngine.claude,
+            icon: Icons.diamond,
+            color: NotitiaTheme.neonPink,
+            title: 'Claude Sonnet',
+            subtitle: 'Premium',
+            description:
+                'Mind map riche avec citations sources,\nplus de nœuds et analyse approfondie.',
+            badge: 'PREMIUM',
+            badgeColor: NotitiaTheme.neonPink,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEngineOption({
+    required BuildContext ctx,
+    required MindMapEngine engine,
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required String description,
+    required String badge,
+    required Color badgeColor,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(ctx).pop(engine),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: NotitiaTheme.deepBlue.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color.withValues(alpha: 0.5)),
+                ),
+                child: Icon(icon, color: color, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            color: NotitiaTheme.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: badgeColor.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: badgeColor.withValues(alpha: 0.6),
+                            ),
+                          ),
+                          child: Text(
+                            badge,
+                            style: TextStyle(
+                              color: badgeColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: TextStyle(color: NotitiaTheme.grey, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: color.withValues(alpha: 0.6)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showNodeDetails(MindMapNode node) {
-    setState(() {
-      _selectedNode = node;
-    });
-    
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -127,7 +391,7 @@ class _MindMapPageState extends State<MindMapPage>
         decoration: BoxDecoration(
           color: NotitiaTheme.darkBlue,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border.all(color: node.type.color.withOpacity(0.5)),
+          border: Border.all(color: node.type.color.withValues(alpha: 0.5)),
         ),
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -140,7 +404,7 @@ class _MindMapPageState extends State<MindMapPage>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: node.type.color.withOpacity(0.2),
+                    color: node.type.color.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                     border: Border.all(color: node.type.color),
                   ),
@@ -161,19 +425,21 @@ class _MindMapPageState extends State<MindMapPage>
                       ),
                       Text(
                         node.type.label,
-                        style: TextStyle(
-                          color: node.type.color,
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: node.type.color, fontSize: 14),
                       ),
                     ],
                   ),
                 ),
                 // Priorité
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: _getPriorityColor(node.priority).withOpacity(0.2),
+                    color: _getPriorityColor(
+                      node.priority,
+                    ).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: _getPriorityColor(node.priority)),
                   ),
@@ -198,7 +464,7 @@ class _MindMapPageState extends State<MindMapPage>
                 ),
               ],
             ),
-            
+
             // Description
             if (node.description != null && node.description!.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -206,7 +472,7 @@ class _MindMapPageState extends State<MindMapPage>
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: NotitiaTheme.deepBlue.withOpacity(0.5),
+                  color: NotitiaTheme.deepBlue.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -215,31 +481,44 @@ class _MindMapPageState extends State<MindMapPage>
                 ),
               ),
             ],
-            
+
+            // Source text contextuel
+            if (node.sourceText != null && node.sourceText!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildSourceTextSection(node.sourceText!),
+            ],
+
             // Tags
             if (node.tags.isNotEmpty) ...[
               const SizedBox(height: 16),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: node.tags.map((tag) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _getTagColor(tag).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _getTagColor(tag)),
-                  ),
-                  child: Text(
-                    '#$tag',
-                    style: TextStyle(
-                      color: _getTagColor(tag),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                )).toList(),
+                children: node.tags
+                    .map(
+                      (tag) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getTagColor(tag).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: _getTagColor(tag)),
+                        ),
+                        child: Text(
+                          '#$tag',
+                          style: TextStyle(
+                            color: _getTagColor(tag),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
               ),
             ],
-            
+
             // Enfants
             if (node.children.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -248,37 +527,180 @@ class _MindMapPageState extends State<MindMapPage>
                 style: const TextStyle(color: NotitiaTheme.grey),
               ),
             ],
-            
+
             const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
-  
+
   Color _getPriorityColor(int priority) {
     switch (priority) {
-      case 5: return Colors.red;
-      case 4: return Colors.orange;
-      case 3: return Colors.yellow;
-      case 2: return Colors.blue;
-      default: return Colors.grey;
+      case 5:
+        return Colors.red;
+      case 4:
+        return Colors.orange;
+      case 3:
+        return Colors.yellow;
+      case 2:
+        return Colors.blue;
+      default:
+        return Colors.grey;
     }
   }
-  
+
   Color _getTagColor(String tag) {
     switch (tag.toLowerCase()) {
-      case 'urgent': return Colors.red;
-      case 'important': return Colors.orange;
-      case 'todo': return Colors.blue;
-      case 'done': return Colors.green;
-      case 'blocked': return Colors.purple;
-      case 'idea': return Colors.yellow;
-      case 'followup': return Colors.cyan;
-      default: return Colors.grey;
+      case 'urgent':
+        return Colors.red;
+      case 'important':
+        return Colors.orange;
+      case 'todo':
+        return Colors.blue;
+      case 'done':
+        return Colors.green;
+      case 'blocked':
+        return Colors.purple;
+      case 'idea':
+        return Colors.yellow;
+      case 'followup':
+        return Colors.cyan;
+      default:
+        return Colors.grey;
     }
   }
-  
+
+  /// Construit la section « Source Text » avec highlight contextuel
+  Widget _buildSourceTextSection(String sourceText) {
+    // Chercher le passage dans toutes les transcriptions sélectionnées pour du contexte
+    final allContent = _selectedTranscriptions
+        .map((t) => t.content)
+        .join('\n\n');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: NotitiaTheme.neonCyan.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: NotitiaTheme.neonCyan.withValues(alpha: 0.4),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.format_quote, color: NotitiaTheme.neonCyan, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'Passage source',
+                style: TextStyle(
+                  color: NotitiaTheme.neonCyan,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Texte source exact avec guillemets
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: NotitiaTheme.deepBlue.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(8),
+              border: Border(
+                left: BorderSide(color: NotitiaTheme.neonCyan, width: 3),
+              ),
+            ),
+            child: Text(
+              '« $sourceText »',
+              style: TextStyle(
+                color: NotitiaTheme.white.withValues(alpha: 0.95),
+                fontStyle: FontStyle.italic,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
+          // Contexte dans la transcription (si trouvé)
+          if (allContent.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildContextHighlight(allContent, sourceText),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Cherche sourceText dans la transcription et affiche un extrait contextuel
+  /// avec le passage surligné en cyan
+  Widget _buildContextHighlight(String fullText, String sourceText) {
+    final lowerFull = fullText.toLowerCase();
+    final lowerSource = sourceText.toLowerCase();
+    final index = lowerFull.indexOf(lowerSource);
+
+    if (index == -1) {
+      // Pas trouvé : essayer une correspondance partielle (premiers mots)
+      final firstWords = sourceText.split(' ').take(4).join(' ').toLowerCase();
+      final partialIndex = lowerFull.indexOf(firstWords);
+      if (partialIndex == -1) {
+        return const SizedBox.shrink(); // Rien trouvé du tout
+      }
+      // Afficher le contexte partiel
+      return _buildContextWidget(
+        fullText,
+        partialIndex,
+        partialIndex + firstWords.length,
+      );
+    }
+
+    return _buildContextWidget(fullText, index, index + sourceText.length);
+  }
+
+  Widget _buildContextWidget(String fullText, int matchStart, int matchEnd) {
+    // Extraire ~60 caractères de contexte avant/après
+    const contextChars = 60;
+    final contextStart = (matchStart - contextChars).clamp(0, fullText.length);
+    final contextEnd = (matchEnd + contextChars).clamp(0, fullText.length);
+
+    final before = fullText.substring(contextStart, matchStart);
+    final matched = fullText.substring(matchStart, matchEnd);
+    final after = fullText.substring(matchEnd, contextEnd);
+
+    final prefix = contextStart > 0 ? '…' : '';
+    final suffix = contextEnd < fullText.length ? '…' : '';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: NotitiaTheme.deepBlue.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(color: NotitiaTheme.grey, fontSize: 11, height: 1.4),
+          children: [
+            TextSpan(text: '$prefix$before'),
+            TextSpan(
+              text: matched,
+              style: TextStyle(
+                color: NotitiaTheme.neonCyan,
+                fontWeight: FontWeight.bold,
+                backgroundColor: NotitiaTheme.neonCyan.withValues(alpha: 0.15),
+              ),
+            ),
+            TextSpan(text: '$after$suffix'),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -290,17 +712,14 @@ class _MindMapPageState extends State<MindMapPage>
       floatingActionButton: _buildFAB(),
     );
   }
-  
+
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: NotitiaTheme.darkBlue,
       elevation: 0,
       title: Row(
         children: [
-          Icon(
-            Icons.account_tree,
-            color: NotitiaTheme.neonCyan,
-          ),
+          Icon(Icons.account_tree, color: NotitiaTheme.neonCyan),
           const SizedBox(width: 12),
           const Text(
             'Mind Map',
@@ -314,7 +733,7 @@ class _MindMapPageState extends State<MindMapPage>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: NotitiaTheme.neonPink.withOpacity(0.2),
+                color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -332,32 +751,25 @@ class _MindMapPageState extends State<MindMapPage>
         // Bouton Rafraîchir transcriptions
         if (_currentMindMap == null)
           IconButton(
-            icon: Icon(
-              Icons.refresh,
-              color: NotitiaTheme.neonCyan,
-            ),
+            icon: Icon(Icons.refresh, color: NotitiaTheme.neonCyan),
             tooltip: 'Rafraîchir les transcriptions',
             onPressed: _loadTranscriptions,
           ),
         // Bouton Reset
         if (_currentMindMap != null)
           IconButton(
-            icon: Icon(
-              Icons.refresh,
-              color: NotitiaTheme.grey,
-            ),
+            icon: Icon(Icons.refresh, color: NotitiaTheme.grey),
             tooltip: 'Nouvelle mind map',
             onPressed: () {
               setState(() {
                 _currentMindMap = null;
-                _selectedNode = null;
               });
             },
           ),
       ],
     );
   }
-  
+
   Widget _buildSourceSelector() {
     return Column(
       children: [
@@ -370,18 +782,13 @@ class _MindMapPageState extends State<MindMapPage>
             labelColor: NotitiaTheme.neonCyan,
             unselectedLabelColor: NotitiaTheme.grey,
             tabs: const [
-              Tab(
-                icon: Icon(Icons.history),
-                text: 'Transcription',
-              ),
-              Tab(
-                icon: Icon(Icons.edit),
-                text: 'Texte libre',
-              ),
+              Tab(icon: Icon(Icons.history), text: 'Transcriptions'),
+              Tab(icon: Icon(Icons.edit), text: 'Texte libre'),
+              Tab(icon: Icon(Icons.bookmark), text: 'Sauvegardées'),
             ],
           ),
         ),
-        
+
         // Contenu
         Expanded(
           child: TabBarView(
@@ -389,10 +796,11 @@ class _MindMapPageState extends State<MindMapPage>
             children: [
               _buildTranscriptionSelector(),
               _buildTextInput(),
+              _buildSavedMindMapsList(),
             ],
           ),
         ),
-        
+
         // Message d'erreur
         if (_errorMessage != null)
           Container(
@@ -400,9 +808,9 @@ class _MindMapPageState extends State<MindMapPage>
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.2),
+              color: Colors.red.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.red.withOpacity(0.5)),
+              border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
             ),
             child: Row(
               children: [
@@ -420,7 +828,7 @@ class _MindMapPageState extends State<MindMapPage>
       ],
     );
   }
-  
+
   Widget _buildTranscriptionSelector() {
     if (_transcriptions.isEmpty) {
       return Center(
@@ -430,15 +838,12 @@ class _MindMapPageState extends State<MindMapPage>
             Icon(
               Icons.mic_off,
               size: 64,
-              color: NotitiaTheme.grey.withOpacity(0.5),
+              color: NotitiaTheme.grey.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
               'Aucune transcription disponible',
-              style: TextStyle(
-                color: NotitiaTheme.grey,
-                fontSize: 16,
-              ),
+              style: TextStyle(color: NotitiaTheme.grey, fontSize: 16),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -449,34 +854,201 @@ class _MindMapPageState extends State<MindMapPage>
         ),
       );
     }
-    
+
+    return Column(
+      children: [
+        // Selection info bar
+        if (_selectedTranscriptionIds.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            color: NotitiaTheme.neonCyan.withValues(alpha: 0.1),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.check_circle,
+                  color: NotitiaTheme.neonCyan,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${_selectedTranscriptionIds.length} transcription${_selectedTranscriptionIds.length > 1 ? 's' : ''} sélectionnée${_selectedTranscriptionIds.length > 1 ? 's' : ''}',
+                  style: const TextStyle(
+                    color: NotitiaTheme.neonCyan,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () =>
+                      setState(() => _selectedTranscriptionIds.clear()),
+                  child: const Text(
+                    'Tout désélectionner',
+                    style: TextStyle(
+                      color: NotitiaTheme.grey,
+                      fontSize: 12,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: _transcriptions.length,
+            itemBuilder: (context, index) {
+              final transcription = _transcriptions[index];
+              final isSelected = _selectedTranscriptionIds.contains(
+                transcription.id,
+              );
+
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (isSelected) {
+                      _selectedTranscriptionIds.remove(transcription.id);
+                    } else {
+                      _selectedTranscriptionIds.add(transcription.id);
+                    }
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? NotitiaTheme.neonCyan.withValues(alpha: 0.1)
+                        : NotitiaTheme.darkBlue,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected
+                          ? NotitiaTheme.neonCyan
+                          : NotitiaTheme.grey.withValues(alpha: 0.3),
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          // Checkbox visuelle
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? NotitiaTheme.neonCyan
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isSelected
+                                    ? NotitiaTheme.neonCyan
+                                    : NotitiaTheme.grey.withValues(alpha: 0.5),
+                                width: 2,
+                              ),
+                            ),
+                            child: isSelected
+                                ? const Icon(
+                                    Icons.check,
+                                    color: NotitiaTheme.deepBlue,
+                                    size: 16,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              transcription.title,
+                              style: TextStyle(
+                                color: NotitiaTheme.white,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            transcription.formattedDate,
+                            style: TextStyle(
+                              color: NotitiaTheme.grey,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        transcription.preview,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: NotitiaTheme.grey,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSavedMindMapsList() {
+    if (_savedMindMaps.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.bookmark_border,
+              size: 64,
+              color: NotitiaTheme.grey.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Aucune mind map sauvegardée',
+              style: TextStyle(color: NotitiaTheme.grey, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Générez une mind map puis sauvegardez-la',
+              style: TextStyle(color: NotitiaTheme.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _transcriptions.length,
+      itemCount: _savedMindMaps.length,
       itemBuilder: (context, index) {
-        final transcription = _transcriptions[index];
-        final isSelected = _selectedTranscription?.id == transcription.id;
-        
+        final mindMap = _savedMindMaps[index];
+        final engine = mindMap.metadata['engine'] as String? ?? 'unknown';
+        final sourceCount = mindMap.sourceTranscriptionIds.length;
+        final dateStr =
+            '${mindMap.createdAt.day.toString().padLeft(2, '0')}/${mindMap.createdAt.month.toString().padLeft(2, '0')}/${mindMap.createdAt.year}';
+
         return GestureDetector(
-          onTap: () {
-            setState(() {
-              _selectedTranscription = transcription;
-            });
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+          onTap: () => _openSavedMindMap(mindMap),
+          child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isSelected 
-                  ? NotitiaTheme.neonCyan.withOpacity(0.1)
-                  : NotitiaTheme.darkBlue,
+              color: NotitiaTheme.darkBlue,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isSelected 
-                    ? NotitiaTheme.neonCyan 
-                    : NotitiaTheme.grey.withOpacity(0.3),
-                width: isSelected ? 2 : 1,
+                color: NotitiaTheme.neonPink.withValues(alpha: 0.3),
               ),
             ),
             child: Column(
@@ -484,41 +1056,94 @@ class _MindMapPageState extends State<MindMapPage>
               children: [
                 Row(
                   children: [
-                    Icon(
-                      isSelected ? Icons.check_circle : Icons.mic,
-                      color: isSelected 
-                          ? NotitiaTheme.neonCyan 
-                          : NotitiaTheme.grey,
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: NotitiaTheme.neonPink.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.account_tree,
+                        color: NotitiaTheme.neonPink,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            mindMap.title,
+                            style: const TextStyle(
+                              color: NotitiaTheme.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$dateStr • ${mindMap.totalNodes} nœuds • $sourceCount source${sourceCount > 1 ? 's' : ''}',
+                            style: const TextStyle(
+                              color: NotitiaTheme.grey,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Engine badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: engine == 'claude'
+                            ? NotitiaTheme.neonPink.withValues(alpha: 0.2)
+                            : Colors.green.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       child: Text(
-                        transcription.title,
+                        engine == 'claude' ? 'Claude' : 'Gemini',
                         style: TextStyle(
-                          color: NotitiaTheme.white,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: engine == 'claude'
+                              ? NotitiaTheme.neonPink
+                              : Colors.greenAccent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    Text(
-                      transcription.formattedDate,
-                      style: TextStyle(
-                        color: NotitiaTheme.grey,
-                        fontSize: 12,
+                    const SizedBox(width: 4),
+                    // Delete button
+                    IconButton(
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: NotitiaTheme.grey.withValues(alpha: 0.6),
+                        size: 20,
+                      ),
+                      onPressed: () => _deleteSavedMindMap(mindMap),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  transcription.preview,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: NotitiaTheme.grey,
-                    fontSize: 13,
+                // Summary if available
+                if (mindMap.metadata['summary'] != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    mindMap.metadata['summary'] as String,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: NotitiaTheme.grey, fontSize: 12),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -526,7 +1151,7 @@ class _MindMapPageState extends State<MindMapPage>
       },
     );
   }
-  
+
   Widget _buildTextInput() {
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -539,17 +1164,24 @@ class _MindMapPageState extends State<MindMapPage>
               expands: true,
               style: const TextStyle(color: NotitiaTheme.white),
               decoration: InputDecoration(
-                hintText: 'Collez ou tapez votre texte ici...\n\nLe système analysera le contenu et générera une mind map structurée avec les thèmes principaux, idées, actions et questions identifiées.',
-                hintStyle: TextStyle(color: NotitiaTheme.grey.withOpacity(0.5)),
+                hintText:
+                    'Collez ou tapez votre texte ici...\n\nLe système analysera le contenu et générera une mind map structurée avec les thèmes principaux, idées, actions et questions identifiées.',
+                hintStyle: TextStyle(
+                  color: NotitiaTheme.grey.withValues(alpha: 0.5),
+                ),
                 filled: true,
                 fillColor: NotitiaTheme.darkBlue,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: NotitiaTheme.grey.withOpacity(0.3)),
+                  borderSide: BorderSide(
+                    color: NotitiaTheme.grey.withValues(alpha: 0.3),
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: NotitiaTheme.grey.withOpacity(0.3)),
+                  borderSide: BorderSide(
+                    color: NotitiaTheme.grey.withValues(alpha: 0.3),
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -591,16 +1223,19 @@ class _MindMapPageState extends State<MindMapPage>
       ),
     );
   }
-  
+
   Widget _buildMindMapView() {
+    final isSaved = _savedMindMaps.any((m) => m.id == _currentMindMap!.id);
+
     return Stack(
       children: [
         // Mind Map
         MindMapWidget(
           mindMap: _currentMindMap!,
           onNodeTap: _showNodeDetails,
+          viewMode: _viewMode,
         ),
-        
+
         // Info overlay
         Positioned(
           top: 16,
@@ -608,9 +1243,11 @@ class _MindMapPageState extends State<MindMapPage>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: NotitiaTheme.darkBlue.withOpacity(0.9),
+              color: NotitiaTheme.darkBlue.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: NotitiaTheme.neonCyan.withOpacity(0.5)),
+              border: Border.all(
+                color: NotitiaTheme.neonCyan.withValues(alpha: 0.5),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -624,34 +1261,164 @@ class _MindMapPageState extends State<MindMapPage>
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Profondeur: ${_currentMindMap!.maxDepth} • Nœuds: ${_currentMindMap!.totalNodes}',
-                  style: const TextStyle(
-                    color: NotitiaTheme.grey,
-                    fontSize: 12,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Profondeur: ${_currentMindMap!.maxDepth} • Nœuds: ${_currentMindMap!.totalNodes}',
+                      style: const TextStyle(
+                        color: NotitiaTheme.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _selectedEngine == MindMapEngine.claude
+                            ? NotitiaTheme.neonPink.withValues(alpha: 0.2)
+                            : Colors.green.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        _selectedEngine == MindMapEngine.claude
+                            ? '✦ Claude'
+                            : '✦ Gemini',
+                        style: TextStyle(
+                          color: _selectedEngine == MindMapEngine.claude
+                              ? NotitiaTheme.neonPink
+                              : Colors.greenAccent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                if (_currentMindMap!.sourceTranscriptionIds.length > 1) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_currentMindMap!.sourceTranscriptionIds.length} sources',
+                    style: TextStyle(
+                      color: NotitiaTheme.neonCyan.withValues(alpha: 0.8),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
-        
 
+        // Save button
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton.small(
+            heroTag: 'save_mindmap',
+            onPressed: isSaved ? null : _saveCurrentMindMap,
+            backgroundColor: isSaved
+                ? NotitiaTheme.grey.withValues(alpha: 0.3)
+                : NotitiaTheme.neonPink,
+            child: Icon(
+              isSaved ? Icons.bookmark : Icons.bookmark_border,
+              color: isSaved ? NotitiaTheme.grey : NotitiaTheme.white,
+            ),
+          ),
+        ),
+
+        // View mode switcher
+        Positioned(
+          top: 16,
+          right: 16,
+          child: Container(
+            decoration: BoxDecoration(
+              color: NotitiaTheme.darkBlue.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: NotitiaTheme.neonCyan.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: MindMapViewMode.values.map((mode) {
+                final isActive = _viewMode == mode;
+                return Tooltip(
+                  message: _viewModeLabel(mode),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      if (_viewMode != mode) {
+                        setState(() {
+                          _viewMode = mode;
+                        });
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? NotitiaTheme.neonCyan.withValues(alpha: 0.2)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        _viewModeIcon(mode),
+                        color: isActive
+                            ? NotitiaTheme.neonCyan
+                            : NotitiaTheme.grey,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
       ],
     );
   }
-  
+
+  IconData _viewModeIcon(MindMapViewMode mode) {
+    switch (mode) {
+      case MindMapViewMode.radial:
+        return Icons.blur_circular;
+      case MindMapViewMode.organigramme:
+        return Icons.account_tree;
+      case MindMapViewMode.horizontal:
+        return Icons.swap_horiz;
+    }
+  }
+
+  String _viewModeLabel(MindMapViewMode mode) {
+    switch (mode) {
+      case MindMapViewMode.radial:
+        return 'Radial';
+      case MindMapViewMode.organigramme:
+        return 'Organigramme';
+      case MindMapViewMode.horizontal:
+        return 'Horizontal';
+    }
+  }
+
   Widget _buildFAB() {
     if (_currentMindMap != null) return const SizedBox.shrink();
-    
-    final canGenerate = (_tabController.index == 0 && _selectedTranscription != null) ||
-                        (_tabController.index == 1 && _textController.text.isNotEmpty);
-    
+    if (_tabController.index == 2) return const SizedBox.shrink(); // Saved tab
+
+    final canGenerate =
+        (_tabController.index == 0 && _selectedTranscriptionIds.isNotEmpty) ||
+        (_tabController.index == 1 && _textController.text.isNotEmpty);
+
     return FloatingActionButton.extended(
-      onPressed: _isLoading ? null : _generateMindMap,
-      backgroundColor: canGenerate 
-          ? NotitiaTheme.neonCyan 
-          : NotitiaTheme.grey.withOpacity(0.5),
+      onPressed: _isLoading ? null : _showEnginePickerAndGenerate,
+      backgroundColor: canGenerate
+          ? NotitiaTheme.neonCyan
+          : NotitiaTheme.grey.withValues(alpha: 0.5),
       icon: _isLoading
           ? SizedBox(
               width: 24,
@@ -661,10 +1428,7 @@ class _MindMapPageState extends State<MindMapPage>
                 color: NotitiaTheme.deepBlue,
               ),
             )
-          : Icon(
-              Icons.auto_awesome,
-              color: NotitiaTheme.deepBlue,
-            ),
+          : Icon(Icons.auto_awesome, color: NotitiaTheme.deepBlue),
       label: Text(
         _isLoading ? 'Génération...' : 'Générer Mind Map',
         style: TextStyle(
