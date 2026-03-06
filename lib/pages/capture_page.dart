@@ -142,6 +142,17 @@ class _CapturePageState extends State<CapturePage>
   }
 
   Future<void> _initSpeech() async {
+    // Demander explicitement la permission de reconnaissance vocale
+    final speechStatus = await Permission.speech.request();
+    if (!speechStatus.isGranted) {
+      debugPrint('Speech permission denied: $speechStatus');
+    }
+    // Demander aussi la permission micro (nécessaire pour le STT natif)
+    final micStatus = await Permission.microphone.request();
+    if (!micStatus.isGranted) {
+      debugPrint('Microphone permission denied: $micStatus');
+    }
+
     _speechEnabled = await _speechToText.initialize(
       onError: (error) {
         debugPrint('Speech error: ${error.errorMsg}');
@@ -159,7 +170,7 @@ class _CapturePageState extends State<CapturePage>
       },
     );
     debugPrint('Speech enabled: $_speechEnabled');
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   @override
@@ -223,8 +234,10 @@ class _CapturePageState extends State<CapturePage>
     
     // Vérifier la disponibilité selon le moteur
     if (_sttEngine == STTEngine.native && !_speechEnabled) {
-      _showSnackBar('Service de reconnaissance vocale natif non disponible');
-      return;
+      _showSnackBar('Service natif non disponible. Vérifiez les permissions de reconnaissance vocale.');
+      // Tenter de réinitialiser
+      await _initSpeech();
+      if (!_speechEnabled) return;
     }
 
     setState(() {

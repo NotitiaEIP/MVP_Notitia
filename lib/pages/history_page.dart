@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/transcription.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
+import '../pages/tap_to_share_page.dart';
 import 'edit_page.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -140,6 +141,9 @@ class _HistoryPageState extends State<HistoryPage> {
                   ),
                 ),
                 const Spacer(),
+                // Bouton recevoir via NFC
+                NfcReceiveButton(onReceived: _loadData),
+                const SizedBox(width: 12),
                 Text(
                   '${_transcriptions.length}',
                   style: GoogleFonts.orbitron(
@@ -243,6 +247,8 @@ class _HistoryPageState extends State<HistoryPage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  NfcShareButton(transcription: t),
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => _deleteTranscription(t),
                     child: Icon(

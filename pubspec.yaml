@@ -56,6 +56,13 @@ dependencies:
   font_awesome_flutter: ^10.8.0
   pinput: ^5.0.1
 
+  # NFC Tap-to-Share — Crypto pour le format .notitia
+  crypto: ^3.0.6
+  encrypt: ^5.0.3
+
+  # Audio feedback (sons de transfert NFC)
+  audioplayers: ^6.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -84,6 +91,7 @@ flutter:
   assets:
     - assets/
     - assets/mascotte/
+    - assets/sounds/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -22,6 +22,8 @@ import 'pages/search_page.dart';
 import 'pages/splash_screen.dart';
 import 'services/auth_service.dart';
 import 'services/foreground_service.dart';
+import 'services/nfc_share_service.dart';
+import 'services/notitia_file_service.dart';
 import 'theme.dart';
 
 // =============================================================================
@@ -37,6 +39,10 @@ void main() async {
   FlutterForegroundTask.initCommunicationPort();
   // Pré-initialisation du service
   ActiveListeningService.init();
+  // Initialiser le canal NFC
+  NfcShareService.init();
+  // Nettoyer les fichiers temporaires de sessions précédentes
+  NotitiaFileService.cleanupAllTempFiles();
   runApp(const NotitiaApp());
 }
 
