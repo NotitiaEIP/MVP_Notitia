@@ -234,14 +234,6 @@ packages:
     source: hosted
     version: "0.3.5+2"
   crypto:
-    dependency: transitive
-    description:
-      name: convert
-      sha256: b30acd5944035672bc15c6b7a8b47d773e41e2f17de064350988c5d02adb1c68
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.1.2"
-  crypto:
     dependency: "direct main"
     description:
       name: crypto
@@ -269,10 +261,10 @@ packages:
     dependency: transitive
     description:
       name: dart_jsonwebtoken
-      sha256: c6ecb3bb991c459b91c5adf9e871113dcb32bbe8fe7ca2c92723f88ffc1e0b7a
+      sha256: b268ff9bb87a16360a397f1accb50e7c781384e1119010b34f6d7c25820c44d8
       url: "https://pub.dev"
     source: hosted
-    version: "3.3.2"
+    version: "3.1.1"
   ed25519_edwards:
     dependency: transitive
     description:
@@ -516,10 +508,10 @@ packages:
     dependency: transitive
     description:
       name: hooks
-      sha256: "7a08a0d684cb3b8fb604b78455d5d352f502b68079f7b80b831c62220ab0a4f6"
+      sha256: e79ed1e8e1929bc6ecb6ec85f0cb519c887aa5b423705ded0d0f2d9226def388
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.1"
+    version: "1.0.2"
   html:
     dependency: transitive
     description:
@@ -716,10 +708,10 @@ packages:
     dependency: transitive
     description:
       name: native_toolchain_c
-      sha256: "89e83885ba09da5fdf2cdacc8002a712ca238c28b7f717910b34bcd27b0d03ac"
+      sha256: "92b2ca62c8bd2b8d2f267cdfccf9bfbdb7322f778f8f91b3ce5b5cda23a3899f"
       url: "https://pub.dev"
     source: hosted
-    version: "0.17.4"
+    version: "0.17.5"
   objective_c:
     dependency: transitive
     description:
@@ -884,10 +876,6 @@ packages:
     dependency: transitive
     description:
       name: pointycastle
-      sha256: "92aa3841d083cc4b0f4709b5c74fd6409a3e6ba833ffc7dc6a8fee096366acf5"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.0.0"
       sha256: "4be0097fcf3fd3e8449e53730c631200ebc7b88016acecab2b0da2f0149222fe"
       url: "https://pub.dev"
     source: hosted
