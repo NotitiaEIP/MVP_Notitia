@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:notitia/theme.dart';
-
-import 'capture_page.dart';
+import '../services/auth_service.dart';
 
 /// Écran de splash au démarrage de l'application
 /// Affiche le logo Notitia pendant 2-3 secondes
+/// Vérifie l'état d'authentification et redirige en conséquence
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -17,6 +17,7 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  final _authService = AuthService();
 
   @override
   void initState() {
@@ -38,12 +39,34 @@ class _SplashScreenState extends State<SplashScreen>
 
     _animationController.forward();
 
-    // Naviguer vers la page principale après 2.5 secondes
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/main');
-      }
-    });
+    // Vérifier l'authentification et naviguer après l'animation
+    _checkAuthAndNavigate();
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    // Attendre que l'animation soit visible
+    await Future.delayed(const Duration(milliseconds: 2500));
+    
+    if (!mounted) return;
+
+    // Si l'utilisateur est déjà connecté, aller à la page principale
+    if (_authService.isAuthenticated) {
+      Navigator.of(context).pushReplacementNamed('/main');
+      return;
+    }
+
+    // Vérifier si c'est la première ouverture ou si l'utilisateur s'est déconnecté
+    final shouldShowAuth = await _authService.shouldShowAuthChoice();
+    
+    if (!mounted) return;
+
+    if (shouldShowAuth) {
+      // Première ouverture ou déconnexion : montrer le choix d'authentification
+      Navigator.of(context).pushReplacementNamed('/auth');
+    } else {
+      // L'utilisateur a choisi d'utiliser l'app sans compte
+      Navigator.of(context).pushReplacementNamed('/main');
+    }
   }
 
   @override
