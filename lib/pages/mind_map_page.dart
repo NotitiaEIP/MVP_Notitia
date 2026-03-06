@@ -10,12 +10,21 @@ import '../services/mind_map_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../widgets/mind_map_widget.dart';
+import '../widgets/meduza_widget.dart';
+import '../widgets/meduza_speech_bubble.dart';
 
 class MindMapPage extends StatefulWidget {
   final Transcription? transcription;
   final ValueNotifier<int>? refreshNotifier;
+  final void Function(MeduzaState state, {String? message, BubbleStyle style})?
+  onMeduzaStateChanged;
 
-  const MindMapPage({super.key, this.transcription, this.refreshNotifier});
+  const MindMapPage({
+    super.key,
+    this.transcription,
+    this.refreshNotifier,
+    this.onMeduzaStateChanged,
+  });
 
   @override
   State<MindMapPage> createState() => _MindMapPageState();
@@ -198,6 +207,12 @@ class _MindMapPageState extends State<MindMapPage>
       _selectedEngine = engine;
     });
 
+    // Meduza - generation en cours
+    widget.onMeduzaStateChanged?.call(
+      MeduzaState.processing,
+      message: 'Generation de la mind map en cours...',
+    );
+
     MindMapResult result;
 
     if (_tabController.index == 0 && _selectedTranscriptionIds.isNotEmpty) {
@@ -216,6 +231,7 @@ class _MindMapPageState extends State<MindMapPage>
         _errorMessage =
             'Veuillez sélectionner au moins une transcription ou entrer du texte';
       });
+      widget.onMeduzaStateChanged?.call(MeduzaState.idle);
       return;
     }
 
@@ -228,6 +244,21 @@ class _MindMapPageState extends State<MindMapPage>
         _errorMessage = result.error;
       }
     });
+
+    // Meduza - resultat
+    if (result.success) {
+      widget.onMeduzaStateChanged?.call(
+        MeduzaState.happy,
+        message: 'Mind map generee avec succes.',
+        style: BubbleStyle.success,
+      );
+    } else {
+      widget.onMeduzaStateChanged?.call(
+        MeduzaState.confused,
+        message: 'Erreur lors de la generation. Reessaie.',
+        style: BubbleStyle.error,
+      );
+    }
   }
 
   Widget _buildEnginePicker(BuildContext ctx) {

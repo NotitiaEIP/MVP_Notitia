@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/email_otp_args.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
+import 'onboarding_page.dart';
 
 class EmailOtpPage extends StatefulWidget {
   const EmailOtpPage({super.key});
@@ -114,10 +115,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Code envoyé à $email',
-            style: GoogleFonts.rajdhani(),
-          ),
+          content: Text('Code envoyé à $email', style: GoogleFonts.rajdhani()),
           backgroundColor: NotitiaTheme.neonPink,
         ),
       );
@@ -178,10 +176,20 @@ class _EmailOtpPageState extends State<EmailOtpPage>
         }
         unawaited(_authService.markAuthSeen());
         if (!mounted) return;
+
+        // Si c'est une inscription, verifier si l'onboarding a deja ete fait
+        if (_shouldCreateUser) {
+          final alreadyOnboarded = await OnboardingService.isOnboarded();
+          if (!alreadyOnboarded) {
+            navigator.pushNamedAndRemoveUntil('/onboarding', (route) => false);
+            return;
+          }
+        }
         navigator.pushNamedAndRemoveUntil('/main', (route) => false);
       } else {
         setState(() {
-          _error = 'Code validé, mais aucune session active. Vérifiez la configuration Supabase (Email OTP).';
+          _error =
+              'Code validé, mais aucune session active. Vérifiez la configuration Supabase (Email OTP).';
         });
       }
     } on AuthException catch (e) {
@@ -256,9 +264,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
       icon: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: NotitiaTheme.neonPink.withOpacity(0.5),
-          ),
+          border: Border.all(color: NotitiaTheme.neonPink.withOpacity(0.5)),
           borderRadius: BorderRadius.circular(8),
         ),
         child: const Icon(
@@ -287,10 +293,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
           _shouldCreateUser
               ? 'Entrez votre email, recevez un code à $_emailOtpLength chiffres, puis validez-le pour créer votre compte.'
               : 'Entrez votre email, recevez un code à $_emailOtpLength chiffres, puis validez-le.',
-          style: GoogleFonts.rajdhani(
-            fontSize: 16,
-            color: NotitiaTheme.grey,
-          ),
+          style: GoogleFonts.rajdhani(fontSize: 16, color: NotitiaTheme.grey),
         ),
       ],
     );
@@ -306,8 +309,13 @@ class _EmailOtpPageState extends State<EmailOtpPage>
         labelText: 'Email',
         hintText: 'votre@email.com',
         labelStyle: GoogleFonts.rajdhani(color: NotitiaTheme.grey),
-        hintStyle: GoogleFonts.rajdhani(color: NotitiaTheme.grey.withOpacity(0.6)),
-        prefixIcon: Icon(Icons.email_outlined, color: NotitiaTheme.neonPink.withOpacity(0.8)),
+        hintStyle: GoogleFonts.rajdhani(
+          color: NotitiaTheme.grey.withOpacity(0.6),
+        ),
+        prefixIcon: Icon(
+          Icons.email_outlined,
+          color: NotitiaTheme.neonPink.withOpacity(0.8),
+        ),
         filled: true,
         fillColor: NotitiaTheme.darkBlue.withOpacity(0.5),
         border: OutlineInputBorder(
@@ -435,10 +443,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
           Expanded(
             child: Text(
               message,
-              style: GoogleFonts.rajdhani(
-                color: Colors.red,
-                fontSize: 14,
-              ),
+              style: GoogleFonts.rajdhani(color: Colors.red, fontSize: 14),
             ),
           ),
         ],

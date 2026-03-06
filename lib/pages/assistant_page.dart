@@ -10,10 +10,18 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../services/rag_service.dart';
 import '../theme.dart';
+import '../widgets/meduza_widget.dart';
+import '../widgets/meduza_speech_bubble.dart';
 
 class AssistantPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
-  const AssistantPage({super.key, required this.refreshNotifier});
+  final void Function(MeduzaState state, {String? message, BubbleStyle style})?
+  onMeduzaStateChanged;
+  const AssistantPage({
+    super.key,
+    required this.refreshNotifier,
+    this.onMeduzaStateChanged,
+  });
 
   @override
   State<AssistantPage> createState() => _AssistantPageState();
@@ -140,12 +148,29 @@ class _AssistantPageState extends State<AssistantPage>
     _messageController.clear();
     setState(() => _isLoading = true);
 
+    // Meduza - recherche en cours
+    widget.onMeduzaStateChanged?.call(
+      MeduzaState.processing,
+      message: 'Recherche dans tes notes...',
+    );
+
     _scrollToBottom();
 
     try {
       await _rag.ask(text);
+      // Meduza - reponse trouvee
+      widget.onMeduzaStateChanged?.call(
+        MeduzaState.happy,
+        message: 'Reponse generee a partir de tes notes.',
+        style: BubbleStyle.success,
+      );
     } catch (e) {
-      // L'erreur est gérée dans RAGService
+      // Meduza - erreur
+      widget.onMeduzaStateChanged?.call(
+        MeduzaState.confused,
+        message: 'Je n\'ai pas pu trouver de reponse pertinente.',
+        style: BubbleStyle.error,
+      );
     }
 
     if (mounted) {

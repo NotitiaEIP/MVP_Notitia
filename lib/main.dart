@@ -16,6 +16,7 @@ import 'pages/email_otp_page.dart';
 import 'pages/history_page.dart';
 import 'pages/login_page.dart';
 import 'pages/mind_map_page.dart';
+import 'pages/onboarding_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/register_page.dart';
 import 'pages/search_page.dart';
@@ -25,16 +26,19 @@ import 'services/foreground_service.dart';
 import 'services/nfc_share_service.dart';
 import 'services/notitia_file_service.dart';
 import 'theme.dart';
+import 'widgets/meduza_widget.dart';
+import 'widgets/meduza_companion.dart';
+import 'widgets/meduza_speech_bubble.dart';
 
 // =============================================================================
 // POINT D'ENTRÉE
 // =============================================================================
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialisation de Supabase
   await AuthService.initialize();
-  
+
   // Port de communication pour le foreground service
   FlutterForegroundTask.initCommunicationPort();
   // Pré-initialisation du service
@@ -74,6 +78,7 @@ class NotitiaApp extends StatelessWidget {
         '/register': (context) => const RegisterPage(),
         '/email-otp': (context) => const EmailOtpPage(),
         '/profile': (context) => const ProfilePage(),
+        '/onboarding': (context) => const OnboardingPage(),
       },
     );
   }
@@ -94,6 +99,46 @@ class _MainNavigationState extends State<MainNavigation> {
   final _authService = AuthService();
   UserProfile? _profile;
 
+  // --- Meduza state management (event-driven) ---
+  MeduzaState _meduzaState = MeduzaState.idle;
+  String? _meduzaMessage;
+  BubbleStyle _meduzaBubbleStyle = BubbleStyle.normal;
+
+  /// Meduza n'apparait que quand un evenement actif la declenche (pas idle)
+  bool get _showMeduza => _meduzaState != MeduzaState.idle;
+
+  void _setMeduzaState(
+    MeduzaState state, {
+    String? message,
+    BubbleStyle style = BubbleStyle.normal,
+  }) {
+    if (!mounted) return;
+    setState(() {
+      _meduzaState = state;
+      _meduzaMessage = message;
+      _meduzaBubbleStyle = style;
+    });
+
+    // Auto-dismiss les etats transitoires apres 4 secondes
+    if (state == MeduzaState.happy || state == MeduzaState.confused) {
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted && _meduzaState == state) {
+          setState(() {
+            _meduzaState = MeduzaState.idle;
+            _meduzaMessage = null;
+          });
+        }
+      });
+    }
+  }
+
+  void _dismissMeduza() {
+    setState(() {
+      _meduzaState = MeduzaState.idle;
+      _meduzaMessage = null;
+    });
+  }
+
   /// Notifie les pages enfants qu'une nouvelle transcription a été sauvegardée.
   final ValueNotifier<int> _refreshNotifier = ValueNotifier(0);
 
@@ -105,7 +150,7 @@ class _MainNavigationState extends State<MainNavigation> {
   void initState() {
     super.initState();
     _loadProfile();
-    
+
     // Écouter les changements d'état d'authentification
     _authService.authStateChanges.listen((state) {
       if (mounted) {
@@ -153,13 +198,31 @@ class _MainNavigationState extends State<MainNavigation> {
           IndexedStack(
             index: _currentIndex,
             children: [
-              CapturePage(onTranscriptionSaved: _onTranscriptionSaved),
+              CapturePage(
+                onTranscriptionSaved: _onTranscriptionSaved,
+                onMeduzaStateChanged: _setMeduzaState,
+              ),
               HistoryPage(refreshNotifier: _refreshNotifier),
-              MindMapPage(refreshNotifier: _refreshNotifier),
+              MindMapPage(
+                refreshNotifier: _refreshNotifier,
+                onMeduzaStateChanged: _setMeduzaState,
+              ),
               SearchPage(refreshNotifier: _refreshNotifier),
-              AssistantPage(refreshNotifier: _refreshNotifier),
+              AssistantPage(
+                refreshNotifier: _refreshNotifier,
+                onMeduzaStateChanged: _setMeduzaState,
+              ),
             ],
           ),
+          // Meduza floating overlay (event-driven)
+          if (_showMeduza)
+            MeduzaFloatingOverlay(
+              state: _meduzaState,
+              message: _meduzaMessage,
+              bubbleStyle: _meduzaBubbleStyle,
+              visible: _showMeduza,
+              onDismiss: _dismissMeduza,
+            ),
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -184,11 +247,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 ],
               ),
             ),
-            child: const Icon(
-              Icons.memory,
-              size: 18,
-              color: Colors.white,
-            ),
+            child: const Icon(Icons.memory, size: 18, color: Colors.white),
           ),
           const SizedBox(width: 12),
           Text(
@@ -217,7 +276,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   Widget _buildProfileAvatar() {
     final isLoggedIn = _authService.isAuthenticated;
-    
+
     return Container(
       width: 40,
       height: 40,
@@ -263,10 +322,12 @@ class _MainNavigationState extends State<MainNavigation> {
 
   Widget _buildDefaultAvatarContent() {
     if (_authService.isAuthenticated) {
-      final initial = (_profile?.username ?? 
-                      _profile?.email ?? 
-                      _authService.currentUser?.email ?? 
-                      'U')[0].toUpperCase();
+      final initial =
+          (_profile?.username ??
+                  _profile?.email ??
+                  _authService.currentUser?.email ??
+                  'U')[0]
+              .toUpperCase();
       return Center(
         child: Text(
           initial,
@@ -278,11 +339,7 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
       );
     } else {
-      return Icon(
-        Icons.person_outline,
-        color: NotitiaTheme.neonPink,
-        size: 22,
-      );
+      return Icon(Icons.person_outline, color: NotitiaTheme.neonPink, size: 22);
     }
   }
 

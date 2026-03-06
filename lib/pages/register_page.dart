@@ -10,6 +10,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/email_otp_args.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
+import 'onboarding_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -48,13 +49,23 @@ class _RegisterPageState extends State<RegisterPage>
     );
     _animationController.forward();
 
-    // Gère OAuth/OTP: quand l'auth aboutit, on va à l'accueil.
-    _authSub = _authService.authStateChanges.listen((state) {
+    // Gère OAuth/OTP: quand l'auth aboutit, on va à l'onboarding si pas encore fait.
+    _authSub = _authService.authStateChanges.listen((state) async {
       if (!mounted) return;
       if (state.event == AuthChangeEvent.signedIn) {
         // Pas d'attente ici: on évite l'usage de context après un gap async.
         _authService.markAuthSeen();
-        Navigator.of(context).pushNamedAndRemoveUntil('/main', (route) => false);
+        final alreadyOnboarded = await OnboardingService.isOnboarded();
+        if (!mounted) return;
+        if (!alreadyOnboarded) {
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/onboarding', (route) => false);
+        } else {
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/main', (route) => false);
+        }
       }
     });
   }
@@ -105,14 +116,13 @@ class _RegisterPageState extends State<RegisterPage>
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Erreur: ${e.toString().replaceFirst('Exception: ', '').trim()}';
+        _errorMessage =
+            'Erreur: ${e.toString().replaceFirst('Exception: ', '').trim()}';
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
-
 
   Future<void> _signUpWithGoogle() async {
     setState(() {
@@ -161,7 +171,7 @@ class _RegisterPageState extends State<RegisterPage>
     if (message.contains('Password should be')) {
       return 'Le mot de passe doit contenir au moins 6 caractères';
     }
-    if (message.contains('Error sending confirmation email') || 
+    if (message.contains('Error sending confirmation email') ||
         message.contains('unexpected_failure')) {
       return 'Impossible d\'envoyer l\'email de confirmation. Veuillez vérifier la configuration email dans Supabase ou désactiver temporairement la confirmation d\'email.';
     }
@@ -208,16 +218,10 @@ class _RegisterPageState extends State<RegisterPage>
       icon: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: NotitiaTheme.neonPink.withOpacity(0.5),
-          ),
+          border: Border.all(color: NotitiaTheme.neonPink.withOpacity(0.5)),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(
-          Icons.arrow_back,
-          color: NotitiaTheme.neonPink,
-          size: 20,
-        ),
+        child: Icon(Icons.arrow_back, color: NotitiaTheme.neonPink, size: 20),
       ),
     );
   }
@@ -237,16 +241,11 @@ class _RegisterPageState extends State<RegisterPage>
         const SizedBox(height: 8),
         Text(
           'Rejoignez Notitia pour synchroniser vos notes',
-          style: GoogleFonts.rajdhani(
-            fontSize: 16,
-            color: NotitiaTheme.grey,
-          ),
+          style: GoogleFonts.rajdhani(fontSize: 16, color: NotitiaTheme.grey),
         ),
       ],
     );
   }
-
-
 
   Widget _buildEmailForm() {
     return Form(
@@ -282,7 +281,9 @@ class _RegisterPageState extends State<RegisterPage>
               if (value == null || value.isEmpty) {
                 return 'Entrez votre email';
               }
-              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+              if (!RegExp(
+                r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+              ).hasMatch(value)) {
                 return 'Email invalide';
               }
               return null;
@@ -298,7 +299,8 @@ class _RegisterPageState extends State<RegisterPage>
             icon: Icons.lock_outlined,
             obscureText: _obscurePassword,
             suffixIcon: IconButton(
-              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
                 color: NotitiaTheme.grey,
@@ -325,9 +327,13 @@ class _RegisterPageState extends State<RegisterPage>
             icon: Icons.lock_outlined,
             obscureText: _obscureConfirmPassword,
             suffixIcon: IconButton(
-              onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+              onPressed: () => setState(
+                () => _obscureConfirmPassword = !_obscureConfirmPassword,
+              ),
               icon: Icon(
-                _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                _obscureConfirmPassword
+                    ? Icons.visibility_off
+                    : Icons.visibility,
                 color: NotitiaTheme.grey,
                 size: 20,
               ),
@@ -367,8 +373,6 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 
-
-
   Widget _buildErrorMessage() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -384,10 +388,7 @@ class _RegisterPageState extends State<RegisterPage>
           Expanded(
             child: Text(
               _errorMessage!,
-              style: GoogleFonts.rajdhani(
-                color: Colors.red,
-                fontSize: 14,
-              ),
+              style: GoogleFonts.rajdhani(color: Colors.red, fontSize: 14),
             ),
           ),
         ],
@@ -481,7 +482,11 @@ class _RegisterPageState extends State<RegisterPage>
               child: _OAuthButton(
                 onPressed: _isLoading ? null : _signUpWithGoogle,
                 icon: 'G',
-                iconWidget: const FaIcon(FontAwesomeIcons.google, size: 20, color: Colors.white),
+                iconWidget: const FaIcon(
+                  FontAwesomeIcons.google,
+                  size: 20,
+                  color: Colors.white,
+                ),
                 label: 'Google',
                 color: Colors.red,
               ),
@@ -491,7 +496,11 @@ class _RegisterPageState extends State<RegisterPage>
               child: _OAuthButton(
                 onPressed: _isLoading ? null : _signUpWithGitHub,
                 icon: '',
-                iconWidget: const FaIcon(FontAwesomeIcons.github, size: 20, color: Colors.white),
+                iconWidget: const FaIcon(
+                  FontAwesomeIcons.github,
+                  size: 20,
+                  color: Colors.white,
+                ),
                 label: 'GitHub',
                 color: Colors.grey.shade800,
               ),
@@ -508,10 +517,7 @@ class _RegisterPageState extends State<RegisterPage>
       children: [
         Text(
           'Déjà un compte?',
-          style: GoogleFonts.rajdhani(
-            color: NotitiaTheme.grey,
-            fontSize: 14,
-          ),
+          style: GoogleFonts.rajdhani(color: NotitiaTheme.grey, fontSize: 14),
         ),
         TextButton(
           onPressed: () {
@@ -577,10 +583,7 @@ class _CyberpunkTextField extends StatelessWidget {
           enabled: enabled,
           keyboardType: keyboardType,
           validator: validator,
-          style: GoogleFonts.rajdhani(
-            color: NotitiaTheme.white,
-            fontSize: 16,
-          ),
+          style: GoogleFonts.rajdhani(color: NotitiaTheme.white, fontSize: 16),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.rajdhani(
@@ -604,16 +607,11 @@ class _CyberpunkTextField extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: NotitiaTheme.neonPink,
-                width: 2,
-              ),
+              borderSide: BorderSide(color: NotitiaTheme.neonPink, width: 2),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: NotitiaTheme.grey.withOpacity(0.2),
-              ),
+              borderSide: BorderSide(color: NotitiaTheme.grey.withOpacity(0.2)),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -656,9 +654,7 @@ class _OAuthButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: NotitiaTheme.grey.withOpacity(0.3),
-          ),
+          border: Border.all(color: NotitiaTheme.grey.withOpacity(0.3)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -672,7 +668,8 @@ class _OAuthButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Center(
-                child: iconWidget ??
+                child:
+                    iconWidget ??
                     Text(
                       icon,
                       style: GoogleFonts.rajdhani(
