@@ -18,16 +18,24 @@ import '../services/rag_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../widgets/pulsing_dot.dart';
+import '../widgets/meduza_widget.dart';
+import '../widgets/meduza_speech_bubble.dart';
 
 /// Choix du moteur de transcription
 enum STTEngine {
-  native,    // speech_to_text (Google/Apple natif)
-  deepgram,  // Deepgram Nova-3 (cloud, haute précision)
+  native, // speech_to_text (Google/Apple natif)
+  deepgram, // Deepgram Nova-3 (cloud, haute précision)
 }
 
 class CapturePage extends StatefulWidget {
   final VoidCallback? onTranscriptionSaved;
-  const CapturePage({super.key, this.onTranscriptionSaved});
+  final void Function(MeduzaState state, {String? message, BubbleStyle style})?
+  onMeduzaStateChanged;
+  const CapturePage({
+    super.key,
+    this.onTranscriptionSaved,
+    this.onMeduzaStateChanged,
+  });
 
   @override
   State<CapturePage> createState() => _CapturePageState();
@@ -39,19 +47,19 @@ class _CapturePageState extends State<CapturePage>
   // Choix du moteur STT
   // ---------------------------------------------------------------------------
   STTEngine _sttEngine = STTEngine.deepgram; // Par défaut: Deepgram Nova-3
-  
+
   // ---------------------------------------------------------------------------
   // Speech-to-Text (Natif)
   // ---------------------------------------------------------------------------
   final stt.SpeechToText _speechToText = stt.SpeechToText();
   bool _speechEnabled = false;
-  
+
   // ---------------------------------------------------------------------------
   // Deepgram Nova-3
   // ---------------------------------------------------------------------------
   late DeepgramService _deepgram;
   bool _deepgramConnected = false;
-  
+
   // ---------------------------------------------------------------------------
   // État commun
   // ---------------------------------------------------------------------------
@@ -109,7 +117,7 @@ class _CapturePageState extends State<CapturePage>
       smartFormat: true,
       interimResults: true,
     );
-    
+
     // Callbacks Deepgram
     _deepgram.onTranscript = (text, isFinal) {
       if (!mounted) return;
@@ -124,17 +132,17 @@ class _CapturePageState extends State<CapturePage>
         _confidence = _deepgram.confidence;
       });
     };
-    
+
     _deepgram.onError = (error) {
       debugPrint('❌ Deepgram error: $error');
       _showSnackBar('Erreur Deepgram: $error');
     };
-    
+
     _deepgram.onConnected = () {
       if (mounted) setState(() => _deepgramConnected = true);
       debugPrint('✅ Deepgram connecté');
     };
-    
+
     _deepgram.onDisconnected = () {
       if (mounted) setState(() => _deepgramConnected = false);
       debugPrint('🔌 Deepgram déconnecté');
@@ -156,14 +164,16 @@ class _CapturePageState extends State<CapturePage>
     _speechEnabled = await _speechToText.initialize(
       onError: (error) {
         debugPrint('Speech error: ${error.errorMsg}');
-        if (_isListening && _sttEngine == STTEngine.native && 
+        if (_isListening &&
+            _sttEngine == STTEngine.native &&
             error.errorMsg == 'error_speech_timeout') {
           _restartListening();
         }
       },
       onStatus: (status) {
         debugPrint('Speech status: $status');
-        if (_isListening && _sttEngine == STTEngine.native && 
+        if (_isListening &&
+            _sttEngine == STTEngine.native &&
             (status == 'done' || status == 'notListening')) {
           _restartListening();
         }
@@ -231,10 +241,12 @@ class _CapturePageState extends State<CapturePage>
 
   Future<void> _startListening() async {
     if (!await _requestMicPermission()) return;
-    
+
     // Vérifier la disponibilité selon le moteur
     if (_sttEngine == STTEngine.native && !_speechEnabled) {
-      _showSnackBar('Service natif non disponible. Vérifiez les permissions de reconnaissance vocale.');
+      _showSnackBar(
+        'Service natif non disponible. Vérifiez les permissions de reconnaissance vocale.',
+      );
       // Tenter de réinitialiser
       await _initSpeech();
       if (!_speechEnabled) return;
@@ -247,6 +259,12 @@ class _CapturePageState extends State<CapturePage>
       _confidence = 0.0;
       _listenDuration = Duration.zero;
     });
+
+    // Meduza - ecoute active
+    widget.onMeduzaStateChanged?.call(
+      MeduzaState.listening,
+      message: 'Je t\'ecoute, parle quand tu es pret...',
+    );
 
     _pulseController.forward();
 
@@ -279,7 +297,7 @@ class _CapturePageState extends State<CapturePage>
       await _doListenNative();
     }
   }
-  
+
   /// Écoute avec Deepgram Nova-3
   Future<void> _doListenDeepgram() async {
     try {
@@ -293,7 +311,7 @@ class _CapturePageState extends State<CapturePage>
       _showSnackBar('Erreur Deepgram: $e');
     }
   }
-  
+
   /// Écoute avec le moteur natif (Google/Apple)
   Future<void> _doListenNative() async {
     try {
@@ -344,7 +362,7 @@ class _CapturePageState extends State<CapturePage>
     } else {
       await _speechToText.stop();
     }
-    
+
     _durationTimer?.cancel();
     _pulseController.stop();
     _pulseController.reset();
@@ -366,7 +384,15 @@ class _CapturePageState extends State<CapturePage>
 
     // Correction automatique par Mistral AI
     if (_fullTranscript.trim().isNotEmpty) {
+      // Meduza - traitement en cours
+      widget.onMeduzaStateChanged?.call(
+        MeduzaState.processing,
+        message: 'Correction IA en cours...',
+      );
       await _enhanceWithMistral();
+    } else {
+      // Rien capture — retour idle
+      widget.onMeduzaStateChanged?.call(MeduzaState.idle);
     }
   }
 
@@ -406,14 +432,34 @@ class _CapturePageState extends State<CapturePage>
           _isEnhancing = false;
         });
 
+        // Meduza - succes correction
+        widget.onMeduzaStateChanged?.call(
+          MeduzaState.happy,
+          message:
+              '$diffCount corrections appliquees. Transcription optimisee.',
+          style: BubbleStyle.success,
+        );
+
         debugPrint('[Notitia] Mistral: $diffCount corrections appliquées');
       } else {
         if (mounted) setState(() => _isEnhancing = false);
+        // Meduza - aucune correction
+        widget.onMeduzaStateChanged?.call(
+          MeduzaState.happy,
+          message: 'Transcription deja propre, aucune correction necessaire.',
+          style: BubbleStyle.success,
+        );
         debugPrint('[Notitia] Mistral: Aucune correction nécessaire');
       }
     } catch (e) {
       debugPrint('[Notitia] Erreur Mistral: $e');
       if (mounted) setState(() => _isEnhancing = false);
+      // Meduza - erreur correction
+      widget.onMeduzaStateChanged?.call(
+        MeduzaState.confused,
+        message: 'Correction IA indisponible, transcription brute conservee.',
+        style: BubbleStyle.error,
+      );
     }
   }
 
@@ -582,9 +628,7 @@ class _CapturePageState extends State<CapturePage>
       decoration: BoxDecoration(
         color: NotitiaTheme.darkBlue.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: NotitiaTheme.neonPink.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -596,14 +640,19 @@ class _CapturePageState extends State<CapturePage>
                   : () => setState(() => _sttEngine = STTEngine.deepgram),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 8,
+                ),
                 decoration: BoxDecoration(
                   color: _sttEngine == STTEngine.deepgram
                       ? NotitiaTheme.neonPink.withValues(alpha: 0.2)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                   border: _sttEngine == STTEngine.deepgram
-                      ? Border.all(color: NotitiaTheme.neonPink.withValues(alpha: 0.5))
+                      ? Border.all(
+                          color: NotitiaTheme.neonPink.withValues(alpha: 0.5),
+                        )
                       : null,
                 ),
                 child: Column(
@@ -648,14 +697,19 @@ class _CapturePageState extends State<CapturePage>
                   : () => setState(() => _sttEngine = STTEngine.native),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 8,
+                ),
                 decoration: BoxDecoration(
                   color: _sttEngine == STTEngine.native
                       ? NotitiaTheme.neonCyan.withValues(alpha: 0.2)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                   border: _sttEngine == STTEngine.native
-                      ? Border.all(color: NotitiaTheme.neonCyan.withValues(alpha: 0.5))
+                      ? Border.all(
+                          color: NotitiaTheme.neonCyan.withValues(alpha: 0.5),
+                        )
                       : null,
                 ),
                 child: Column(
@@ -898,13 +952,11 @@ class _CapturePageState extends State<CapturePage>
 
     // État: Écoute en cours
     if (_isListening) {
-      final engineName = _sttEngine == STTEngine.deepgram 
-          ? 'NOVA-3' 
-          : 'NATIF';
-      final engineColor = _sttEngine == STTEngine.deepgram 
-          ? NotitiaTheme.neonPink 
+      final engineName = _sttEngine == STTEngine.deepgram ? 'NOVA-3' : 'NATIF';
+      final engineColor = _sttEngine == STTEngine.deepgram
+          ? NotitiaTheme.neonPink
           : NotitiaTheme.neonCyan;
-      
+
       return Column(
         children: [
           Row(
