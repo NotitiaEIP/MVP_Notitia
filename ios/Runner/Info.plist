@@ -14,20 +14,17 @@
 		<key>NSBluetoothPeripheralUsageDescription</key>
 		<string>Notitia utilise le Bluetooth pour détecter et communiquer avec le Notitia Node.</string>
 		<!-- ============================================== -->
-		<!-- NFC + P2P SHARING                             -->
+		<!-- NFC SHARING (uniquement)                      -->
 		<!-- ============================================== -->
-		<!-- NFC - Lecture de tags pour le tap-to-share -->
+		<!-- NFC - Lecture/écriture de tags pour le tap-to-share -->
 		<key>NFCReaderUsageDescription</key>
-		<string>Notitia utilise le NFC pour initier le partage de transcriptions par proximité.</string>
-		<!-- Réseau local - MultipeerConnectivity -->
-		<key>NSLocalNetworkUsageDescription</key>
-		<string>Notitia utilise le réseau local pour transférer des transcriptions entre appareils proches.</string>
-		<!-- Bonjour - Services MultipeerConnectivity -->
-		<key>NSBonjourServices</key>
-		<array>
-			<string>_notitia-share._tcp</string>
-			<string>_notitia-share._udp</string>
-		</array>
+		<string>Notitia utilise le NFC pour lire et écrire des transcriptions sur des tags NFC.</string>
+		<!-- ============================================== -->
+		<!-- SPEECH RECOGNITION                            -->
+		<!-- ============================================== -->
+		<!-- Permission reconnaissance vocale (natif STT) -->
+		<key>NSSpeechRecognitionUsageDescription</key>
+		<string>Notitia utilise la reconnaissance vocale pour transcrire vos notes audio en texte.</string>
 		<!-- ============================================== -->
 		<!-- Configuration standard de l'application       -->
 		<!-- ============================================== -->

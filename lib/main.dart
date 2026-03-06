@@ -8,7 +8,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import 'pages/assistant_page.dart';
 import 'pages/capture_page.dart';
@@ -30,25 +29,11 @@ void main() {
   FlutterForegroundTask.initCommunicationPort();
   // Pré-initialisation du service
   ActiveListeningService.init();
-  // Initialiser le canal NFC/P2P
+  // Initialiser le canal NFC
   NfcShareService.init();
   // Nettoyer les fichiers temporaires de sessions précédentes
   NotitiaFileService.cleanupAllTempFiles();
-  // Demander les permissions Nearby (BLE, WiFi, Location)
-  _requestNearbyPermissions();
   runApp(const NotitiaApp());
-}
-
-/// Demande les permissions nécessaires pour Nearby Connections (BLE, WiFi, Location).
-/// Appelé au démarrage — résultat non bloquant.
-Future<void> _requestNearbyPermissions() async {
-  await [
-    Permission.bluetoothAdvertise,
-    Permission.bluetoothConnect,
-    Permission.bluetoothScan,
-    Permission.nearbyWifiDevices,
-    Permission.locationWhenInUse,
-  ].request();
 }
 
 // =============================================================================

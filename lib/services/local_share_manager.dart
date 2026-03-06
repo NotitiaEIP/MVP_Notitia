@@ -1,28 +1,20 @@
 // =============================================================================
-// NOTITIA — LocalShareManager (Orchestrateur Tap-to-Share)
+// NOTITIA — LocalShareManager (Orchestrateur Tap-to-Share NFC uniquement)
 // =============================================================================
-// Gère le flux complet du partage par NFC + Nearby Connections :
+// Gère le flux complet du partage par NFC tag :
 //
 // ÉMETTEUR :
-//   1. Prépare le fichier .notitia (compress + optionnel encrypt)
-//   2. Calcule le checksum SHA-256 du fichier
-//   3. Génère un sessionId unique
-//   4. Active le mode Nearby advertising
-//   5. Envoie le fichier via P2P (BLE/WiFi Direct)
-//   6. Confirmation + nettoyage
+//   1. Sérialise la transcription au format .notitia (compress)
+//   2. Écrit les bytes sur un tag NFC
+//   3. Confirmation
 //
 // RÉCEPTEUR :
-//   1. Active le mode NFC discovery + Nearby discovery
-//   2. Attend le tap → reçoit les métadonnées (sessionId, checksum, fileSize)
-//   3. Se connecte au P2P du sender
-//   4. Reçoit le fichier
-//   5. Valide la taille
-//   6. Importe automatiquement dans l'app
+//   1. Lit les données depuis un tag NFC
+//   2. Décompresse et importe la transcription
+//   3. Sauvegarde automatique
 // =============================================================================
 
 import 'dart:async';
-import 'dart:io';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -36,27 +28,20 @@ import 'storage_service.dart';
 // =============================================================================
 
 class ShareSession {
-  final String sessionId;
   final ShareMode mode;
   final DateTime startedAt;
   NfcShareState state;
-  NfcHandshakeData? handshake;
-  TransferProgress? progress;
-  String? filePath;
   String? errorMessage;
   Transcription? receivedTranscription;
 
   ShareSession({
-    required this.sessionId,
     required this.mode,
   })  : startedAt = DateTime.now(),
         state = NfcShareState.idle;
 
   bool get isActive =>
-      state == NfcShareState.advertising ||
-      state == NfcShareState.discovering ||
-      state == NfcShareState.connecting ||
-      state == NfcShareState.transferring;
+      state == NfcShareState.writing ||
+      state == NfcShareState.reading;
 
   Duration get elapsed => DateTime.now().difference(startedAt);
 }
@@ -75,8 +60,6 @@ class LocalShareManager extends ChangeNotifier {
 
   // Subscriptions aux streams du NfcShareService
   StreamSubscription<NfcShareState>? _stateSub;
-  StreamSubscription<TransferProgress>? _progressSub;
-  StreamSubscription<NfcHandshakeData>? _handshakeSub;
   StreamSubscription<NfcShareResult>? _resultSub;
 
   // Callback d'import automatique (récepteur)
@@ -93,8 +76,6 @@ class LocalShareManager extends ChangeNotifier {
 
   void _listenToStreams() {
     _stateSub = NfcShareService.stateStream.listen(_onStateChanged);
-    _progressSub = NfcShareService.progressStream.listen(_onProgress);
-    _handshakeSub = NfcShareService.handshakeStream.listen(_onHandshake);
     _resultSub = NfcShareService.resultStream.listen(_onResult);
   }
 
@@ -106,59 +87,40 @@ class LocalShareManager extends ChangeNotifier {
   Future<bool> isNfcAvailable() => NfcShareService.isNfcAvailable();
 
   // ---------------------------------------------------------------------------
-  // MODE ÉMETTEUR — Envoyer une transcription
+  // MODE ÉMETTEUR — Écrire une transcription sur un tag NFC
   // ---------------------------------------------------------------------------
 
   /// Démarre le partage d'une transcription en mode émetteur.
-  Future<bool> startSending(Transcription transcription,
-      {String? password}) async {
+  /// Sérialise, compresse et écrit les données sur un tag NFC.
+  Future<bool> startSending(Transcription transcription) async {
     if (_session != null && _session!.isActive) {
       debugPrint('[LocalShareManager] Session already active');
       return false;
     }
 
     try {
-      // 1. Créer le fichier .notitia
+      // 1. Créer le fichier .notitia en mémoire
       final notitiaFile =
           NotitiaFileService.createFromTranscription(transcription);
-      final filePath = await NotitiaFileService.exportToFile(
-        notitiaFile,
-        password: password,
-      );
+      final bytes = NotitiaFileService.exportToBytes(notitiaFile);
 
-      // 2. Lire le fichier et calculer le checksum SHA-256 des bytes bruts
-      final fileBytes = await File(filePath).readAsBytes();
-      final checksum = NotitiaFileService.sha256Bytes(Uint8List.fromList(fileBytes));
-
-      // 3. Générer un session ID unique
-      final sessionId = _generateSessionId();
-
-      // 4. Créer la session
-      _session = ShareSession(
-        sessionId: sessionId,
-        mode: ShareMode.sender,
-      );
-      _session!.filePath = filePath;
-      _session!.state = NfcShareState.advertising;
+      // 2. Créer la session
+      _session = ShareSession(mode: ShareMode.sender);
+      _session!.state = NfcShareState.writing;
       _safeNotify();
 
-      // 5. Démarrer le Nearby advertising
-      final started = await NfcShareService.startAdvertising(
-        filePath: filePath,
-        sessionId: sessionId,
-        fileSize: fileBytes.length,
-        checksum: checksum,
-      );
+      // 3. Écrire sur le tag NFC
+      final started = await NfcShareService.writeToTag(bytes);
 
       if (!started) {
         _session!.state = NfcShareState.failed;
-        _session!.errorMessage = 'Impossible de démarrer le partage.';
+        _session!.errorMessage = 'Impossible de démarrer l\'écriture NFC.';
         _safeNotify();
         return false;
       }
 
       debugPrint(
-          '[LocalShareManager] Sender ready — session=$sessionId, file=${fileBytes.length} bytes');
+          '[LocalShareManager] Sender ready — ${bytes.length} bytes to write on NFC tag');
       return true;
     } catch (e) {
       debugPrint('[LocalShareManager] Start sending error: $e');
@@ -170,10 +132,10 @@ class LocalShareManager extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // MODE RÉCEPTEUR — Recevoir une transcription
+  // MODE RÉCEPTEUR — Lire une transcription depuis un tag NFC
   // ---------------------------------------------------------------------------
 
-  /// Démarre le mode récepteur : scan NFC + Nearby discovery.
+  /// Démarre le mode récepteur : lecture NFC tag.
   Future<bool> startReceiving() async {
     if (_session != null && _session!.isActive) {
       debugPrint('[LocalShareManager] Session already active');
@@ -181,23 +143,20 @@ class LocalShareManager extends ChangeNotifier {
     }
 
     try {
-      _session = ShareSession(
-        sessionId: '', // Sera rempli après le handshake
-        mode: ShareMode.receiver,
-      );
-      _session!.state = NfcShareState.discovering;
+      _session = ShareSession(mode: ShareMode.receiver);
+      _session!.state = NfcShareState.reading;
       _safeNotify();
 
-      final started = await NfcShareService.startDiscovery();
+      final started = await NfcShareService.readFromTag();
 
       if (!started) {
         _session!.state = NfcShareState.failed;
-        _session!.errorMessage = 'Impossible de démarrer le scan.';
+        _session!.errorMessage = 'Impossible de démarrer la lecture NFC.';
         _safeNotify();
         return false;
       }
 
-      debugPrint('[LocalShareManager] Receiver scanning for NFC...');
+      debugPrint('[LocalShareManager] Receiver scanning NFC tag...');
       return true;
     } catch (e) {
       debugPrint('[LocalShareManager] Start receiving error: $e');
@@ -215,12 +174,6 @@ class LocalShareManager extends ChangeNotifier {
   /// Annule la session en cours et nettoie les ressources.
   Future<void> cancelSession() async {
     await NfcShareService.stopSession();
-
-    // Nettoyage du fichier temporaire si émetteur
-    if (_session?.mode == ShareMode.sender && _session?.filePath != null) {
-      NotitiaFileService.cleanupFile(_session!.filePath!);
-    }
-
     _session?.state = NfcShareState.idle;
     _session = null;
     _safeNotify();
@@ -250,29 +203,15 @@ class LocalShareManager extends ChangeNotifier {
     debugPrint('[LocalShareManager] State: ${state.name}');
   }
 
-  void _onProgress(TransferProgress progress) {
-    if (_session == null) return;
-    _session!.progress = progress;
-    _safeNotify();
-  }
-
-  void _onHandshake(NfcHandshakeData handshake) {
-    if (_session == null) return;
-    _session!.handshake = handshake;
-    _safeNotify();
-    debugPrint(
-        '[LocalShareManager] Handshake: device=${handshake.deviceName}, size=${handshake.fileSize}');
-  }
-
   void _onResult(NfcShareResult result) async {
     if (_session == null) return;
 
     if (result.success) {
       _session!.state = NfcShareState.completed;
 
-      // Mode récepteur : valider et importer
-      if (_session!.mode == ShareMode.receiver && result.filePath != null) {
-        await _handleReceivedFile(result.filePath!);
+      // Mode récepteur : importer les données lues
+      if (_session!.mode == ShareMode.receiver && result.data != null) {
+        await _handleReceivedData(result.data!);
       }
     } else {
       _session!.state = NfcShareState.failed;
@@ -280,42 +219,17 @@ class LocalShareManager extends ChangeNotifier {
     }
 
     _safeNotify();
-
-    // Nettoyage automatique après un délai
-    if (_session?.mode == ShareMode.sender && _session?.filePath != null) {
-      Future.delayed(const Duration(seconds: 5), () {
-        if (_session?.filePath != null) {
-          NotitiaFileService.cleanupFile(_session!.filePath!);
-        }
-      });
-    }
   }
 
   // ---------------------------------------------------------------------------
   // IMPORT AUTOMATIQUE (récepteur)
   // ---------------------------------------------------------------------------
 
-  /// Valide la taille et importe le fichier reçu.
-  Future<void> _handleReceivedFile(String filePath) async {
+  /// Décode et importe les données reçues via NFC.
+  Future<void> _handleReceivedData(Uint8List data) async {
     try {
-      // 1. Lire le fichier reçu
-      final fileBytes = await File(filePath).readAsBytes();
-
-      // 2. Valider la taille si le handshake existe
-      if (_session?.handshake != null) {
-        final expectedSize = _session!.handshake!.fileSize;
-        if (expectedSize > 0 && fileBytes.length != expectedSize) {
-          _session!.errorMessage =
-              'Taille du fichier incorrecte (${fileBytes.length} vs $expectedSize attendus). '
-              'Le transfert a peut-être été interrompu.';
-          _session!.state = NfcShareState.failed;
-          _safeNotify();
-          return;
-        }
-      }
-
-      // 3. Importer via le NotitiaFileService
-      final importResult = await NotitiaFileService.importFile(filePath);
+      // Importer directement depuis les bytes
+      final importResult = NotitiaFileService.importFromBytes(data);
 
       if (importResult.success && importResult.transcription != null) {
         final now = DateTime.now();
@@ -323,14 +237,14 @@ class LocalShareManager extends ChangeNotifier {
         // Sauvegarder automatiquement avec un nouvel ID
         final imported = Transcription(
           id: now.millisecondsSinceEpoch.toString(),
-          title: 'Importation — ${importResult.transcription!.title}',
+          title: 'Importation NFC — ${importResult.transcription!.title}',
           content: importResult.transcription!.content,
           createdAt: importResult.transcription!.createdAt,
           updatedAt: now,
         );
         await StorageService.save(imported);
 
-        debugPrint('[LocalShareManager] File imported: ${imported.title}');
+        debugPrint('[LocalShareManager] NFC import: ${imported.title}');
 
         // Stocker la transcription dans la session pour le bouton "VOIR"
         _session?.receivedTranscription = imported;
@@ -343,22 +257,11 @@ class LocalShareManager extends ChangeNotifier {
         _safeNotify();
       }
     } catch (e) {
-      debugPrint('[LocalShareManager] Handle received file error: $e');
-      _session!.errorMessage = 'Erreur de validation : ${e.toString()}';
+      debugPrint('[LocalShareManager] Handle received data error: $e');
+      _session!.errorMessage = 'Erreur de décodage NFC : ${e.toString()}';
       _session!.state = NfcShareState.failed;
       _safeNotify();
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // UTILITAIRES
-  // ---------------------------------------------------------------------------
-
-  /// Génère un ID de session unique (16 caractères hex).
-  String _generateSessionId() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(8, (_) => random.nextInt(256));
-    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
   // ---------------------------------------------------------------------------
@@ -369,14 +272,8 @@ class LocalShareManager extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _stateSub?.cancel();
-    _progressSub?.cancel();
-    _handshakeSub?.cancel();
     _resultSub?.cancel();
-    // Fire-and-forget : nettoyage natif sans notifier les listeners
     NfcShareService.stopSession();
-    if (_session?.mode == ShareMode.sender && _session?.filePath != null) {
-      NotitiaFileService.cleanupFile(_session!.filePath!);
-    }
     _session = null;
     super.dispose();
   }

@@ -170,6 +170,77 @@ class NotitiaFileService {
   }
 
   // ---------------------------------------------------------------------------
+  // EXPORT → bytes .notitia (pour partage NFC)
+  // ---------------------------------------------------------------------------
+
+  static Uint8List exportToBytes(NotitiaFile notitia) {
+    final jsonBytes =
+        utf8.encode(const JsonEncoder().convert(notitia.toJson()));
+
+    // zlib compress (pas de chiffrement pour NFC — taille limitée)
+    final compressed = ZLibCodec(level: 9).encode(jsonBytes);
+
+    final out = BytesBuilder();
+    out.add(_magic);
+    out.addByte(_version);
+    out.addByte(_flagCompressed);
+    out.add(compressed);
+
+    debugPrint('[NotitiaFileService] Exported to bytes (${out.length} bytes)');
+    return out.toBytes();
+  }
+
+  // ---------------------------------------------------------------------------
+  // IMPORT ← bytes .notitia (depuis partage NFC)
+  // ---------------------------------------------------------------------------
+
+  static ImportResult importFromBytes(Uint8List bytes) {
+    try {
+      if (bytes.length < 6) {
+        return const ImportResult(
+            success: false, message: 'Données trop petites.');
+      }
+
+      // Vérifier magic
+      if (bytes[0] != _magic[0] ||
+          bytes[1] != _magic[1] ||
+          bytes[2] != _magic[2] ||
+          bytes[3] != _magic[3]) {
+        return const ImportResult(
+            success: false,
+            message: 'Format de données invalide (magic manquant).');
+      }
+
+      final flags = bytes[5];
+      var payload = bytes.sublist(6);
+
+      // Décompresser
+      List<int> jsonBytes;
+      if (flags & _flagCompressed != 0) {
+        jsonBytes = ZLibCodec().decode(payload);
+      } else {
+        jsonBytes = payload;
+      }
+
+      final jsonStr = utf8.decode(jsonBytes);
+      final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final notitia = NotitiaFile.fromJson(json);
+
+      // Reconstruire la Transcription
+      final t = Transcription.fromJson(notitia.content);
+
+      return ImportResult(
+        success: true,
+        message: 'Import NFC réussi : ${t.title}',
+        transcription: t,
+      );
+    } catch (e) {
+      debugPrint('[NotitiaFileService] importFromBytes error: $e');
+      return ImportResult(success: false, message: 'Erreur : $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // IMPORT ← fichier .notitia
   // ---------------------------------------------------------------------------
 

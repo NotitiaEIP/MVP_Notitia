@@ -1,11 +1,13 @@
 // =============================================================================
-// NOTITIA — Plugin natif Android : NFC Handshake + Nearby Connections P2P
+// NOTITIA — Plugin natif Android : NFC téléphone-à-téléphone (HCE + Reader)
 // =============================================================================
+// Transfert de transcriptions par NFC entre deux téléphones.
+//
 // Architecture :
-// - NFC reader mode (récepteur) : lit les tags NDEF pour le handshake
-// - Nearby Connections API : transfert du fichier .notitia via P2P (BLE/WiFi)
-// - Handshake metadata : envoyé comme BYTES payload via Nearby Connections
-//   (Android Beam / setNdefPushMessage supprimé en Android 14+)
+// - ÉMETTEUR : active le service HCE → le téléphone émule un tag NFC Type 4
+// - RÉCEPTEUR : active le Reader Mode → lit les données depuis l'émetteur
+// - Fonctionne aussi avec des tags NFC physiques (réception uniquement)
+// - Aucune connexion Bluetooth, WiFi ou P2P n'est utilisée.
 // =============================================================================
 
 package com.example.notitia
@@ -16,31 +18,24 @@ import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.nfc.NfcManager
 import android.nfc.Tag
+import android.nfc.tech.IsoDep
 import android.nfc.tech.Ndef
-import android.os.Build
 import android.os.Bundle
-import android.os.ParcelFileDescriptor
+import android.util.Base64
 import android.util.Log
-import com.google.android.gms.nearby.Nearby
-import com.google.android.gms.nearby.connection.*
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import org.json.JSONObject
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.nio.charset.Charset
 
 /**
- * Plugin NFC + Nearby Connections pour le partage Tap-to-Share.
+ * Plugin NFC pour le partage Tap-to-Share.
  *
- * Flux :
- * 1. ÉMETTEUR : startAdvertising() → prépare le handshake + démarre Nearby advertising
- * 2. RÉCEPTEUR : startDiscovery() → active NFC reader + démarre Nearby discovery
- * 3. Nearby Connections : connexion P2P établie via session ID matching
- * 4. ÉMETTEUR envoie handshake metadata (BYTES) puis le fichier (FILE)
- * 5. Le résultat est renvoyé à Flutter via le MethodChannel
+ * Flux téléphone-à-téléphone :
+ * 1. ÉMETTEUR : writeToTag(data) → charge les données dans le service HCE
+ *    Le téléphone émule un tag NFC Type 4 (ISO-DEP).
+ * 2. RÉCEPTEUR : readFromTag() → active le reader mode
+ *    Lit les données depuis l'émetteur (ou un tag NFC physique).
+ * 3. Les téléphones sont collés dos à dos → transfert automatique.
  */
 class NfcSharePlugin(
     private val activity: MainActivity,
@@ -49,26 +44,12 @@ class NfcSharePlugin(
     companion object {
         private const val TAG = "NfcSharePlugin"
         private const val CHANNEL = "com.notitia/nfc_share"
-        private const val SERVICE_ID = "com.notitia.tap_share"
-        private const val NDEF_DOMAIN = "com.notitia"
-        private const val NDEF_TYPE = "share"
+        private const val NDEF_DOMAIN = "app.notitia"
+        private const val NDEF_TYPE = "transcription"
     }
 
     private var channel: MethodChannel? = null
     private var nfcAdapter: NfcAdapter? = null
-
-    // Session state
-    private var currentSessionId: String? = null
-    private var currentFilePath: String? = null
-    private var currentFileSize: Int = 0
-    private var currentChecksum: String? = null
-    private var isSender: Boolean = false
-
-    // Nearby Connections
-    private var connectionsClient: ConnectionsClient? = null
-    private var connectedEndpointId: String? = null
-    private var pendingHandshakePayload: String? = null
-    private var sentFilePayloadId: Long = -1
 
     // ---------------------------------------------------------------------------
     // INITIALISATION
@@ -82,8 +63,8 @@ class NfcSharePlugin(
         channel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "isNfcAvailable" -> handleIsNfcAvailable(result)
-                "startAdvertising" -> handleStartAdvertising(call, result)
-                "startDiscovery" -> handleStartDiscovery(call, result)
+                "writeToTag" -> handleStartSending(call, result)
+                "readFromTag" -> handleStartReceiving(result)
                 "stopSession" -> handleStopSession(result)
                 else -> result.notImplemented()
             }
@@ -93,10 +74,7 @@ class NfcSharePlugin(
         val nfcManager = activity.getSystemService(Context.NFC_SERVICE) as? NfcManager
         nfcAdapter = nfcManager?.defaultAdapter
 
-        // Init Nearby Connections
-        connectionsClient = Nearby.getConnectionsClient(activity)
-
-        Log.d(TAG, "NfcSharePlugin registered. NFC available: ${nfcAdapter != null}")
+        Log.d(TAG, "NfcSharePlugin registered (HCE + Reader). NFC available: ${nfcAdapter?.isEnabled}")
     }
 
     // ---------------------------------------------------------------------------
@@ -109,470 +87,288 @@ class NfcSharePlugin(
     }
 
     // ---------------------------------------------------------------------------
-    // MODE ÉMETTEUR — Nearby Advertising
+    // MODE ÉMETTEUR — HCE (le téléphone émule un tag NFC Type 4)
     // ---------------------------------------------------------------------------
 
-    private fun handleStartAdvertising(call: MethodCall, result: MethodChannel.Result) {
+    private fun handleStartSending(call: MethodCall, result: MethodChannel.Result) {
         try {
-            val filePath = call.argument<String>("file_path")
-            val sessionId = call.argument<String>("session_id")
-            val fileSize = call.argument<Int>("file_size") ?: 0
-            val checksum = call.argument<String>("checksum")
-
-            if (filePath == null || sessionId == null || checksum == null) {
-                result.error("INVALID_ARGS", "file_path, session_id, checksum requis", null)
+            val dataB64 = call.argument<String>("data")
+            if (dataB64 == null) {
+                result.error("INVALID_ARGS", "data (base64) requis", null)
                 return
             }
 
-            val file = File(filePath)
-            if (!file.exists()) {
-                result.error("FILE_NOT_FOUND", "Fichier introuvable: $filePath", null)
+            val adapter = nfcAdapter
+            if (adapter == null || !adapter.isEnabled) {
+                result.error("NFC_UNAVAILABLE", "NFC non disponible ou désactivé", null)
                 return
             }
 
-            currentSessionId = sessionId
-            currentFilePath = filePath
-            currentFileSize = fileSize
-            currentChecksum = checksum
-            isSender = true
+            val data = Base64.decode(dataB64, Base64.DEFAULT)
 
-            // 1. Préparer le handshake metadata (sera envoyé via Nearby BYTES payload)
-            setupSenderHandshake(sessionId, fileSize, checksum)
+            // ⚠️ Ne PAS activer le reader mode côté émetteur !
+            // Le téléphone doit rester en mode card emulation (HCE).
+            // Désactiver le reader mode au cas où il serait actif.
+            adapter.disableReaderMode(activity)
 
-            // 2. Démarrer Nearby Connections en mode Advertising
-            startNearbyAdvertising(sessionId)
+            // Charger les données dans le service HCE
+            NfcHceService.pendingData = data
+            NfcHceService.onReadComplete = {
+                Log.d(TAG, "HCE: données lues par le récepteur ✓")
+                NfcHceService.clear()
+                activity.runOnUiThread {
+                    notifyWriteComplete()
+                }
+            }
 
-            notifyState("advertising")
+            notifyState("writing")
             result.success(true)
 
+            Log.d(TAG, "HCE émetteur prêt (${data.size} octets). En attente du récepteur...")
+
         } catch (e: Exception) {
-            Log.e(TAG, "Start advertising error", e)
-            result.error("ADVERTISING_ERROR", e.message, null)
-        }
-    }
-
-    /**
-     * Prépare les métadonnées du handshake côté émetteur.
-     * Sera envoyé comme BYTES payload après connexion Nearby.
-     */
-    private fun setupSenderHandshake(sessionId: String, fileSize: Int, checksum: String) {
-        val handshakeJson = JSONObject().apply {
-            put("session_id", sessionId)
-            put("device_name", Build.MODEL)
-            put("file_size", fileSize)
-            put("checksum", checksum)
-            put("transport_type", "nearby")
-        }
-
-        pendingHandshakePayload = handshakeJson.toString()
-        Log.d(TAG, "Sender handshake prepared: session=$sessionId")
-    }
-
-    /**
-     * Démarre Nearby Connections en mode Advertising (émetteur).
-     * L'émetteur attend qu'un récepteur se connecte.
-     */
-    private fun startNearbyAdvertising(sessionId: String) {
-        val advertisingOptions = AdvertisingOptions.Builder()
-            .setStrategy(Strategy.P2P_POINT_TO_POINT)
-            .build()
-
-        connectionsClient?.startAdvertising(
-            sessionId, // Utiliser le sessionId comme endpoint name
-            SERVICE_ID,
-            connectionLifecycleCallback,
-            advertisingOptions
-        )?.addOnSuccessListener {
-            Log.d(TAG, "Nearby advertising started")
-        }?.addOnFailureListener { e ->
-            Log.e(TAG, "Nearby advertising failed", e)
-            notifyError("Impossible de démarrer le partage P2P: ${e.message}")
+            Log.e(TAG, "Start sending error", e)
+            result.error("SEND_ERROR", e.message, null)
         }
     }
 
     // ---------------------------------------------------------------------------
-    // MODE RÉCEPTEUR — NFC Discovery + Nearby Discovery
+    // MODE RÉCEPTEUR — Reader Mode (lit depuis HCE ou tag physique)
     // ---------------------------------------------------------------------------
 
-    private fun handleStartDiscovery(call: MethodCall, result: MethodChannel.Result) {
+    private fun handleStartReceiving(result: MethodChannel.Result) {
         try {
-            isSender = false
+            val adapter = nfcAdapter
+            if (adapter == null || !adapter.isEnabled) {
+                result.error("NFC_UNAVAILABLE", "NFC non disponible ou désactivé", null)
+                return
+            }
 
-            // 1. Activer le NFC reader mode pour lire le handshake
-            setupNfcReceiver()
+            // S'assurer que le HCE est désactivé côté récepteur
+            NfcHceService.clear()
 
-            // 2. Démarrer Nearby Connections en mode Discovery
-            startNearbyDiscovery()
+            // Activer le reader mode
+            adapter.enableReaderMode(
+                activity,
+                { tag -> handleTagDiscovered(tag) },
+                NfcAdapter.FLAG_READER_NFC_A or
+                        NfcAdapter.FLAG_READER_NFC_B or
+                        NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
+                Bundle().apply {
+                    putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 250)
+                }
+            )
 
-            notifyState("discovering")
+            notifyState("reading")
             result.success(true)
 
-        } catch (e: Exception) {
-            Log.e(TAG, "Start discovery error", e)
-            result.error("DISCOVERY_ERROR", e.message, null)
-        }
-    }
-
-    /**
-     * Active le NFC en mode reader pour lire un éventuel message NDEF.
-     */
-    private fun setupNfcReceiver() {
-        val adapter = nfcAdapter ?: return
-
-        adapter.enableReaderMode(
-            activity,
-            { tag -> handleNfcTagDiscovered(tag) },
-            NfcAdapter.FLAG_READER_NFC_A or
-                    NfcAdapter.FLAG_READER_NFC_B or
-                    NfcAdapter.FLAG_READER_NFC_F or
-                    NfcAdapter.FLAG_READER_NFC_V or
-                    NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
-            Bundle().apply {
-                putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 250)
-            }
-        )
-
-        Log.d(TAG, "NFC receiver configured")
-    }
-
-    /**
-     * Callback quand un tag NFC est détecté en mode reader.
-     * Lit le message NDEF pour extraire les métadonnées du handshake.
-     */
-    private fun handleNfcTagDiscovered(tag: Tag) {
-        try {
-            val ndef = Ndef.get(tag) ?: return
-            ndef.connect()
-            val ndefMessage = ndef.ndefMessage ?: return
-            ndef.close()
-
-            for (record in ndefMessage.records) {
-                if (record.tnf == NdefRecord.TNF_EXTERNAL_TYPE) {
-                    val payload = String(record.payload, Charset.forName("UTF-8"))
-                    Log.d(TAG, "NFC handshake received: $payload")
-
-                    val json = JSONObject(payload)
-                    val sessionId = json.optString("session_id", "")
-                    val deviceName = json.optString("device_name", "Unknown")
-                    val fileSize = json.optInt("file_size", 0)
-                    val checksum = json.optString("checksum", "")
-
-                    currentSessionId = sessionId
-                    currentFileSize = fileSize
-                    currentChecksum = checksum
-
-                    // Notifier Flutter du handshake
-                    activity.runOnUiThread {
-                        notifyHandshake(sessionId, deviceName, fileSize, checksum)
-                        notifyState("connecting")
-                    }
-
-                    return
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "NFC read error", e)
-        }
-    }
-
-    /**
-     * Démarre Nearby Connections en mode Discovery (récepteur).
-     */
-    private fun startNearbyDiscovery() {
-        val discoveryOptions = DiscoveryOptions.Builder()
-            .setStrategy(Strategy.P2P_POINT_TO_POINT)
-            .build()
-
-        connectionsClient?.startDiscovery(
-            SERVICE_ID,
-            endpointDiscoveryCallback,
-            discoveryOptions
-        )?.addOnSuccessListener {
-            Log.d(TAG, "Nearby discovery started")
-        }?.addOnFailureListener { e ->
-            Log.e(TAG, "Nearby discovery failed", e)
-            notifyError("Impossible de scanner les appareils: ${e.message}")
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // NEARBY CONNECTIONS CALLBACKS
-    // ---------------------------------------------------------------------------
-
-    /**
-     * Callback quand un endpoint est découvert (côté récepteur).
-     * Connecte automatiquement si le sessionId correspond.
-     */
-    private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
-        override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
-            Log.d(TAG, "Endpoint found: $endpointId, name=${info.endpointName}")
-
-            // Le nom de l'endpoint est le sessionId — vérifier la correspondance
-            if (currentSessionId != null && info.endpointName == currentSessionId) {
-                Log.d(TAG, "Session match! Connecting to $endpointId")
-                connectionsClient?.requestConnection(
-                    Build.MODEL,
-                    endpointId,
-                    connectionLifecycleCallback
-                )
-            } else if (currentSessionId == null) {
-                // Pas encore de handshake NFC — se connecter au premier endpoint trouvé
-                currentSessionId = info.endpointName
-                connectionsClient?.requestConnection(
-                    Build.MODEL,
-                    endpointId,
-                    connectionLifecycleCallback
-                )
-            }
-        }
-
-        override fun onEndpointLost(endpointId: String) {
-            Log.d(TAG, "Endpoint lost: $endpointId")
-        }
-    }
-
-    /**
-     * Callback du cycle de vie de la connexion (les deux côtés).
-     */
-    private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
-        override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            Log.d(TAG, "Connection initiated with $endpointId")
-            // Accepter automatiquement (la sécurité est assurée par le sessionId)
-            connectionsClient?.acceptConnection(endpointId, payloadCallback)
-        }
-
-        override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
-            if (result.status.isSuccess) {
-                Log.d(TAG, "Connected to $endpointId")
-                connectedEndpointId = endpointId
-
-                // Arrêter advertising/discovery après connexion
-                connectionsClient?.stopAdvertising()
-                connectionsClient?.stopDiscovery()
-
-                activity.runOnUiThread {
-                    notifyState("transferring")
-                }
-
-                // Si émetteur, envoyer le handshake metadata puis le fichier
-                if (isSender) {
-                    pendingHandshakePayload?.let { json ->
-                        val bytes = json.toByteArray(Charset.forName("UTF-8"))
-                        connectionsClient?.sendPayload(endpointId, Payload.fromBytes(bytes))
-                    }
-                    currentFilePath?.let { sendFile(endpointId, it) }
-                }
-            } else {
-                Log.e(TAG, "Connection failed: ${result.status}")
-                activity.runOnUiThread {
-                    notifyError("Connexion P2P échouée: ${result.status.statusMessage}")
-                }
-            }
-        }
-
-        override fun onDisconnected(endpointId: String) {
-            Log.d(TAG, "Disconnected from $endpointId")
-            connectedEndpointId = null
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // TRANSFERT DE FICHIER via Nearby Connections
-    // ---------------------------------------------------------------------------
-
-    /**
-     * Envoie le fichier .notitia au récepteur connecté.
-     */
-    private fun sendFile(endpointId: String, filePath: String) {
-        try {
-            val file = File(filePath)
-            val filePayload = Payload.fromFile(file)
-            sentFilePayloadId = filePayload.id
-
-            Log.d(TAG, "Sending file: ${file.name} (${file.length()} bytes), payloadId=${filePayload.id}")
-
-            connectionsClient?.sendPayload(endpointId, filePayload)
-                ?.addOnSuccessListener {
-                    Log.d(TAG, "File payload sent")
-                }
-                ?.addOnFailureListener { e ->
-                    Log.e(TAG, "Send payload failed", e)
-                    activity.runOnUiThread {
-                        notifyError("Erreur lors de l'envoi: ${e.message}")
-                    }
-                }
+            Log.d(TAG, "Reader mode activé. En attente d'une source NFC...")
 
         } catch (e: Exception) {
-            Log.e(TAG, "Send file error", e)
-            activity.runOnUiThread {
-                notifyError("Impossible d'envoyer le fichier: ${e.message}")
-            }
+            Log.e(TAG, "Start receiving error", e)
+            result.error("RECEIVE_ERROR", e.message, null)
         }
     }
 
-    /**
-     * Callback de réception des payloads (côté récepteur).
-     * 
-     * IMPORTANT : Le PFD est dupliqué (dup()) dans onPayloadReceived car le
-     * framework Nearby Connections peut fermer le fd original après le transfert.
-     * Appeler asParcelFileDescriptor() dans onPayloadTransferUpdate(SUCCESS)
-     * provoque EBADF (Bad file descriptor).
-     */
-    private val payloadCallback = object : PayloadCallback() {
-        private var filePayloadId: Long = -1
-        private var receivedPfd: ParcelFileDescriptor? = null
+    // ---------------------------------------------------------------------------
+    // TAG / HCE DÉTECTÉ — Lecture des données
+    // ---------------------------------------------------------------------------
 
-        override fun onPayloadReceived(endpointId: String, payload: Payload) {
-            when (payload.type) {
-                Payload.Type.FILE -> {
-                    Log.d(TAG, "Receiving file payload id=${payload.id}")
-                    filePayloadId = payload.id
-                    // Capturer et dupliquer le PFD MAINTENANT, avant que le
-                    // framework ne ferme le fd après la fin du transfert.
-                    try {
-                        val originalPfd = payload.asFile()?.asParcelFileDescriptor()
-                        receivedPfd = originalPfd?.dup()
-                        // Ne PAS fermer originalPfd ici — le framework en a
-                        // encore besoin pour écrire les données entrantes.
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to dup() PFD on receive", e)
-                        receivedPfd = null
-                    }
-                }
-                Payload.Type.BYTES -> {
-                    // Handshake metadata from sender
-                    val data = payload.asBytes() ?: return
-                    val jsonStr = String(data, Charset.forName("UTF-8"))
-                    Log.d(TAG, "Handshake payload received: $jsonStr")
-                    try {
-                        val json = JSONObject(jsonStr)
-                        val sessionId = json.optString("session_id", "")
-                        val deviceName = json.optString("device_name", "Unknown")
-                        val fileSize = json.optInt("file_size", 0)
-                        val checksum = json.optString("checksum", "")
+    private fun handleTagDiscovered(tag: Tag) {
+        Log.d(TAG, "Tag détecté. Techs: ${tag.techList.joinToString()}")
 
-                        currentSessionId = sessionId
-                        currentFileSize = fileSize
-                        currentChecksum = checksum
-
-                        activity.runOnUiThread {
-                            notifyHandshake(sessionId, deviceName, fileSize, checksum)
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to parse handshake payload", e)
-                    }
-                }
-                else -> {
-                    Log.d(TAG, "Received unknown payload type: ${payload.type}")
-                }
-            }
-        }
-
-        override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
-            // Notifier la progression pour le FILE payload (émetteur OU récepteur)
-            val isFilePayload = update.payloadId == filePayloadId || update.payloadId == sentFilePayloadId
-            if (isFilePayload) {
-                val totalBytes = update.totalBytes
-                val bytesTransferred = update.bytesTransferred
-
-                if (totalBytes > 0) {
-                    activity.runOnUiThread {
-                        notifyProgress(bytesTransferred, totalBytes)
-                    }
-                }
-            }
-
-            when (update.status) {
-                PayloadTransferUpdate.Status.SUCCESS -> {
-                    if (isSender && update.payloadId == sentFilePayloadId) {
-                        // Côté émetteur : le fichier a été entièrement envoyé
-                        Log.d(TAG, "Sender FILE sent complete: ${update.bytesTransferred} bytes")
-                        sentFilePayloadId = -1
-                        handleTransferComplete(null)
-                    } else if (!isSender && update.payloadId == filePayloadId) {
-                        // Côté récepteur : le fichier a été entièrement reçu
-                        Log.d(TAG, "Receiver FILE received complete: ${update.bytesTransferred} bytes")
-                        handleTransferComplete(receivedPfd)
-                        receivedPfd = null
-                    }
-                }
-                PayloadTransferUpdate.Status.FAILURE -> {
-                    if (isFilePayload) {
-                        Log.e(TAG, "FILE transfer failed")
-                        receivedPfd?.close()
-                        receivedPfd = null
-                        sentFilePayloadId = -1
-                        activity.runOnUiThread {
-                            notifyError("Le transfert a échoué. Réessayez.")
-                        }
-                    }
-                }
-                PayloadTransferUpdate.Status.CANCELED -> {
-                    if (isFilePayload) {
-                        Log.w(TAG, "FILE transfer cancelled")
-                        receivedPfd?.close()
-                        receivedPfd = null
-                        sentFilePayloadId = -1
-                        activity.runOnUiThread {
-                            notifyError("Le transfert a été annulé.")
-                        }
-                    }
-                }
-                PayloadTransferUpdate.Status.IN_PROGRESS -> {
-                    // Progression normale
-                }
-            }
-        }
-    }
-
-    /**
-     * Traitement après réception complète du fichier.
-     * Lit via le ParcelFileDescriptor dupliqué (compatible scoped storage,
-     * pas de EBADF car le dup() survit à la fermeture du fd original).
-     */
-    private fun handleTransferComplete(pfd: ParcelFileDescriptor?) {
-        if (isSender) {
-            // Côté émetteur : le transfert est réussi
-            activity.runOnUiThread {
-                notifyTransferComplete(null)
-            }
+        // 1. Essayer Ndef (tag physique, ou HCE si NDEF discovery a réussi)
+        val ndef = Ndef.get(tag)
+        if (ndef != null) {
+            readViaNdef(ndef)
             return
         }
 
-        // Côté récepteur : sauvegarder le fichier
+        // 2. Essayer IsoDep (HCE quand NDEF discovery n'a pas abouti)
+        val isoDep = IsoDep.get(tag)
+        if (isoDep != null) {
+            readViaIsoDep(isoDep)
+            return
+        }
+
+        // Aucun protocole supporté
+        activity.runOnUiThread {
+            notifyError("Appareil NFC non compatible ou tag vide.")
+        }
+    }
+
+    /**
+     * Lecture via Ndef tech (tag physique + HCE si NDEF auto-détecté).
+     */
+    private fun readViaNdef(ndef: Ndef) {
         try {
-            if (pfd == null) {
-                activity.runOnUiThread {
-                    notifyError("Fichier reçu introuvable.")
-                }
+            ndef.connect()
+            val message = ndef.ndefMessage ?: ndef.cachedNdefMessage
+            ndef.close()
+
+            if (message == null) {
+                activity.runOnUiThread { notifyError("Aucune donnée NFC.") }
                 return
             }
 
-            // Copier dans le dossier cache de l'app via le file descriptor dupliqué
-            val cacheDir = File(activity.cacheDir, "nfc_received")
-            if (!cacheDir.exists()) cacheDir.mkdirs()
-
-            val destFile = File(cacheDir, "received_${System.currentTimeMillis()}.notitia")
-
-            FileInputStream(pfd.fileDescriptor).use { input ->
-                FileOutputStream(destFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
-            pfd.close()
-
-            Log.d(TAG, "File saved to: ${destFile.absolutePath} (${destFile.length()} bytes)")
-
-            activity.runOnUiThread {
-                notifyTransferComplete(destFile.absolutePath)
-            }
+            extractNotitiaData(message)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Handle transfer complete error", e)
+            Log.e(TAG, "Ndef read error", e)
             activity.runOnUiThread {
-                notifyError("Erreur lors de la sauvegarde du fichier: ${e.message}")
+                notifyError("Lecture NFC échouée: ${e.message}")
             }
         }
+    }
+
+    /**
+     * Lecture via IsoDep (commandes APDU manuelles Type 4 Tag).
+     * Utilisé quand l'émetteur est un autre téléphone (HCE).
+     */
+    private fun readViaIsoDep(isoDep: IsoDep) {
+        try {
+            isoDep.connect()
+            isoDep.timeout = 5000
+
+            // 1. SELECT NDEF Application (AID D2760000850101)
+            var resp = isoDep.transceive(byteArrayOf(
+                0x00, 0xA4.toByte(), 0x04, 0x00, 0x07,
+                0xD2.toByte(), 0x76, 0x00, 0x00, 0x85.toByte(), 0x01, 0x01,
+                0x00
+            ))
+            if (!isSwOk(resp)) {
+                isoDep.close()
+                activity.runOnUiThread { notifyError("Appareil non compatible Notitia.") }
+                return
+            }
+
+            // 2. SELECT CC file (E103)
+            resp = isoDep.transceive(byteArrayOf(
+                0x00, 0xA4.toByte(), 0x00, 0x0C, 0x02,
+                0xE1.toByte(), 0x03
+            ))
+            if (!isSwOk(resp)) {
+                isoDep.close()
+                activity.runOnUiThread { notifyError("Erreur lecture CC.") }
+                return
+            }
+
+            // 3. READ BINARY CC (15 octets)
+            resp = isoDep.transceive(byteArrayOf(
+                0x00, 0xB0.toByte(), 0x00, 0x00, 0x0F
+            ))
+            if (!isSwOk(resp) || resp.size < 17) {
+                isoDep.close()
+                activity.runOnUiThread { notifyError("Erreur lecture CC.") }
+                return
+            }
+            // CC parsed (nous savons que le fichier NDEF est E104)
+
+            // 4. SELECT NDEF file (E104)
+            resp = isoDep.transceive(byteArrayOf(
+                0x00, 0xA4.toByte(), 0x00, 0x0C, 0x02,
+                0xE1.toByte(), 0x04
+            ))
+            if (!isSwOk(resp)) {
+                isoDep.close()
+                activity.runOnUiThread { notifyError("Fichier NDEF non trouvé.") }
+                return
+            }
+
+            // 5. READ BINARY — NLEN (2 premiers octets)
+            resp = isoDep.transceive(byteArrayOf(
+                0x00, 0xB0.toByte(), 0x00, 0x00, 0x02
+            ))
+            if (!isSwOk(resp) || resp.size < 4) {
+                isoDep.close()
+                activity.runOnUiThread { notifyError("Lecture taille NDEF échouée.") }
+                return
+            }
+            val ndefLen = ((resp[0].toInt() and 0xFF) shl 8) or (resp[1].toInt() and 0xFF)
+            Log.d(TAG, "NDEF message length: $ndefLen bytes")
+
+            if (ndefLen == 0) {
+                isoDep.close()
+                activity.runOnUiThread { notifyError("Message NDEF vide.") }
+                return
+            }
+
+            // 6. READ BINARY — données NDEF (offset +2 pour sauter NLEN)
+            val ndefData = ByteArray(ndefLen)
+            var offset = 0
+            val chunkSize = 250
+            while (offset < ndefLen) {
+                val toRead = minOf(chunkSize, ndefLen - offset)
+                val fileOffset = offset + 2  // +2 pour sauter NLEN
+                val readCmd = byteArrayOf(
+                    0x00, 0xB0.toByte(),
+                    ((fileOffset shr 8) and 0xFF).toByte(),
+                    (fileOffset and 0xFF).toByte(),
+                    (toRead and 0xFF).toByte()
+                )
+                resp = isoDep.transceive(readCmd)
+                if (!isSwOk(resp)) {
+                    isoDep.close()
+                    activity.runOnUiThread { notifyError("Lecture données NDEF échouée.") }
+                    return
+                }
+                val dataLen = resp.size - 2  // exclure SW (90 00)
+                System.arraycopy(resp, 0, ndefData, offset, dataLen)
+                offset += dataLen
+            }
+
+            isoDep.close()
+
+            // Parser NdefMessage et extraire les données Notitia
+            val ndefMessage = NdefMessage(ndefData)
+            extractNotitiaData(ndefMessage)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "IsoDep read error", e)
+            activity.runOnUiThread {
+                notifyError("Lecture NFC échouée: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Extrait les données Notitia d'un NdefMessage.
+     */
+    private fun extractNotitiaData(message: NdefMessage) {
+        val expectedType = "$NDEF_DOMAIN:$NDEF_TYPE"
+        for (record in message.records) {
+            if (record.tnf == NdefRecord.TNF_EXTERNAL_TYPE) {
+                val type = String(record.type, Charsets.UTF_8)
+                if (type == expectedType) {
+                    val base64Data = Base64.encodeToString(
+                        record.payload, Base64.NO_WRAP
+                    )
+
+                    // Désactiver le reader mode
+                    nfcAdapter?.disableReaderMode(activity)
+
+                    Log.d(TAG, "Données Notitia reçues (${record.payload.size} octets) ✓")
+
+                    activity.runOnUiThread {
+                        notifyDataRead(base64Data)
+                    }
+                    return
+                }
+            }
+        }
+
+        activity.runOnUiThread {
+            notifyError("Ce tag/appareil ne contient pas de transcription Notitia.")
+        }
+    }
+
+    /**
+     * Vérifie si la réponse APDU se termine par SW 90 00 (succès).
+     */
+    private fun isSwOk(response: ByteArray): Boolean {
+        return response.size >= 2 &&
+                response[response.size - 2] == 0x90.toByte() &&
+                response[response.size - 1] == 0x00.toByte()
     }
 
     // ---------------------------------------------------------------------------
@@ -587,22 +383,7 @@ class NfcSharePlugin(
     private fun stopAll() {
         try {
             nfcAdapter?.disableReaderMode(activity)
-
-            connectionsClient?.stopAdvertising()
-            connectionsClient?.stopDiscovery()
-            connectedEndpointId?.let {
-                connectionsClient?.disconnectFromEndpoint(it)
-            }
-            connectionsClient?.stopAllEndpoints()
-
-            connectedEndpointId = null
-            currentSessionId = null
-            currentFilePath = null
-            currentFileSize = 0
-            currentChecksum = null
-            pendingHandshakePayload = null
-            sentFilePayloadId = -1
-
+            NfcHceService.clear()
             Log.d(TAG, "Session stopped")
         } catch (e: Exception) {
             Log.e(TAG, "Stop error", e)
@@ -623,33 +404,12 @@ class NfcSharePlugin(
         channel?.invokeMethod("onStateChanged", state)
     }
 
-    private fun notifyHandshake(
-        sessionId: String,
-        deviceName: String,
-        fileSize: Int,
-        checksum: String
-    ) {
-        channel?.invokeMethod("onHandshakeReceived", mapOf(
-            "session_id" to sessionId,
-            "device_name" to deviceName,
-            "file_size" to fileSize,
-            "checksum" to checksum,
-            "transport_type" to "nearby"
-        ))
+    private fun notifyWriteComplete() {
+        channel?.invokeMethod("onWriteComplete", null)
     }
 
-    private fun notifyProgress(bytesTransferred: Long, totalBytes: Long) {
-        channel?.invokeMethod("onTransferProgress", mapOf(
-            "bytes_transferred" to bytesTransferred.toInt(),
-            "total_bytes" to totalBytes.toInt()
-        ))
-    }
-
-    private fun notifyTransferComplete(filePath: String?) {
-        channel?.invokeMethod("onTransferComplete", mapOf(
-            "file_path" to filePath,
-            "checksum" to currentChecksum
-        ))
+    private fun notifyDataRead(base64Data: String) {
+        channel?.invokeMethod("onDataRead", base64Data)
     }
 
     private fun notifyError(message: String) {

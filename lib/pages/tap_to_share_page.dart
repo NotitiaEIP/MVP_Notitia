@@ -8,7 +8,9 @@
 
 import 'dart:async';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/transcription.dart';
@@ -43,8 +45,10 @@ class _TapToSharePageState extends State<TapToSharePage>
   late final LocalShareManager _manager;
   late final AnimationController _pulseController;
   late final AnimationController _rippleController;
+  final AudioPlayer _audioPlayer = AudioPlayer();
   bool _nfcAvailable = false;
   bool _isCheckingNfc = true;
+  NfcShareState? _lastState;
 
   @override
   void initState() {
@@ -82,7 +86,41 @@ class _TapToSharePageState extends State<TapToSharePage>
   }
 
   void _onManagerUpdate() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+
+    final session = _manager.session;
+    final currentState = session?.state;
+
+    // Détecter la transition vers "completed" pour jouer son + vibration
+    if (currentState == NfcShareState.completed &&
+        _lastState != NfcShareState.completed) {
+      _playCompletionFeedback(session!.mode);
+    }
+    // Détecter la transition vers "failed" pour vibrer (erreur)
+    if (currentState == NfcShareState.failed &&
+        _lastState != NfcShareState.failed) {
+      HapticFeedback.heavyImpact();
+    }
+
+    _lastState = currentState;
+    setState(() {});
+  }
+
+  /// Joue le son de confirmation + vibration selon le mode (sender/receiver).
+  Future<void> _playCompletionFeedback(ShareMode mode) async {
+    // Vibration de succès (double tap haptique)
+    HapticFeedback.mediumImpact();
+    await Future.delayed(const Duration(milliseconds: 120));
+    HapticFeedback.mediumImpact();
+
+    // Son uniquement pour l'émetteur
+    if (mode == ShareMode.sender) {
+      try {
+        await _audioPlayer.play(AssetSource('sounds/sent.mp3'));
+      } catch (e) {
+        debugPrint('[TapToShare] Audio playback error: $e');
+      }
+    }
   }
 
   void _onTranscriptionReceived(Transcription transcription) {
@@ -93,6 +131,7 @@ class _TapToSharePageState extends State<TapToSharePage>
   void dispose() {
     _manager.removeListener(_onManagerUpdate);
     _manager.dispose();
+    _audioPlayer.dispose();
     _pulseController.dispose();
     _rippleController.dispose();
     super.dispose();
@@ -268,7 +307,7 @@ class _TapToSharePageState extends State<TapToSharePage>
           ),
           const SizedBox(height: 24),
           Text(
-            'PARTAGE PAR CONTACT',
+            'PARTAGE PAR NFC',
             style: GoogleFonts.orbitron(
               color: NotitiaTheme.white,
               fontSize: 18,
@@ -277,7 +316,7 @@ class _TapToSharePageState extends State<TapToSharePage>
           ),
           const SizedBox(height: 8),
           Text(
-            'Rapprochez deux téléphones pour partager\nune transcription instantanément',
+            'Collez deux téléphones pour transférer\nune transcription instantanément',
             style: GoogleFonts.poppins(
               color: NotitiaTheme.grey,
               fontSize: 14,
@@ -332,12 +371,11 @@ class _TapToSharePageState extends State<TapToSharePage>
                   ),
                 ),
                 const SizedBox(height: 12),
-                _buildStep('1', 'Les deux téléphones ouvrent Tap to Share'),
-                _buildStep('2',
-                    'L\'émetteur choisit ENVOYER, le récepteur RECEVOIR'),
-                _buildStep('3', 'Rapprochez les téléphones dos à dos'),
+                _buildStep('1', 'L\'émetteur choisit ENVOYER'),
+                _buildStep('2', 'Le récepteur choisit RECEVOIR'),
+                _buildStep('3', 'Collez les deux téléphones dos à dos'),
                 _buildStep('4',
-                    'Le fichier est transféré via WiFi Direct / Bluetooth'),
+                    'La transcription est transférée instantanément'),
               ],
             ),
           ),
@@ -480,16 +518,6 @@ class _TapToSharePageState extends State<TapToSharePage>
 
                 const SizedBox(height: 24),
 
-                // Barre de progression
-                if (session.progress != null)
-                  _buildProgressBar(session.progress!),
-
-                // Info handshake
-                if (session.handshake != null) ...[
-                  const SizedBox(height: 24),
-                  _buildHandshakeInfo(session.handshake!),
-                ],
-
                 // Message d'erreur
                 if (session.errorMessage != null) ...[
                   const SizedBox(height: 24),
@@ -509,10 +537,8 @@ class _TapToSharePageState extends State<TapToSharePage>
   }
 
   Widget _buildStateVisual(ShareSession session) {
-    final isWaiting = session.state == NfcShareState.advertising ||
-        session.state == NfcShareState.discovering;
-    final isTransferring = session.state == NfcShareState.transferring ||
-        session.state == NfcShareState.connecting;
+    final isWaiting = session.state == NfcShareState.writing ||
+        session.state == NfcShareState.reading;
     final isDone = session.state == NfcShareState.completed;
     final isFailed = session.state == NfcShareState.failed;
 
@@ -524,9 +550,6 @@ class _TapToSharePageState extends State<TapToSharePage>
     } else if (isFailed) {
       color = NotitiaTheme.redRecording;
       icon = Icons.error_rounded;
-    } else if (isTransferring) {
-      color = NotitiaTheme.neonCyan;
-      icon = Icons.swap_horiz_rounded;
     } else {
       color = session.mode == ShareMode.sender
           ? NotitiaTheme.neonPink
@@ -541,7 +564,7 @@ class _TapToSharePageState extends State<TapToSharePage>
         alignment: Alignment.center,
         children: [
           // Ripple animé en mode attente
-          if (isWaiting || isTransferring)
+          if (isWaiting)
             AnimatedBuilder(
               animation: _rippleController,
               builder: (context, _) {
@@ -588,31 +611,23 @@ class _TapToSharePageState extends State<TapToSharePage>
     String subtitle;
 
     switch (session.state) {
-      case NfcShareState.advertising:
-        title = 'EN ATTENTE';
-        subtitle = 'Rapprochez l\'autre téléphone pour partager';
+      case NfcShareState.writing:
+        title = 'ÉMISSION NFC';
+        subtitle = 'Approchez l\'autre téléphone pour partager';
         break;
-      case NfcShareState.discovering:
-        title = 'RECHERCHE';
-        subtitle = 'Rapprochez votre téléphone de l\'émetteur';
-        break;
-      case NfcShareState.connecting:
-        title = 'CONNEXION';
-        subtitle = 'Établissement de la liaison P2P...';
-        break;
-      case NfcShareState.transferring:
-        title = 'TRANSFERT';
-        subtitle = 'Envoi du fichier en cours...';
+      case NfcShareState.reading:
+        title = 'RÉCEPTION NFC';
+        subtitle = 'Approchez l\'autre téléphone pour recevoir';
         break;
       case NfcShareState.completed:
         title = 'TERMINÉ';
         subtitle = session.mode == ShareMode.sender
-            ? 'Transcription envoyée avec succès !'
+            ? 'Transcription envoyée !'
             : 'Transcription reçue et importée !';
         break;
       case NfcShareState.failed:
         title = 'ERREUR';
-        subtitle = 'Le partage a échoué';
+        subtitle = 'Le partage NFC a échoué';
         break;
       default:
         title = '';
@@ -639,85 +654,6 @@ class _TapToSharePageState extends State<TapToSharePage>
             height: 1.4,
           ),
           textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProgressBar(TransferProgress progress) {
-    return Column(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: progress.percentage,
-            minHeight: 8,
-            backgroundColor: NotitiaTheme.darkBlue,
-            valueColor:
-                const AlwaysStoppedAnimation<Color>(NotitiaTheme.neonCyan),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '${(progress.percentage * 100).toStringAsFixed(0)}%',
-              style: GoogleFonts.orbitron(
-                color: NotitiaTheme.neonCyan,
-                fontSize: 12,
-              ),
-            ),
-            Text(
-              '${_formatBytes(progress.bytesTransferred)} / ${_formatBytes(progress.totalBytes)}',
-              style: GoogleFonts.poppins(
-                color: NotitiaTheme.grey,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHandshakeInfo(NfcHandshakeData handshake) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: NotitiaTheme.darkBlue,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: NotitiaTheme.neonCyan.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        children: [
-          _buildInfoRow('Appareil', handshake.deviceName),
-          const SizedBox(height: 8),
-          _buildInfoRow('Taille', _formatBytes(handshake.fileSize)),
-          const SizedBox(height: 8),
-          _buildInfoRow('Transport', handshake.transportType.toUpperCase()),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(color: NotitiaTheme.grey, fontSize: 13),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.poppins(
-            color: NotitiaTheme.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
         ),
       ],
     );
@@ -863,12 +799,6 @@ class _TapToSharePageState extends State<TapToSharePage>
   // ---------------------------------------------------------------------------
   // UTILITAIRES
   // ---------------------------------------------------------------------------
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
 }
 
 // =============================================================================

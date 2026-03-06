@@ -1,24 +1,25 @@
 // =============================================================================
-// NOTITIA — NfcShareService (Platform Channel Bridge)
+// NOTITIA — NfcShareService (Platform Channel Bridge — NFC uniquement)
 // =============================================================================
-// Bridge Flutter ↔ natif pour le NFC handshake + P2P data transfer.
+// Bridge Flutter ↔ natif pour le partage par NFC tag.
 // Canal : "com.notitia/nfc_share"
 //
 // Méthodes sortantes (Flutter → natif) :
 //   - isNfcAvailable() → bool
-//   - startAdvertising(file_path, session_id, file_size, checksum) → bool
-//   - startDiscovery() → bool
+//   - writeToTag(data base64) → bool
+//   - readFromTag() → bool
 //   - stopSession() → void
 //
 // Callbacks entrants (natif → Flutter) :
 //   - onStateChanged(String state)
-//   - onHandshakeReceived(Map handshake)
-//   - onTransferProgress(Map progress)
-//   - onTransferComplete(Map result)
+//   - onWriteComplete()
+//   - onDataRead(String base64Data)
 //   - onError(String message)
 // =============================================================================
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -29,50 +30,20 @@ import 'package:flutter/services.dart';
 
 enum NfcShareState {
   idle,
-  advertising,
-  discovering,
-  connecting,
-  transferring,
+  writing,
+  reading,
   completed,
   failed,
 }
 
-class NfcHandshakeData {
-  final String sessionId;
-  final String deviceName;
-  final int fileSize;
-  final String checksum;
-  final String transportType;
-
-  const NfcHandshakeData({
-    required this.sessionId,
-    required this.deviceName,
-    required this.fileSize,
-    required this.checksum,
-    this.transportType = 'nearby',
-  });
-}
-
-class TransferProgress {
-  final int bytesTransferred;
-  final int totalBytes;
-  double get percentage =>
-      totalBytes > 0 ? (bytesTransferred / totalBytes).clamp(0.0, 1.0) : 0.0;
-
-  const TransferProgress({
-    required this.bytesTransferred,
-    required this.totalBytes,
-  });
-}
-
 class NfcShareResult {
   final bool success;
-  final String? filePath;
+  final Uint8List? data;
   final String? errorMessage;
 
   const NfcShareResult({
     required this.success,
-    this.filePath,
+    this.data,
     this.errorMessage,
   });
 }
@@ -87,18 +58,10 @@ class NfcShareService {
   // Streams
   static final StreamController<NfcShareState> _stateController =
       StreamController<NfcShareState>.broadcast();
-  static final StreamController<TransferProgress> _progressController =
-      StreamController<TransferProgress>.broadcast();
-  static final StreamController<NfcHandshakeData> _handshakeController =
-      StreamController<NfcHandshakeData>.broadcast();
   static final StreamController<NfcShareResult> _resultController =
       StreamController<NfcShareResult>.broadcast();
 
   static Stream<NfcShareState> get stateStream => _stateController.stream;
-  static Stream<TransferProgress> get progressStream =>
-      _progressController.stream;
-  static Stream<NfcHandshakeData> get handshakeStream =>
-      _handshakeController.stream;
   static Stream<NfcShareResult> get resultStream => _resultController.stream;
 
   // ---------------------------------------------------------------------------
@@ -120,35 +83,23 @@ class NfcShareService {
           _stateController.add(state);
           break;
 
-        case 'onHandshakeReceived':
-          final map = Map<String, dynamic>.from(call.arguments as Map);
-          _handshakeController.add(NfcHandshakeData(
-            sessionId: map['session_id'] as String? ?? '',
-            deviceName: map['device_name'] as String? ?? 'Unknown',
-            fileSize: map['file_size'] as int? ?? 0,
-            checksum: map['checksum'] as String? ?? '',
-            transportType: map['transport_type'] as String? ?? 'nearby',
-          ));
+        case 'onWriteComplete':
+          _stateController.add(NfcShareState.completed);
+          _resultController.add(const NfcShareResult(success: true));
           break;
 
-        case 'onTransferProgress':
-          final map = Map<String, dynamic>.from(call.arguments as Map);
-          _progressController.add(TransferProgress(
-            bytesTransferred: map['bytes_transferred'] as int? ?? 0,
-            totalBytes: map['total_bytes'] as int? ?? 0,
-          ));
-          break;
-
-        case 'onTransferComplete':
-          final map = Map<String, dynamic>.from(call.arguments as Map);
+        case 'onDataRead':
+          final base64Data = call.arguments as String;
+          final bytes = base64Decode(base64Data);
+          _stateController.add(NfcShareState.completed);
           _resultController.add(NfcShareResult(
             success: true,
-            filePath: map['file_path'] as String?,
+            data: Uint8List.fromList(bytes),
           ));
           break;
 
         case 'onError':
-          final msg = call.arguments as String? ?? 'Erreur inconnue';
+          final msg = call.arguments as String? ?? 'Erreur NFC inconnue';
           _stateController.add(NfcShareState.failed);
           _resultController.add(NfcShareResult(
             success: false,
@@ -158,13 +109,14 @@ class NfcShareService {
       }
     });
 
-    debugPrint('[NfcShareService] Initialized');
+    debugPrint('[NfcShareService] Initialized (NFC-only)');
   }
 
   // ---------------------------------------------------------------------------
   // MÉTHODES PUBLIQUES
   // ---------------------------------------------------------------------------
 
+  /// Vérifie si le NFC est disponible et activé.
   static Future<bool> isNfcAvailable() async {
     try {
       final result = await _channel.invokeMethod<bool>('isNfcAvailable');
@@ -175,36 +127,34 @@ class NfcShareService {
     }
   }
 
-  static Future<bool> startAdvertising({
-    required String filePath,
-    required String sessionId,
-    required int fileSize,
-    required String checksum,
-  }) async {
+  /// Écrit des données binaires sur un tag NFC.
+  /// [data] est envoyé en base64 au plugin natif.
+  static Future<bool> writeToTag(Uint8List data) async {
     try {
-      final result = await _channel.invokeMethod<bool>('startAdvertising', {
-        'file_path': filePath,
-        'session_id': sessionId,
-        'file_size': fileSize,
-        'checksum': checksum,
+      final base64Data = base64Encode(data);
+      final result = await _channel.invokeMethod<bool>('writeToTag', {
+        'data': base64Data,
       });
       return result ?? false;
     } catch (e) {
-      debugPrint('[NfcShareService] startAdvertising error: $e');
+      debugPrint('[NfcShareService] writeToTag error: $e');
       return false;
     }
   }
 
-  static Future<bool> startDiscovery() async {
+  /// Démarre la lecture d'un tag NFC.
+  /// Les données lues seront retournées via le stream [resultStream].
+  static Future<bool> readFromTag() async {
     try {
-      final result = await _channel.invokeMethod<bool>('startDiscovery');
+      final result = await _channel.invokeMethod<bool>('readFromTag');
       return result ?? false;
     } catch (e) {
-      debugPrint('[NfcShareService] startDiscovery error: $e');
+      debugPrint('[NfcShareService] readFromTag error: $e');
       return false;
     }
   }
 
+  /// Arrête la session NFC en cours.
   static Future<void> stopSession() async {
     try {
       await _channel.invokeMethod<void>('stopSession');
