@@ -61,5 +61,17 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<!-- Deep link pour OAuth Supabase -->
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>notitia</string>
+				</array>
+			</dict>
+		</array>
 	</dict>
 </plist>

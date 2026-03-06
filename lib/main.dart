@@ -10,19 +10,29 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'pages/assistant_page.dart';
+import 'pages/auth_choice_page.dart';
 import 'pages/capture_page.dart';
+import 'pages/email_otp_page.dart';
 import 'pages/history_page.dart';
+import 'pages/login_page.dart';
 import 'pages/mind_map_page.dart';
+import 'pages/profile_page.dart';
+import 'pages/register_page.dart';
 import 'pages/search_page.dart';
 import 'pages/splash_screen.dart';
+import 'services/auth_service.dart';
 import 'services/foreground_service.dart';
 import 'theme.dart';
 
 // =============================================================================
 // POINT D'ENTRÉE
 // =============================================================================
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialisation de Supabase
+  await AuthService.initialize();
+  
   // Port de communication pour le foreground service
   FlutterForegroundTask.initCommunicationPort();
   // Pré-initialisation du service
@@ -53,6 +63,11 @@ class NotitiaApp extends StatelessWidget {
       home: const SplashScreen(),
       routes: {
         '/main': (context) => const WithForegroundTask(child: MainNavigation()),
+        '/auth': (context) => const AuthChoicePage(),
+        '/login': (context) => const LoginPage(),
+        '/register': (context) => const RegisterPage(),
+        '/email-otp': (context) => const EmailOtpPage(),
+        '/profile': (context) => const ProfilePage(),
       },
     );
   }
@@ -70,12 +85,38 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
+  final _authService = AuthService();
+  UserProfile? _profile;
 
   /// Notifie les pages enfants qu'une nouvelle transcription a été sauvegardée.
   final ValueNotifier<int> _refreshNotifier = ValueNotifier(0);
 
   void _onTranscriptionSaved() {
     _refreshNotifier.value++;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+    
+    // Écouter les changements d'état d'authentification
+    _authService.authStateChanges.listen((state) {
+      if (mounted) {
+        _loadProfile();
+      }
+    });
+  }
+
+  Future<void> _loadProfile() async {
+    if (_authService.isAuthenticated) {
+      final profile = await _authService.getProfile();
+      if (mounted) {
+        setState(() => _profile = profile);
+      }
+    } else {
+      setState(() => _profile = null);
+    }
   }
 
   @override
@@ -88,9 +129,18 @@ class _MainNavigationState extends State<MainNavigation> {
     setState(() => _currentIndex = index);
   }
 
+  void _openProfile() {
+    if (_authService.isAuthenticated) {
+      Navigator.of(context).pushNamed('/profile').then((_) => _loadProfile());
+    } else {
+      Navigator.of(context).pushNamed('/auth');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: _buildAppBar(),
       body: Stack(
         children: [
           // Contenu principal
@@ -108,6 +158,126 @@ class _MainNavigationState extends State<MainNavigation> {
       ),
       bottomNavigationBar: _buildBottomNav(),
     );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: NotitiaTheme.deepBlue,
+      elevation: 0,
+      title: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [
+                  NotitiaTheme.neonPink,
+                  NotitiaTheme.neonPink.withOpacity(0.6),
+                ],
+              ),
+            ),
+            child: const Icon(
+              Icons.memory,
+              size: 18,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'NOTITIA',
+            style: GoogleFonts.orbitron(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: NotitiaTheme.white,
+              letterSpacing: 3,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        // Bouton profil
+        Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: GestureDetector(
+            onTap: _openProfile,
+            child: _buildProfileAvatar(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfileAvatar() {
+    final isLoggedIn = _authService.isAuthenticated;
+    
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: isLoggedIn
+            ? LinearGradient(
+                colors: [
+                  NotitiaTheme.neonPink,
+                  NotitiaTheme.neonPink.withOpacity(0.6),
+                ],
+              )
+            : null,
+        border: !isLoggedIn
+            ? Border.all(
+                color: NotitiaTheme.neonPink.withOpacity(0.5),
+                width: 2,
+              )
+            : null,
+        boxShadow: isLoggedIn
+            ? [
+                BoxShadow(
+                  color: NotitiaTheme.neonPink.withOpacity(0.3),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
+      ),
+      child: _profile?.avatarUrl != null
+          ? ClipOval(
+              child: Image.network(
+                _profile!.avatarUrl!,
+                fit: BoxFit.cover,
+                width: 40,
+                height: 40,
+                errorBuilder: (_, __, ___) => _buildDefaultAvatarContent(),
+              ),
+            )
+          : _buildDefaultAvatarContent(),
+    );
+  }
+
+  Widget _buildDefaultAvatarContent() {
+    if (_authService.isAuthenticated) {
+      final initial = (_profile?.username ?? 
+                      _profile?.email ?? 
+                      _authService.currentUser?.email ?? 
+                      'U')[0].toUpperCase();
+      return Center(
+        child: Text(
+          initial,
+          style: GoogleFonts.orbitron(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      );
+    } else {
+      return Icon(
+        Icons.person_outline,
+        color: NotitiaTheme.neonPink,
+        size: 22,
+      );
+    }
   }
 
   Widget _buildBottomNav() {
