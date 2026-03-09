@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- =============================================================================
+     NOTITIA — Widget Écran d'Accueil (Android) — État IDLE
+     Bouton micro néon — Style Cyberpunk. Centré, gros, impactant.
+     ============================================================================= -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@drawable/widget_background"
+    android:padding="8dp">
+
+    <!-- Conteneur bouton micro + glow ring empilés -->
+    <FrameLayout
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:layout_gravity="center">
+
+        <!-- Glow extérieur (halo néon) -->
+        <ImageView
+            android:id="@+id/widget_glow_ring"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_glow_ring"
+            android:contentDescription="Halo néon"
+            android:scaleType="fitCenter" />
+
+        <!-- Bouton micro principal -->
+        <ImageView
+            android:id="@+id/widget_mic_button"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_mic_widget"
+            android:contentDescription="Lancer la capture vocale Notitia"
+            android:scaleType="centerInside" />
+
+    </FrameLayout>
+
+    <!-- Label "NOTITIA" -->
+    <TextView
+        android:id="@+id/widget_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="6dp"
+        android:text="NOTITIA"
+        android:textColor="#FFFF0178"
+        android:textSize="14sp"
+        android:fontFamily="sans-serif-medium"
+        android:textStyle="bold"
+        android:letterSpacing="0.25"
+        android:shadowColor="#AAFF0178"
+        android:shadowRadius="8"
+        android:shadowDx="0"
+        android:shadowDy="0" />
+
+    <!-- Sous-label "Tap to record" -->
+    <TextView
+        android:id="@+id/widget_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="2dp"
+        android:text="Tap to record"
+        android:textColor="#8800E5FF"
+        android:textSize="10sp"
+        android:fontFamily="sans-serif-light"
+        android:letterSpacing="0.05" />
+
+</LinearLayout>

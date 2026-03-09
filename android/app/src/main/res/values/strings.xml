@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Lancez la capture vocale Notitia d\'un seul tap depuis votre écran d\'accueil.</string>
+    <string name="widget_label">Notitia Capture</string>
+</resources>

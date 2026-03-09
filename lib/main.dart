@@ -23,12 +23,16 @@ import 'pages/search_page.dart';
 import 'pages/splash_screen.dart';
 import 'services/auth_service.dart';
 import 'services/foreground_service.dart';
+import 'services/home_widget_service.dart';
 import 'services/nfc_share_service.dart';
 import 'services/notitia_file_service.dart';
 import 'theme.dart';
 import 'widgets/meduza_widget.dart';
 import 'widgets/meduza_companion.dart';
 import 'widgets/meduza_speech_bubble.dart';
+
+/// Clé de navigation globale.
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 // =============================================================================
 // POINT D'ENTRÉE
@@ -47,6 +51,10 @@ void main() async {
   NfcShareService.init();
   // Nettoyer les fichiers temporaires de sessions précédentes
   NotitiaFileService.cleanupAllTempFiles();
+
+  // Initialiser le Home Widget (vérifie aussi les transcriptions en attente)
+  await HomeWidgetService.initialize();
+
   runApp(const NotitiaApp());
 }
 
@@ -59,6 +67,7 @@ class NotitiaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Notitia',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -94,7 +103,8 @@ class MainNavigation extends StatefulWidget {
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
-class _MainNavigationState extends State<MainNavigation> {
+class _MainNavigationState extends State<MainNavigation>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
   final _authService = AuthService();
   UserProfile? _profile;
@@ -149,6 +159,7 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadProfile();
 
     // Écouter les changements d'état d'authentification
@@ -157,6 +168,23 @@ class _MainNavigationState extends State<MainNavigation> {
         _loadProfile();
       }
     });
+  }
+
+  /// Quand l'app revient au premier plan, on vérifie si le service natif
+  /// a sauvegardé une transcription widget pendant qu'on était en background.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkWidgetPendingTranscription();
+    }
+  }
+
+  Future<void> _checkWidgetPendingTranscription() async {
+    final saved = await HomeWidgetService.checkPendingTranscription();
+    if (saved && mounted) {
+      _refreshNotifier.value++;
+      debugPrint('[MainNavigation] Widget pending transcription traitée → refresh');
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -172,6 +200,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _refreshNotifier.dispose();
     super.dispose();
   }
