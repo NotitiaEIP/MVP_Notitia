@@ -101,15 +101,17 @@ class _RegisterPageState extends State<RegisterPage>
       if (!mounted) return;
 
       // Rediriger vers la page OTP pour confirmer l'email
-      Navigator.of(context).pushNamed(
-        '/email-otp',
-        arguments: EmailOtpRouteArgs(
-          email: _emailController.text.trim(),
-          username: _usernameController.text.trim(),
-          shouldCreateUser: true,
-          codeAlreadySent: true,
-        ),
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/onboarding',
+        (route) => false,
       );
+      //   arguments: EmailOtpRouteArgs(
+      //     email: _emailController.text.trim(),
+      //     username: _usernameController.text.trim(),
+      //     shouldCreateUser: true,
+      //     codeAlreadySent: true,
+      //   ),
+      // );
     } on AuthException catch (e) {
       setState(() {
         _errorMessage = _getErrorMessage(e.message);
