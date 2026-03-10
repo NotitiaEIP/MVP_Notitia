@@ -187,17 +187,11 @@ class _ProfilePageState extends State<ProfilePage>
         ),
         title: Text(
           _languageService.translate('sign_out'),
-          style: GoogleFonts.orbitron(
-            color: NotitiaTheme.white,
-            fontSize: 18,
-          ),
+          style: GoogleFonts.orbitron(color: NotitiaTheme.white, fontSize: 18),
         ),
         content: Text(
           _languageService.translate('confirm_logout'),
-          style: GoogleFonts.rajdhani(
-            color: NotitiaTheme.grey,
-            fontSize: 16,
-          ),
+          style: GoogleFonts.rajdhani(color: NotitiaTheme.grey, fontSize: 16),
         ),
         actions: [
           TextButton(
@@ -239,10 +233,7 @@ class _ProfilePageState extends State<ProfilePage>
         ),
         title: Text(
           _languageService.translate('select_language'),
-          style: GoogleFonts.orbitron(
-            color: NotitiaTheme.white,
-            fontSize: 18,
-          ),
+          style: GoogleFonts.orbitron(color: NotitiaTheme.white, fontSize: 18),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -311,126 +302,7 @@ class _ProfilePageState extends State<ProfilePage>
               height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: NotitiaTheme.neonPink,
-                  width: 2,
-                ),
-              ),
-              child: isSelected
-                  ? Center(
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: NotitiaTheme.neonPink,
-                        ),
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              languageName,
-              style: GoogleFonts.rajdhani(
-                color: NotitiaTheme.white,
-                fontSize: 16,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showLanguageDialog() async {
-    final selectedLanguage = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: NotitiaTheme.darkBlue,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: NotitiaTheme.neonPink.withOpacity(0.5)),
-        ),
-        title: Text(
-          _languageService.translate('select_language'),
-          style: GoogleFonts.orbitron(
-            color: NotitiaTheme.white,
-            fontSize: 18,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildLanguageOption('en', 'English', _selectedLanguage == 'en'),
-            const SizedBox(height: 12),
-            _buildLanguageOption('fr', 'Français', _selectedLanguage == 'fr'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Annuler',
-              style: GoogleFonts.rajdhani(color: NotitiaTheme.grey),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (selectedLanguage != null && selectedLanguage != _selectedLanguage) {
-      await _languageService.changeLanguage(selectedLanguage);
-      if (mounted) {
-        setState(() {
-          _selectedLanguage = selectedLanguage;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Langue modifiée avec succès',
-              style: GoogleFonts.rajdhani(),
-            ),
-            backgroundColor: NotitiaTheme.neonPink,
-          ),
-        );
-      }
-    }
-  }
-
-  Widget _buildLanguageOption(
-    String languageCode,
-    String languageName,
-    bool isSelected,
-  ) {
-    return GestureDetector(
-      onTap: () => Navigator.of(context).pop(languageCode),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected
-                ? NotitiaTheme.neonPink
-                : NotitiaTheme.neonPink.withOpacity(0.3),
-            width: isSelected ? 2 : 1,
-          ),
-          color: isSelected
-              ? NotitiaTheme.neonPink.withOpacity(0.1)
-              : Colors.transparent,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: NotitiaTheme.neonPink,
-                  width: 2,
-                ),
+                border: Border.all(color: NotitiaTheme.neonPink, width: 2),
               ),
               child: isSelected
                   ? Center(
