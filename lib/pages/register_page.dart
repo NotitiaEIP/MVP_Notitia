@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/email_otp_args.dart';
 import '../services/auth_service.dart';
+import '../services/language_service.dart';
 import '../theme.dart';
 import 'onboarding_page.dart';
 
@@ -27,6 +28,7 @@ class _RegisterPageState extends State<RegisterPage>
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
+  final _languageService = LanguageService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -232,7 +234,7 @@ class _RegisterPageState extends State<RegisterPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Créer un compte',
+          _languageService.translate('create_account_title'),
           style: GoogleFonts.orbitron(
             fontSize: 26,
             fontWeight: FontWeight.bold,
@@ -241,7 +243,7 @@ class _RegisterPageState extends State<RegisterPage>
         ),
         const SizedBox(height: 8),
         Text(
-          'Rejoignez Notitia pour synchroniser vos notes',
+          _languageService.translate('join_notitia_sync'),
           style: GoogleFonts.rajdhani(fontSize: 16, color: NotitiaTheme.grey),
         ),
       ],
@@ -261,10 +263,10 @@ class _RegisterPageState extends State<RegisterPage>
             icon: Icons.person_outline,
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Entrez un nom d\'utilisateur';
+                return _languageService.translate('enter_username');
               }
               if (value.length < 3) {
-                return 'Minimum 3 caractères';
+                return _languageService.translate('min_3_chars');
               }
               return null;
             },
@@ -341,7 +343,7 @@ class _RegisterPageState extends State<RegisterPage>
             ),
             validator: (value) {
               if (value != _passwordController.text) {
-                return 'Les mots de passe ne correspondent pas';
+                return _languageService.translate('passwords_not_match');
               }
               return null;
             },
@@ -368,7 +370,7 @@ class _RegisterPageState extends State<RegisterPage>
           const SizedBox(height: 24),
 
           // Bouton inscription
-          _buildSubmitButton('S\'INSCRIRE', _signUpWithEmailAndPassword),
+          _buildSubmitButton(_languageService.translate('sign_up').toUpperCase(), _signUpWithEmailAndPassword),
         ],
       ),
     );
@@ -459,7 +461,7 @@ class _RegisterPageState extends State<RegisterPage>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                'ou inscrivez-vous avec',
+                _languageService.translate('or_sign_up_with'),
                 style: GoogleFonts.rajdhani(
                   color: NotitiaTheme.grey,
                   fontSize: 14,

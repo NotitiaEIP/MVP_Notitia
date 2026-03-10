@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/transcription.dart';
+import '../services/language_service.dart';
 import '../services/local_share_manager.dart';
 import '../services/nfc_share_service.dart';
 import '../theme.dart';
@@ -49,6 +50,7 @@ class _TapToSharePageState extends State<TapToSharePage>
   bool _nfcAvailable = false;
   bool _isCheckingNfc = true;
   NfcShareState? _lastState;
+  final LanguageService _languageService = LanguageService();
 
   @override
   void initState() {
@@ -183,7 +185,7 @@ class _TapToSharePageState extends State<TapToSharePage>
         },
       ),
       title: Text(
-        'TAP TO SHARE',
+        _languageService.translate('tap_to_share'),
         style: GoogleFonts.orbitron(
           color: NotitiaTheme.neonCyan,
           fontSize: 16,

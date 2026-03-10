@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/mind_map.dart';
 import '../models/transcription.dart';
+import '../services/language_service.dart';
 import '../services/mind_map_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
@@ -39,6 +40,7 @@ class MindMapPage extends StatefulWidget {
 class _MindMapPageState extends State<MindMapPage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final MindMapService _mindMapService = MindMapService();
+  final LanguageService _languageService = LanguageService();
 
   final TextEditingController _textController = TextEditingController();
 
@@ -164,25 +166,25 @@ class _MindMapPageState extends State<MindMapPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: NotitiaTheme.darkBlue,
-        title: const Text(
-          'Supprimer cette mind map ?',
-          style: TextStyle(color: NotitiaTheme.white),
+        title: Text(
+          _languageService.translate('delete_mindmap_title'),
+          style: const TextStyle(color: NotitiaTheme.white),
         ),
         content: Text(
-          '« ${mindMap.title} » sera supprimée définitivement.',
+          '« ${mindMap.title} » ${_languageService.translate('mindmap_delete_confirm')}',
           style: const TextStyle(color: NotitiaTheme.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'Annuler',
-              style: TextStyle(color: NotitiaTheme.grey),
+            child: Text(
+              _languageService.translate('cancel'),
+              style: const TextStyle(color: NotitiaTheme.grey),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+            child: Text(_languageService.translate('delete'), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -222,7 +224,7 @@ class _MindMapPageState extends State<MindMapPage>
     // Meduza - generation en cours
     widget.onMeduzaStateChanged?.call(
       MeduzaState.processing,
-      message: 'Generation de la mind map en cours...',
+      message: _languageService.translate('generating_mindmap'),
     );
 
     MindMapResult result;
@@ -261,13 +263,13 @@ class _MindMapPageState extends State<MindMapPage>
     if (result.success) {
       widget.onMeduzaStateChanged?.call(
         MeduzaState.happy,
-        message: 'Mind map generee avec succes.',
+        message: _languageService.translate('mindmap_generated_success'),
         style: BubbleStyle.success,
       );
     } else {
       widget.onMeduzaStateChanged?.call(
         MeduzaState.confused,
-        message: 'Erreur lors de la generation. Reessaie.',
+        message: _languageService.translate('error_generation_retry'),
         style: BubbleStyle.error,
       );
     }
@@ -312,8 +314,7 @@ class _MindMapPageState extends State<MindMapPage>
             color: Colors.blueAccent,
             title: 'Gemini',
             subtitle: 'Gratuit',
-            description:
-                'Mind map rapide avec les thèmes principaux.\nIdéal pour un aperçu rapide.',
+            description: _languageService.translate('gemini_description'),
             badge: 'GRATUIT',
             badgeColor: Colors.green,
           ),
@@ -327,8 +328,7 @@ class _MindMapPageState extends State<MindMapPage>
             color: NotitiaTheme.neonPink,
             title: 'Claude Sonnet',
             subtitle: 'Premium',
-            description:
-                'Mind map riche avec citations sources,\nplus de nœuds et analyse approfondie.',
+            description: _languageService.translate('claude_description'),
             badge: 'PREMIUM',
             badgeColor: NotitiaTheme.neonPink,
           ),
@@ -1053,12 +1053,12 @@ class _MindMapPageState extends State<MindMapPage>
             ),
             const SizedBox(height: 16),
             Text(
-              'Aucune mind map sauvegardée',
+              _languageService.translate('no_saved_mindmaps'),
               style: TextStyle(color: NotitiaTheme.grey, fontSize: 16),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Générez une mind map puis sauvegardez-la',
+            Text(
+              _languageService.translate('generate_and_save_mindmap'),
               style: TextStyle(color: NotitiaTheme.grey),
             ),
           ],
@@ -1201,8 +1201,7 @@ class _MindMapPageState extends State<MindMapPage>
               expands: true,
               style: const TextStyle(color: NotitiaTheme.white),
               decoration: InputDecoration(
-                hintText:
-                    'Collez ou tapez votre texte ici...\n\nLe système analysera le contenu et générera une mind map structurée avec les thèmes principaux, idées, actions et questions identifiées.',
+                hintText: _languageService.translate('paste_or_type_text_hint'),
                 hintStyle: TextStyle(
                   color: NotitiaTheme.grey.withValues(alpha: 0.5),
                 ),
