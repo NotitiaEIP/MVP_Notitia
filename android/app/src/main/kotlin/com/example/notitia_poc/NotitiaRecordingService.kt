@@ -367,20 +367,33 @@ class NotitiaRecordingService : Service() {
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private fun updateWidgetState(isRec: Boolean, timer: String) {
+        // Construire un aperçu du transcript live pour le widget large
+        val liveText = if (currentPartial.isNotEmpty()) {
+            val base = transcript.toString()
+            if (base.isNotEmpty()) "$base $currentPartial" else currentPartial
+        } else {
+            transcript.toString()
+        }
+
         getPrefs().edit()
             .putBoolean("is_recording", isRec)
             .putString("timer", timer)
+            .putString("live_transcript", liveText)
             .apply()
 
-        // Rafraîchir le widget
+        // Rafraîchir les deux widgets (petit + grand)
         triggerWidgetUpdate()
     }
 
     private fun savePendingTranscription(text: String) {
         val dateStr = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
+        // Sauvegarder le transcript complet + un aperçu pour le widget large
+        val preview = if (text.length > 80) text.take(80) + "…" else text
         getPrefs().edit()
             .putString("pending_transcription", text)
             .putString("pending_transcription_date", dateStr)
+            .putString("last_transcription", preview)
+            .putString("live_transcript", "")
             .apply()
 
         Log.d(TAG, "Transcript en attente sauvegardé (${text.length} chars)")
@@ -389,16 +402,32 @@ class NotitiaRecordingService : Service() {
     private fun triggerWidgetUpdate() {
         try {
             val mgr = AppWidgetManager.getInstance(this)
-            val ids = mgr.getAppWidgetIds(
+
+            // Petit widget (2×2)
+            val smallIds = mgr.getAppWidgetIds(
                 ComponentName(this, NotitiaWidgetProvider::class.java)
             )
-            val intent = Intent(this, NotitiaWidgetProvider::class.java).apply {
-                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+            if (smallIds.isNotEmpty()) {
+                val intent = Intent(this, NotitiaWidgetProvider::class.java).apply {
+                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, smallIds)
+                }
+                sendBroadcast(intent)
             }
-            sendBroadcast(intent)
+
+            // Grand widget (3×3)
+            val largeIds = mgr.getAppWidgetIds(
+                ComponentName(this, NotitiaWidgetLargeProvider::class.java)
+            )
+            if (largeIds.isNotEmpty()) {
+                val intent = Intent(this, NotitiaWidgetLargeProvider::class.java).apply {
+                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, largeIds)
+                }
+                sendBroadcast(intent)
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Erreur refresh widget", e)
+            Log.e(TAG, "Erreur refresh widgets", e)
         }
     }
 

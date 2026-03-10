@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_description">Lancez la capture vocale Notitia d\'un seul tap depuis votre écran d\'accueil.</string>
-    <string name="widget_label">Notitia Capture</string>
+    <string name="widget_description">Micro rapide — Lancez la capture vocale d\'un tap.</string>
+    <string name="widget_label">Notitia Micro</string>
+    <string name="widget_large_description">Capture vocale complète avec transcription en direct.</string>
+    <string name="widget_large_label">Notitia Capture</string>
 </resources>

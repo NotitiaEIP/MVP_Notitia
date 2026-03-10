@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- =============================================================================
-     NOTITIA — Widget Écran d'Accueil (Android) — État RECORDING
-     Timer + bouton stop — Centré, gros, impactant.
+     NOTITIA — Widget PETIT (2×2) — État RECORDING
+     Stop button + timer compact.
      ============================================================================= -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -9,68 +9,66 @@
     android:orientation="vertical"
     android:gravity="center"
     android:background="@drawable/widget_background_recording"
-    android:padding="8dp">
+    android:padding="6dp">
 
-    <!-- Conteneur bouton stop + glow ring empilés -->
+    <!-- Conteneur bouton stop + glow ring -->
     <FrameLayout
-        android:layout_width="100dp"
-        android:layout_height="100dp"
+        android:layout_width="82dp"
+        android:layout_height="82dp"
         android:layout_gravity="center">
 
-        <!-- Glow extérieur rouge (halo pulsant) -->
         <ImageView
             android:id="@+id/widget_glow_ring_rec"
-            android:layout_width="100dp"
-            android:layout_height="100dp"
+            android:layout_width="82dp"
+            android:layout_height="82dp"
             android:layout_gravity="center"
             android:src="@drawable/ic_glow_ring_recording"
             android:contentDescription="Halo enregistrement"
             android:scaleType="fitCenter" />
 
-        <!-- Bouton STOP -->
         <ImageView
             android:id="@+id/widget_stop_button"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
             android:layout_gravity="center"
             android:src="@drawable/ic_stop_widget"
-            android:contentDescription="Arrêter l'enregistrement"
+            android:contentDescription="Arrêter"
             android:scaleType="centerInside" />
 
     </FrameLayout>
 
-    <!-- Label "● REC" -->
+    <!-- ● REC -->
     <TextView
         android:id="@+id/widget_rec_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="2dp"
         android:text="● REC"
         android:textColor="#FFFF3366"
-        android:textSize="13sp"
+        android:textSize="11sp"
         android:fontFamily="sans-serif-bold"
-        android:letterSpacing="0.15"
+        android:letterSpacing="0.1"
         android:shadowColor="#CCFF3366"
-        android:shadowRadius="10"
+        android:shadowRadius="8"
         android:shadowDx="0"
         android:shadowDy="0" />
 
-    <!-- Timer (durée d'enregistrement) -->
+    <!-- Timer -->
     <TextView
         android:id="@+id/widget_timer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="1dp"
         android:text="00:00"
         android:textColor="#FF00E5FF"
-        android:textSize="18sp"
+        android:textSize="16sp"
         android:fontFamily="sans-serif-medium"
         android:textStyle="bold"
-        android:letterSpacing="0.12"
+        android:letterSpacing="0.1"
         android:shadowColor="#AA00E5FF"
-        android:shadowRadius="12"
+        android:shadowRadius="10"
         android:shadowDx="0"
         android:shadowDy="0" />
 
