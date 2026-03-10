@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/transcription.dart';
+import '../pages/meeting_page.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../pages/tap_to_share_page.dart';
@@ -12,7 +13,13 @@ import 'edit_page.dart';
 
 class HistoryPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
-  const HistoryPage({super.key, required this.refreshNotifier});
+  /// Si true, filtre l'historique pour n'afficher que les transcriptions de réunions.
+  final bool filterMeetingsOnly;
+  const HistoryPage({
+    super.key,
+    required this.refreshNotifier,
+    this.filterMeetingsOnly = false,
+  });
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -30,6 +37,14 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   @override
+  void didUpdateWidget(covariant HistoryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.filterMeetingsOnly != widget.filterMeetingsOnly) {
+      _loadData();
+    }
+  }
+
+  @override
   void dispose() {
     widget.refreshNotifier.removeListener(_loadData);
     super.dispose();
@@ -38,9 +53,24 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<void> _loadData() async {
     StorageService.invalidateCache();
     final data = await StorageService.loadAll();
+
+    // Charger les IDs de transcriptions liées aux réunions
+    Set<String> meetingIds = {};
+    if (widget.filterMeetingsOnly) {
+      final meetings = await MeetingPage.loadMeetingHistory();
+      meetingIds = meetings
+          .where((m) => m.transcriptionId != null)
+          .map((m) => m.transcriptionId!)
+          .toSet();
+    }
+
     if (mounted) {
       setState(() {
-        _transcriptions = data;
+        if (widget.filterMeetingsOnly) {
+          _transcriptions = data.where((t) => meetingIds.contains(t.id)).toList();
+        } else {
+          _transcriptions = data;
+        }
         _loading = false;
       });
     }
@@ -126,14 +156,16 @@ class _HistoryPageState extends State<HistoryPage> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
-                const Icon(
-                  Icons.history_rounded,
+                Icon(
+                  widget.filterMeetingsOnly
+                      ? Icons.groups_rounded
+                      : Icons.history_rounded,
                   color: NotitiaTheme.neonPink,
                   size: 22,
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  'HISTORIQUE',
+                  widget.filterMeetingsOnly ? 'RÉUNIONS' : 'HISTORIQUE',
                   style: GoogleFonts.orbitron(
                     fontSize: 18,
                     color: NotitiaTheme.white,

@@ -63,6 +63,10 @@ dependencies:
   # Audio feedback (sons de transfert NFC)
   audioplayers: ^6.1.0
 
+  # Réunion — QR code generation & scanning
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^6.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
