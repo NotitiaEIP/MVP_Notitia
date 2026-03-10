@@ -15,6 +15,7 @@ import 'pages/capture_page.dart';
 import 'pages/email_otp_page.dart';
 import 'pages/history_page.dart';
 import 'pages/login_page.dart';
+import 'pages/meeting_page.dart';
 import 'pages/mind_map_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/subscription_page.dart';
@@ -155,8 +156,19 @@ class _MainNavigationState extends State<MainNavigation>
   /// Notifie les pages enfants qu'une nouvelle transcription a été sauvegardée.
   final ValueNotifier<int> _refreshNotifier = ValueNotifier(0);
 
+  /// Filtre l'historique pour n'afficher que les réunions.
+  bool _filterHistoryMeetings = false;
+
   void _onTranscriptionSaved() {
     _refreshNotifier.value++;
+  }
+
+  /// Navigue vers l'onglet historique en filtrant sur les réunions.
+  void _navigateToHistoryMeetings() {
+    setState(() {
+      _filterHistoryMeetings = true;
+      _currentIndex = 1; // Index de l'onglet Historique
+    });
   }
 
   @override
@@ -218,7 +230,11 @@ class _MainNavigationState extends State<MainNavigation>
   }
 
   void _onTabChanged(int index) {
-    setState(() => _currentIndex = index);
+    setState(() {
+      _currentIndex = index;
+      // Réinitialiser le filtre réunion si on quitte manuellement l'historique
+      if (index != 1) _filterHistoryMeetings = false;
+    });
   }
 
   void _openProfile() {
@@ -249,6 +265,15 @@ class _MainNavigationState extends State<MainNavigation>
                 refreshNotifier: _refreshNotifier,
                 profile: _profile,
                 onProfileTap: _openProfile,
+              ),
+              HistoryPage(
+                refreshNotifier: _refreshNotifier,
+                filterMeetingsOnly: _filterHistoryMeetings,
+              ),
+              MeetingPage(
+                refreshNotifier: _refreshNotifier,
+                onMeduzaStateChanged: _setMeduzaState,
+                onNavigateToHistory: _navigateToHistoryMeetings,
               ),
               MindMapPage(
                 refreshNotifier: _refreshNotifier,
@@ -310,6 +335,10 @@ class _MainNavigationState extends State<MainNavigation>
           BottomNavigationBarItem(
             icon: Icon(Icons.history_rounded),
             label: 'HISTORIQUE',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.groups_rounded),
+            label: 'RÉUNION',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_tree_rounded),
