@@ -374,6 +374,7 @@ struct MediumWidgetView: View {
 // MARK: - Lock Screen Widget (accessoryCircular)
 // ═══════════════════════════════════════════════════════════════════════════
 
+@available(iOSApplicationExtension 16.0, *)
 struct LockScreenWidgetView: View {
     let entry: NotitiaEntry
 
@@ -410,7 +411,9 @@ struct NotitiaWidgetEntryView: View {
         case .systemMedium:
             MediumWidgetView(entry: entry)
         case .accessoryCircular:
-            LockScreenWidgetView(entry: entry)
+            if #available(iOSApplicationExtension 16.0, *) {
+                LockScreenWidgetView(entry: entry)
+            }
         default:
             SmallWidgetView(entry: entry)
         }
@@ -421,6 +424,7 @@ struct NotitiaWidgetEntryView: View {
 // MARK: - Widget Declaration
 // ═══════════════════════════════════════════════════════════════════════════
 
+<<<<<<< Updated upstream
 @main
 <<<<<<< Updated upstream
 =======
@@ -698,6 +702,8 @@ struct NotitiaWidgetEntryView: View {
 // MARK: - Widget Declaration
 // ═══════════════════════════════════════════════════════════════════════════
 
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 struct NotitiaWidget: Widget {
     let kind: String = "NotitiaWidget"
