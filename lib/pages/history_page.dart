@@ -8,11 +8,20 @@ import '../models/transcription.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../pages/tap_to_share_page.dart';
+import '../services/auth_service.dart';
+import '../widgets/page_header.dart';
 import 'edit_page.dart';
 
 class HistoryPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
-  const HistoryPage({super.key, required this.refreshNotifier});
+  final UserProfile? profile;
+  final VoidCallback? onProfileTap;
+  const HistoryPage({
+    super.key,
+    required this.refreshNotifier,
+    this.profile,
+    this.onProfileTap,
+  });
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -122,37 +131,22 @@ class _HistoryPageState extends State<HistoryPage> {
         children: [
           const SizedBox(height: 24),
           // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.history_rounded,
+          NotitiaPageHeader(
+            icon: Icons.history_rounded,
+            title: 'HISTORIQUE',
+            profile: widget.profile,
+            onProfileTap: widget.onProfileTap,
+            actions: [
+              NfcReceiveButton(onReceived: _loadData),
+              const SizedBox(width: 12),
+              Text(
+                '${_transcriptions.length}',
+                style: GoogleFonts.orbitron(
+                  fontSize: 14,
                   color: NotitiaTheme.neonPink,
-                  size: 22,
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  'HISTORIQUE',
-                  style: GoogleFonts.orbitron(
-                    fontSize: 18,
-                    color: NotitiaTheme.white,
-                    letterSpacing: 4,
-                  ),
-                ),
-                const Spacer(),
-                // Bouton recevoir via NFC
-                NfcReceiveButton(onReceived: _loadData),
-                const SizedBox(width: 12),
-                Text(
-                  '${_transcriptions.length}',
-                  style: GoogleFonts.orbitron(
-                    fontSize: 14,
-                    color: NotitiaTheme.neonPink,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           Divider(
