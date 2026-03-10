@@ -1,54 +1,43 @@
+// =============================================================================
+// NOTITIA — Widgets iOS (WidgetKit + SwiftUI)
 //
-//  NotitiaWidget.swift
-//  NotitiaWidget
+// Deux tailles identiques à Android :
+//   ● PETIT  (systemSmall)  = Android 2×2 → Micro/Stop centré + label NOTITIA
+//   ● GRAND  (systemMedium) = Android 3×3 → Titre, micro/stop, timer, transcript
+//   ● Lock Screen (accessoryCircular) → Micro/Stop minimaliste
 //
-//  Created by Lucas Lejeune on 10/03/2026.
+// Design cyberpunk néon identique :
+//   Couleurs : deepBlue #000830, neonPink #FF0178, redRec #FF3366, cyan #00E5FF
+//   Background : gradient dark blue + bordure néon + glow externe
+//   Boutons : 4 couches glow (outer → mid → ring → circle) + shadow
 //
+// Communication : URI notitia://record (toggle via Flutter).
+// =============================================================================
 
 import WidgetKit
 import SwiftUI
 
-// MARK: - App Group ID
-let appGroupId = "group.com.example.notitia"
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - Configuration
+// ─────────────────────────────────────────────────────────────────────────────
 
-// MARK: - Timeline Provider
+private let kAppGroupId = "group.com.example.notitia"
 
-struct NotitiaProvider: TimelineProvider {
-    func placeholder(in context: Context) -> NotitiaEntry {
-        NotitiaEntry(
-            date: Date(),
-            isRecording: false,
-            timer: "00:00",
-            liveTranscript: "",
-            lastTranscript: ""
-        )
-    }
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - Couleurs (identiques Android)
+// ─────────────────────────────────────────────────────────────────────────────
 
-    func getSnapshot(in context: Context, completion: @escaping (NotitiaEntry) -> Void) {
-        completion(readEntry())
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<NotitiaEntry>) -> Void) {
-        let entry = readEntry()
-        let interval: TimeInterval = entry.isRecording ? 1 : 86400
-        let nextUpdate = Date().addingTimeInterval(interval)
-        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
-        completion(timeline)
-    }
-
-    private func readEntry() -> NotitiaEntry {
-        let defaults = UserDefaults(suiteName: appGroupId)
-        return NotitiaEntry(
-            date: Date(),
-            isRecording: defaults?.bool(forKey: "is_recording") ?? false,
-            timer: defaults?.string(forKey: "timer") ?? "00:00",
-            liveTranscript: defaults?.string(forKey: "live_transcript") ?? "",
-            lastTranscript: defaults?.string(forKey: "last_transcription") ?? ""
-        )
-    }
+private struct C {
+    static let deepBlue = Color(red: 0, green: 0, blue: 0.247)        // #00003F
+    static let darkBlue = Color(red: 0, green: 0.031, blue: 0.188)    // #000830
+    static let pink     = Color(red: 1, green: 0.004, blue: 0.471)    // #FF0178
+    static let red      = Color(red: 1, green: 0.2, blue: 0.4)        // #FF3366
+    static let cyan     = Color(red: 0, green: 0.898, blue: 1)        // #00E5FF
 }
 
-// MARK: - Entry
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - Timeline Entry
+// ─────────────────────────────────────────────────────────────────────────────
 
 struct NotitiaEntry: TimelineEntry {
     let date: Date
@@ -58,26 +47,62 @@ struct NotitiaEntry: TimelineEntry {
     let lastTranscript: String
 }
 
-// MARK: - Couleurs Notitia (identiques Android)
-struct NC {
-    static let deepBlue    = Color(red: 0.0,  green: 0.0,   blue: 0.247)   // #00003F
-    static let darkBlue    = Color(red: 0.0,  green: 0.031, blue: 0.188)   // #000830
-    static let neonPink    = Color(red: 1.0,  green: 0.004, blue: 0.471)   // #FF0178
-    static let redRec      = Color(red: 1.0,  green: 0.2,   blue: 0.4)     // #FF3366
-    static let neonCyan    = Color(red: 0.0,  green: 0.898, blue: 1.0)     // #00E5FF
-    static let dimCyan     = Color(red: 0.0,  green: 0.898, blue: 1.0).opacity(0.5)
-    static let dimPink     = Color(red: 1.0,  green: 0.004, blue: 0.471).opacity(0.5)
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - Timeline Provider
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct NotitiaProvider: TimelineProvider {
+
+    func placeholder(in context: Context) -> NotitiaEntry {
+        NotitiaEntry(date: .now, isRecording: false, timer: "00:00",
+                     liveTranscript: "", lastTranscript: "")
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (NotitiaEntry) -> Void) {
+        completion(readEntry())
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<NotitiaEntry>) -> Void) {
+        let entry = readEntry()
+        let next = Date().addingTimeInterval(entry.isRecording ? 1 : 86400)
+        completion(Timeline(entries: [entry], policy: .after(next)))
+    }
+
+    private func readEntry() -> NotitiaEntry {
+        let d = UserDefaults(suiteName: kAppGroupId)
+        return NotitiaEntry(
+            date: .now,
+            isRecording: d?.bool(forKey: "is_recording") ?? false,
+            timer: d?.string(forKey: "timer") ?? "00:00",
+            liveTranscript: d?.string(forKey: "live_transcript") ?? "",
+            lastTranscript: d?.string(forKey: "last_transcription") ?? ""
+        )
+    }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - Widget Backgrounds (shared)
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// MARK: - Composants partagés
+// ═══════════════════════════════════════════════════════════════════════════════
 
-struct WidgetBG: View {
-    let isRecording: Bool
+// ── Background (identique Android widget_background.xml) ─────────────────────
+
+private struct WidgetBG: View {
+    let recording: Bool
+
     var body: some View {
+        let accent = recording ? C.red : C.pink
         ZStack {
+            // Glow externe diffus (couche 3)
+            RoundedRectangle(cornerRadius: 24)
+                .fill(accent.opacity(recording ? 0.15 : 0.10))
+
+            // Glow moyenne (couche 2)
             RoundedRectangle(cornerRadius: 22)
+                .fill(accent.opacity(recording ? 0.20 : 0.14))
+                .padding(2)
+
+            // Fond principal opaque + bordure néon
+            RoundedRectangle(cornerRadius: 20)
                 .fill(
                     LinearGradient(
                         colors: [NC.darkBlue, NC.deepBlue],
@@ -85,306 +110,299 @@ struct WidgetBG: View {
                         endPoint: .bottomTrailing
                     )
                 )
-            // Neon border
-            RoundedRectangle(cornerRadius: 22)
-                .stroke(
-                    isRecording
-                        ? NC.redRec.opacity(0.6)
-                        : NC.neonPink.opacity(0.5),
-                    lineWidth: 1.5
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(accent.opacity(recording ? 0.60 : 0.50), lineWidth: 1.5)
                 )
-            // Outer glow
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(
-                    isRecording
-                        ? NC.redRec.opacity(0.15)
-                        : NC.neonPink.opacity(0.12),
-                    lineWidth: 4
-                )
+                .padding(3)
         }
+    }
+
+    // Couleurs (raccourcis)
+    private struct NC {
+        static let darkBlue = C.darkBlue.opacity(0.94)
+        static let deepBlue = C.deepBlue.opacity(0.94)
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - Micro Button (idle)
-// ═══════════════════════════════════════════════════════════════════════════
+// ── Bouton Micro (idle) ──────────────────────────────────────────────────────
+// 4 couches : glow outer → glow mid → neon ring → pink circle
+// Identique Android : ic_glow_ring.xml + ic_mic_widget.xml
 
-struct MicButton: View {
-    let size: CGFloat      // outer glow size
-    let iconSize: CGFloat  // mic circle size
+private struct MicBtn: View {
+    let glowSize: CGFloat
+    let btnSize: CGFloat
 
     var body: some View {
         ZStack {
             // Glow outer
-            Circle()
-                .fill(NC.neonPink.opacity(0.12))
-                .frame(width: size, height: size)
-
+            Circle().fill(C.pink.opacity(0.12))
+                .frame(width: glowSize, height: glowSize)
             // Glow mid
-            Circle()
-                .fill(NC.neonPink.opacity(0.18))
-                .frame(width: size * 0.82, height: size * 0.82)
-
+            Circle().fill(C.pink.opacity(0.20))
+                .frame(width: glowSize * 0.82, height: glowSize * 0.82)
+            // Glow inner
+            Circle().fill(C.pink.opacity(0.14))
+                .frame(width: glowSize * 0.72, height: glowSize * 0.72)
             // Neon ring
-            Circle()
-                .stroke(NC.neonPink.opacity(0.55), lineWidth: 2)
-                .frame(width: size * 0.72, height: size * 0.72)
+            Circle().stroke(C.pink.opacity(0.60), lineWidth: 2)
+                .frame(width: glowSize * 0.68, height: glowSize * 0.68)
 
-            // Pink button
+            // Bouton rose (gradient + shadow)
             Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [NC.neonPink, NC.neonPink.opacity(0.7)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                .fill(LinearGradient(
+                    colors: [C.pink, C.pink.opacity(0.7)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+                .frame(width: btnSize, height: btnSize)
+                .shadow(color: C.pink.opacity(0.50), radius: 10)
+
+            // Sur-brillance (identique Android ic_mic_widget.xml demi-cercle)
+            Circle()
+                .fill(Color.white.opacity(0.13))
+                .frame(width: btnSize, height: btnSize)
+                .mask(
+                    VStack { Rectangle().frame(height: btnSize / 2); Spacer() }
+                        .frame(width: btnSize, height: btnSize)
                 )
-                .frame(width: iconSize, height: iconSize)
-                .shadow(color: NC.neonPink.opacity(0.5), radius: 10)
 
-            // Mic icon
+            // Icône micro
             Image(systemName: "mic.fill")
-                .font(.system(size: iconSize * 0.42, weight: .bold))
+                .font(.system(size: btnSize * 0.40, weight: .bold))
                 .foregroundColor(.white)
         }
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - Stop Button (recording)
-// ═══════════════════════════════════════════════════════════════════════════
+// ── Bouton Stop (recording) ──────────────────────────────────────────────────
+// Identique Android : ic_glow_ring_recording.xml + ic_stop_widget.xml
 
-struct StopButton: View {
-    let size: CGFloat
-    let iconSize: CGFloat
+private struct StopBtn: View {
+    let glowSize: CGFloat
+    let btnSize: CGFloat
 
     var body: some View {
         ZStack {
             // Glow outer
-            Circle()
-                .fill(NC.redRec.opacity(0.15))
-                .frame(width: size, height: size)
-
+            Circle().fill(C.red.opacity(0.15))
+                .frame(width: glowSize, height: glowSize)
             // Glow mid
-            Circle()
-                .fill(NC.redRec.opacity(0.22))
-                .frame(width: size * 0.82, height: size * 0.82)
-
+            Circle().fill(C.red.opacity(0.25))
+                .frame(width: glowSize * 0.82, height: glowSize * 0.82)
+            // Glow inner
+            Circle().fill(C.red.opacity(0.18))
+                .frame(width: glowSize * 0.72, height: glowSize * 0.72)
             // Neon ring
-            Circle()
-                .stroke(NC.redRec.opacity(0.65), lineWidth: 2.5)
-                .frame(width: size * 0.72, height: size * 0.72)
+            Circle().stroke(C.red.opacity(0.70), lineWidth: 2.5)
+                .frame(width: glowSize * 0.68, height: glowSize * 0.68)
 
-            // Red button
+            // Bouton rouge (gradient + shadow)
             Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [NC.redRec, NC.redRec.opacity(0.7)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                .fill(LinearGradient(
+                    colors: [C.red, C.red.opacity(0.7)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+                .frame(width: btnSize, height: btnSize)
+                .shadow(color: C.red.opacity(0.50), radius: 10)
+
+            // Sur-brillance
+            Circle()
+                .fill(Color.white.opacity(0.10))
+                .frame(width: btnSize, height: btnSize)
+                .mask(
+                    VStack { Rectangle().frame(height: btnSize / 2); Spacer() }
+                        .frame(width: btnSize, height: btnSize)
                 )
-                .frame(width: iconSize, height: iconSize)
-                .shadow(color: NC.redRec.opacity(0.5), radius: 10)
 
-            // Stop square
+            // Carré stop arrondi
             RoundedRectangle(cornerRadius: 3)
                 .fill(.white)
-                .frame(width: iconSize * 0.38, height: iconSize * 0.38)
+                .frame(width: btnSize * 0.36, height: btnSize * 0.36)
         }
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - SMALL Widget View (systemSmall — 2×2)
-//         Identique au widget Android 2×2 : micro/stop + label
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// MARK: - PETIT WIDGET (systemSmall) — identique Android 2×2
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+//  Android 2×2 IDLE :     glow(90dp) + mic(58dp) centré, "NOTITIA" 11sp bold pink
+//  Android 2×2 RECORDING: glow(82dp) + stop(52dp), "● REC" 11sp red, timer 16sp cyan
 
-struct SmallWidgetView: View {
-    let entry: NotitiaEntry
+private struct SmallView: View {
+    let e: NotitiaEntry
 
     var body: some View {
         Link(destination: URL(string: "notitia://record")!) {
             ZStack {
-                WidgetBG(isRecording: entry.isRecording)
-
-                if entry.isRecording {
-                    smallRecording
-                } else {
-                    smallIdle
-                }
+                WidgetBG(recording: e.isRecording)
+                if e.isRecording { recState } else { idleState }
             }
         }
     }
 
-    // — IDLE —
-    var smallIdle: some View {
+    // ── IDLE ──
+    private var idleState: some View {
         VStack(spacing: 4) {
-            MicButton(size: 90, iconSize: 56)
+            MicBtn(glowSize: 90, btnSize: 58)
 
             Text("NOTITIA")
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundColor(NC.neonPink)
+                .foregroundColor(C.pink)
                 .tracking(2)
-                .shadow(color: NC.neonPink.opacity(0.6), radius: 6)
+                .shadow(color: C.pink.opacity(0.65), radius: 8)
         }
     }
 
-    // — RECORDING —
-    var smallRecording: some View {
+    // ── RECORDING ──
+    private var recState: some View {
         VStack(spacing: 2) {
-            StopButton(size: 82, iconSize: 52)
+            StopBtn(glowSize: 82, btnSize: 52)
 
-            // ● REC
             HStack(spacing: 4) {
-                Circle()
-                    .fill(NC.redRec)
-                    .frame(width: 7, height: 7)
+                Circle().fill(C.red).frame(width: 7, height: 7)
                 Text("REC")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundColor(NC.redRec)
-                    .shadow(color: NC.redRec.opacity(0.7), radius: 6)
+                    .foregroundColor(C.red)
+                    .shadow(color: C.red.opacity(0.70), radius: 8)
             }
 
-            // Timer
-            Text(entry.timer)
-                .font(.system(size: 17, weight: .bold, design: .monospaced))
-                .foregroundColor(NC.neonCyan)
-                .shadow(color: NC.neonCyan.opacity(0.6), radius: 8)
+            Text(e.timer)
+                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                .foregroundColor(C.cyan)
+                .shadow(color: C.cyan.opacity(0.60), radius: 10)
         }
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - MEDIUM Widget View (systemMedium — ~3×3 equivalent)
-//         Identique au widget Android 3×3 : micro/stop + timer + transcription
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// MARK: - GRAND WIDGET (systemMedium) — identique Android 3×3
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+//  Android 3×3 IDLE :     "N O T I T I A" 16sp, separator, glow(110)+mic(72),
+//                         "Tap to record" cyan, zone transcript
+//  Android 3×3 RECORDING: "● REC — 00:00" en horizontal, separator,
+//                         glow(100)+stop(64), zone transcript live cyan
 
-struct MediumWidgetView: View {
-    let entry: NotitiaEntry
+private struct LargeView: View {
+    let e: NotitiaEntry
 
     var body: some View {
         Link(destination: URL(string: "notitia://record")!) {
             ZStack {
-                WidgetBG(isRecording: entry.isRecording)
-
-                if entry.isRecording {
-                    mediumRecording
-                } else {
-                    mediumIdle
+                WidgetBG(recording: e.isRecording)
+                Group {
+                    if e.isRecording { recState } else { idleState }
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
-            .padding(8)
         }
     }
 
-    // — IDLE —
-    var mediumIdle: some View {
-        HStack(spacing: 14) {
-            // Gauche : micro
-            VStack(spacing: 4) {
-                MicButton(size: 100, iconSize: 64)
+    // ── IDLE ──
+    private var idleState: some View {
+        VStack(spacing: 0) {
+            // Titre "N O T I T I A" (16sp Android)
+            Text("N O T I T I A")
+                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                .foregroundColor(C.pink)
+                .shadow(color: C.pink.opacity(0.55), radius: 12)
+                .padding(.bottom, 5)
 
-                Text("Tap to record")
-                    .font(.system(size: 10, weight: .light))
-                    .foregroundColor(NC.neonCyan.opacity(0.55))
-            }
+            // Séparateur néon rose (#44FF0178)
+            Rectangle().fill(C.pink.opacity(0.27)).frame(height: 1)
+                .padding(.horizontal, 30)
+                .padding(.bottom, 8)
 
-            // Droite : titre + dernière transcription
-            VStack(alignment: .leading, spacing: 6) {
-                Text("N O T I T I A")
+            // Micro (glow 110 + btn 72)
+            MicBtn(glowSize: 100, btnSize: 66)
+
+            // "Tap to record" (11sp cyan Android)
+            Text("Tap to record")
+                .font(.system(size: 11, weight: .light))
+                .foregroundColor(C.cyan.opacity(0.60))
+                .padding(.top, 4)
+
+            Spacer(minLength: 2)
+
+            // Zone dernière transcription
+            Text(
+                e.lastTranscript.isEmpty
+                    ? "Dernière transcription apparaîtra ici"
+                    : "\"\(trunc(e.lastTranscript, n: 90))\""
+            )
+            .font(.system(size: 9))
+            .foregroundColor(.white.opacity(e.lastTranscript.isEmpty ? 0.22 : 0.50))
+            .lineLimit(3)
+            .multilineTextAlignment(.center)
+        }
+    }
+
+    // ── RECORDING ──
+    private var recState: some View {
+        VStack(spacing: 0) {
+            // En-tête : ● REC — 00:00 (horizontal, identique Android)
+            HStack(spacing: 0) {
+                Circle().fill(C.red).frame(width: 8, height: 8)
+                Text(" REC")
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundColor(NC.neonPink)
-                    .shadow(color: NC.neonPink.opacity(0.5), radius: 8)
+                    .foregroundColor(C.red)
+                    .shadow(color: C.red.opacity(0.70), radius: 10)
 
-                // Séparateur néon
-                Rectangle()
-                    .fill(NC.neonPink.opacity(0.3))
-                    .frame(height: 1)
+                Text("  —  ")
+                    .font(.system(size: 14)).foregroundColor(C.cyan.opacity(0.35))
 
-                // Dernière transcription
-                Text(
-                    entry.lastTranscript.isEmpty
-                        ? "Dernière transcription ici…"
-                        : "\"\(truncate(entry.lastTranscript, max: 80))\""
-                )
-                .font(.system(size: 10))
-                .foregroundColor(.white.opacity(entry.lastTranscript.isEmpty ? 0.25 : 0.55))
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(e.timer)
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundColor(C.cyan)
+                    .shadow(color: C.cyan.opacity(0.60), radius: 14)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 5)
+
+            // Séparateur néon rouge (#55FF3366)
+            Rectangle().fill(C.red.opacity(0.33)).frame(height: 1)
+                .padding(.horizontal, 30)
+                .padding(.bottom, 6)
+
+            // Stop (glow 100 + btn 64)
+            StopBtn(glowSize: 90, btnSize: 58)
+
+            Spacer(minLength: 2)
+
+            // Zone transcription live (cyan, 10sp Android)
+            Text(
+                e.liveTranscript.isEmpty
+                    ? "En attente de transcription…"
+                    : trunc(e.liveTranscript, n: 100)
+            )
+            .font(.system(size: 10))
+            .foregroundColor(C.cyan.opacity(e.liveTranscript.isEmpty ? 0.35 : 0.80))
+            .lineLimit(4)
+            .multilineTextAlignment(.center)
+            .lineSpacing(2)
         }
     }
 
-    // — RECORDING —
-    var mediumRecording: some View {
-        HStack(spacing: 14) {
-            // Gauche : stop + timer
-            VStack(spacing: 4) {
-                StopButton(size: 90, iconSize: 56)
-
-                // ● REC — timer
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(NC.redRec)
-                        .frame(width: 7, height: 7)
-                    Text("REC")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundColor(NC.redRec)
-                }
-
-                Text(entry.timer)
-                    .font(.system(size: 18, weight: .bold, design: .monospaced))
-                    .foregroundColor(NC.neonCyan)
-                    .shadow(color: NC.neonCyan.opacity(0.6), radius: 10)
-            }
-
-            // Droite : transcription live
-            VStack(alignment: .leading, spacing: 6) {
-                Text("TRANSCRIPTION")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundColor(NC.neonCyan.opacity(0.7))
-                    .tracking(1.5)
-
-                Rectangle()
-                    .fill(NC.redRec.opacity(0.3))
-                    .frame(height: 1)
-
-                Text(
-                    entry.liveTranscript.isEmpty
-                        ? "En attente de transcription…"
-                        : truncate(entry.liveTranscript, max: 100)
-                )
-                .font(.system(size: 10))
-                .foregroundColor(NC.neonCyan.opacity(entry.liveTranscript.isEmpty ? 0.35 : 0.8))
-                .lineLimit(4)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func truncate(_ text: String, max: Int) -> String {
-        text.count > max ? "…" + String(text.suffix(max)) : text
+    private func trunc(_ s: String, n: Int) -> String {
+        s.count > n ? "…\(s.suffix(n))" : s
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // MARK: - Lock Screen Widget (accessoryCircular)
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 @available(iOSApplicationExtension 16.0, *)
-struct LockScreenWidgetView: View {
-    let entry: NotitiaEntry
+private struct LockView: View {
+    let e: NotitiaEntry
 
     var body: some View {
         Link(destination: URL(string: "notitia://record")!) {
             ZStack {
                 AccessoryWidgetBackground()
-                if entry.isRecording {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(.white)
+                if e.isRecording {
+                    RoundedRectangle(cornerRadius: 3).fill(.white)
                         .frame(width: 14, height: 14)
                 } else {
                     Image(systemName: "mic.fill")
@@ -396,387 +414,91 @@ struct LockScreenWidgetView: View {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - Router View
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// MARK: - Router
+// ═══════════════════════════════════════════════════════════════════════════════
 
 struct NotitiaWidgetEntryView: View {
-    var entry: NotitiaProvider.Entry
+    var entry: NotitiaEntry
     @Environment(\.widgetFamily) var family
 
     var body: some View {
         switch family {
         case .systemSmall:
-            SmallWidgetView(entry: entry)
+            SmallView(e: entry)
         case .systemMedium:
-            MediumWidgetView(entry: entry)
+            LargeView(e: entry)
         case .accessoryCircular:
             if #available(iOSApplicationExtension 16.0, *) {
-                LockScreenWidgetView(entry: entry)
+                LockView(e: entry)
             }
         default:
-            SmallWidgetView(entry: entry)
+            SmallView(e: entry)
         }
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // MARK: - Widget Declaration
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 @main
-<<<<<<< Updated upstream
-=======
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - Stop Button (recording)
-// ═══════════════════════════════════════════════════════════════════════════
-
-struct StopButton: View {
-    let size: CGFloat
-    let iconSize: CGFloat
-
-    var body: some View {
-        ZStack {
-            // Glow outer
-            Circle()
-                .fill(NC.redRec.opacity(0.15))
-                .frame(width: size, height: size)
-
-            // Glow mid
-            Circle()
-                .fill(NC.redRec.opacity(0.22))
-                .frame(width: size * 0.82, height: size * 0.82)
-
-            // Neon ring
-            Circle()
-                .stroke(NC.redRec.opacity(0.65), lineWidth: 2.5)
-                .frame(width: size * 0.72, height: size * 0.72)
-
-            // Red button
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [NC.redRec, NC.redRec.opacity(0.7)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: iconSize, height: iconSize)
-                .shadow(color: NC.redRec.opacity(0.5), radius: 10)
-
-            // Stop square
-            RoundedRectangle(cornerRadius: 3)
-                .fill(.white)
-                .frame(width: iconSize * 0.38, height: iconSize * 0.38)
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - SMALL Widget View (systemSmall — 2×2)
-//         Identique au widget Android 2×2 : micro/stop + label
-// ═══════════════════════════════════════════════════════════════════════════
-
-struct SmallWidgetView: View {
-    let entry: NotitiaEntry
-
-    var body: some View {
-        Link(destination: URL(string: "notitia://record")!) {
-            ZStack {
-                WidgetBG(isRecording: entry.isRecording)
-
-                if entry.isRecording {
-                    smallRecording
-                } else {
-                    smallIdle
-                }
-            }
-        }
-    }
-
-    // — IDLE —
-    var smallIdle: some View {
-        VStack(spacing: 4) {
-            MicButton(size: 90, iconSize: 56)
-
-            Text("NOTITIA")
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundColor(NC.neonPink)
-                .tracking(2)
-                .shadow(color: NC.neonPink.opacity(0.6), radius: 6)
-        }
-    }
-
-    // — RECORDING —
-    var smallRecording: some View {
-        VStack(spacing: 2) {
-            StopButton(size: 82, iconSize: 52)
-
-            // ● REC
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(NC.redRec)
-                    .frame(width: 7, height: 7)
-                Text("REC")
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundColor(NC.redRec)
-                    .shadow(color: NC.redRec.opacity(0.7), radius: 6)
-            }
-
-            // Timer
-            Text(entry.timer)
-                .font(.system(size: 17, weight: .bold, design: .monospaced))
-                .foregroundColor(NC.neonCyan)
-                .shadow(color: NC.neonCyan.opacity(0.6), radius: 8)
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - MEDIUM Widget View (systemMedium — ~3×3 equivalent)
-//         Identique au widget Android 3×3 : micro/stop + timer + transcription
-// ═══════════════════════════════════════════════════════════════════════════
-
-struct MediumWidgetView: View {
-    let entry: NotitiaEntry
-
-    var body: some View {
-        Link(destination: URL(string: "notitia://record")!) {
-            ZStack {
-                WidgetBG(isRecording: entry.isRecording)
-
-                if entry.isRecording {
-                    mediumRecording
-                } else {
-                    mediumIdle
-                }
-            }
-            .padding(8)
-        }
-    }
-
-    // — IDLE —
-    var mediumIdle: some View {
-        HStack(spacing: 14) {
-            // Gauche : micro
-            VStack(spacing: 4) {
-                MicButton(size: 100, iconSize: 64)
-
-                Text("Tap to record")
-                    .font(.system(size: 10, weight: .light))
-                    .foregroundColor(NC.neonCyan.opacity(0.55))
-            }
-
-            // Droite : titre + dernière transcription
-            VStack(alignment: .leading, spacing: 6) {
-                Text("N O T I T I A")
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundColor(NC.neonPink)
-                    .shadow(color: NC.neonPink.opacity(0.5), radius: 8)
-
-                // Séparateur néon
-                Rectangle()
-                    .fill(NC.neonPink.opacity(0.3))
-                    .frame(height: 1)
-
-                // Dernière transcription
-                Text(
-                    entry.lastTranscript.isEmpty
-                        ? "Dernière transcription ici…"
-                        : "\"\(truncate(entry.lastTranscript, max: 80))\""
-                )
-                .font(.system(size: 10))
-                .foregroundColor(.white.opacity(entry.lastTranscript.isEmpty ? 0.25 : 0.55))
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    // — RECORDING —
-    var mediumRecording: some View {
-        HStack(spacing: 14) {
-            // Gauche : stop + timer
-            VStack(spacing: 4) {
-                StopButton(size: 90, iconSize: 56)
-
-                // ● REC — timer
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(NC.redRec)
-                        .frame(width: 7, height: 7)
-                    Text("REC")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundColor(NC.redRec)
-                }
-
-                Text(entry.timer)
-                    .font(.system(size: 18, weight: .bold, design: .monospaced))
-                    .foregroundColor(NC.neonCyan)
-                    .shadow(color: NC.neonCyan.opacity(0.6), radius: 10)
-            }
-
-            // Droite : transcription live
-            VStack(alignment: .leading, spacing: 6) {
-                Text("TRANSCRIPTION")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundColor(NC.neonCyan.opacity(0.7))
-                    .tracking(1.5)
-
-                Rectangle()
-                    .fill(NC.redRec.opacity(0.3))
-                    .frame(height: 1)
-
-                Text(
-                    entry.liveTranscript.isEmpty
-                        ? "En attente de transcription…"
-                        : truncate(entry.liveTranscript, max: 100)
-                )
-                .font(.system(size: 10))
-                .foregroundColor(NC.neonCyan.opacity(entry.liveTranscript.isEmpty ? 0.35 : 0.8))
-                .lineLimit(4)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func truncate(_ text: String, max: Int) -> String {
-        text.count > max ? "…" + String(text.suffix(max)) : text
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - Lock Screen Widget (accessoryCircular)
-// ═══════════════════════════════════════════════════════════════════════════
-
-@available(iOSApplicationExtension 16.0, *)
-struct LockScreenWidgetView: View {
-    let entry: NotitiaEntry
-
-    var body: some View {
-        Link(destination: URL(string: "notitia://record")!) {
-            ZStack {
-                AccessoryWidgetBackground()
-                if entry.isRecording {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(.white)
-                        .frame(width: 14, height: 14)
-                } else {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.white)
-                }
-            }
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - Router View
-// ═══════════════════════════════════════════════════════════════════════════
-
-struct NotitiaWidgetEntryView: View {
-    var entry: NotitiaProvider.Entry
-    @Environment(\.widgetFamily) var family
-
-    var body: some View {
-        switch family {
-        case .systemSmall:
-            SmallWidgetView(entry: entry)
-        case .systemMedium:
-            MediumWidgetView(entry: entry)
-        case .accessoryCircular:
-            if #available(iOSApplicationExtension 16.0, *) {
-                LockScreenWidgetView(entry: entry)
-            }
-        default:
-            SmallWidgetView(entry: entry)
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MARK: - Widget Declaration
-// ═══════════════════════════════════════════════════════════════════════════
-
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 struct NotitiaWidget: Widget {
-    let kind: String = "NotitiaWidget"
+    let kind = "NotitiaWidget"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: NotitiaProvider()) { entry in
             NotitiaWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Notitia Capture")
-        .description("Capture vocale rapide. Petit = micro compact, Moyen = micro + transcription.")
-        .supportedFamilies(supportedFamilies)
+        .description("Capture vocale cyberpunk. Petit = micro + label. Grand = micro + timer + transcription.")
+        .supportedFamilies(families)
     }
 
-    var supportedFamilies: [WidgetFamily] {
-        var families: [WidgetFamily] = [.systemSmall, .systemMedium]
+    private var families: [WidgetFamily] {
+        var f: [WidgetFamily] = [.systemSmall, .systemMedium]
         if #available(iOSApplicationExtension 16.0, *) {
-            families.append(.accessoryCircular)
+            f.append(.accessoryCircular)
         }
-        return families
+        return f
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // MARK: - Previews
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 struct NotitiaWidget_Previews: PreviewProvider {
     static var previews: some View {
-        // Small — Idle
-        NotitiaWidgetEntryView(
-            entry: NotitiaEntry(date: Date(), isRecording: false, timer: "00:00",
+        let idle = NotitiaEntry(date: .now, isRecording: false, timer: "00:00",
                                 liveTranscript: "", lastTranscript: "")
-        )
-        .previewContext(WidgetPreviewContext(family: .systemSmall))
-        .previewDisplayName("Small — Idle")
-
-        // Small — Recording
-        NotitiaWidgetEntryView(
-            entry: NotitiaEntry(date: Date(), isRecording: true, timer: "02:34",
-                                liveTranscript: "Bonjour c'est un test", lastTranscript: "")
-        )
-        .previewContext(WidgetPreviewContext(family: .systemSmall))
-        .previewDisplayName("Small — Recording")
-
-        // Medium — Idle
-        NotitiaWidgetEntryView(
-            entry: NotitiaEntry(date: Date(), isRecording: false, timer: "00:00",
-                                liveTranscript: "",
-                                lastTranscript: "Réunion du lundi : discuter du sprint planning et des objectifs Q2.")
-        )
-        .previewContext(WidgetPreviewContext(family: .systemMedium))
-        .previewDisplayName("Medium — Idle")
-
-        // Medium — Recording
-        NotitiaWidgetEntryView(
-            entry: NotitiaEntry(date: Date(), isRecording: true, timer: "01:15",
-                                liveTranscript: "Alors pour le projet Notitia, on va implémenter les widgets natifs…",
+        let rec  = NotitiaEntry(date: .now, isRecording: true, timer: "02:34",
+                                liveTranscript: "Alors pour le projet Notitia on va implémenter les widgets natifs avec un design cyberpunk…",
                                 lastTranscript: "")
-        )
-        .previewContext(WidgetPreviewContext(family: .systemMedium))
-        .previewDisplayName("Medium — Recording")
+        let idleT = NotitiaEntry(date: .now, isRecording: false, timer: "00:00",
+                                 liveTranscript: "",
+                                 lastTranscript: "Réunion du lundi : discuter du sprint planning et des objectifs Q2.")
 
-        // Lock Screen
-        if #available(iOSApplicationExtension 16.0, *) {
-            NotitiaWidgetEntryView(
-                entry: NotitiaEntry(date: Date(), isRecording: false, timer: "00:00",
-                                    liveTranscript: "", lastTranscript: "")
-            )
-            .previewContext(WidgetPreviewContext(family: .accessoryCircular))
-            .previewDisplayName("Lock Screen")
+        Group {
+            // Petit — Idle
+            NotitiaWidgetEntryView(entry: idle)
+                .previewContext(WidgetPreviewContext(family: .systemSmall))
+                .previewDisplayName("Petit — Idle")
+
+            // Petit — Recording
+            NotitiaWidgetEntryView(entry: rec)
+                .previewContext(WidgetPreviewContext(family: .systemSmall))
+                .previewDisplayName("Petit — REC")
+
+            // Grand — Idle (avec dernière transcription)
+            NotitiaWidgetEntryView(entry: idleT)
+                .previewContext(WidgetPreviewContext(family: .systemMedium))
+                .previewDisplayName("Grand — Idle")
+
+            // Grand — Recording
+            NotitiaWidgetEntryView(entry: rec)
+                .previewContext(WidgetPreviewContext(family: .systemMedium))
+                .previewDisplayName("Grand — REC")
         }
     }
 }
