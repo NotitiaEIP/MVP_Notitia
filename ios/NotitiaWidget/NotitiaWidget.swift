@@ -425,6 +425,7 @@ struct NotitiaWidgetEntryView: View {
 // ═══════════════════════════════════════════════════════════════════════════
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 @main
 <<<<<<< Updated upstream
 =======
@@ -702,6 +703,7 @@ struct NotitiaWidgetEntryView: View {
 // MARK: - Widget Declaration
 // ═══════════════════════════════════════════════════════════════════════════
 
+>>>>>>> Stashed changes
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
