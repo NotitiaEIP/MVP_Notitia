@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Halo néon rose autour du bouton micro (état idle) — plus grand, plus intense -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Glow externe diffus -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#1AFF0178" />
+        </shape>
+    </item>
+    <!-- Glow moyen -->
+    <item android:left="6dp" android:top="6dp" android:right="6dp" android:bottom="6dp">
+        <shape android:shape="oval">
+            <solid android:color="#28FF0178" />
+        </shape>
+    </item>
+    <!-- Glow interne -->
+    <item android:left="12dp" android:top="12dp" android:right="12dp" android:bottom="12dp">
+        <shape android:shape="oval">
+            <solid android:color="#20FF0178" />
+        </shape>
+    </item>
+    <!-- Anneau néon vif -->
+    <item android:left="16dp" android:top="16dp" android:right="16dp" android:bottom="16dp">
+        <shape android:shape="oval">
+            <stroke android:width="2dp" android:color="#99FF0178" />
+            <solid android:color="#08FF0178" />
+        </shape>
+    </item>
+</layer-list>

@@ -134,19 +134,19 @@ class AuthService {
   Future<AuthResponse> signUpWithEmail({
     required String email,
     required String password,
-    String? username,
+    required String username, // rendu obligatoire
   }) async {
+    if (username.trim().isEmpty) {
+      throw Exception('Le nom d’utilisateur est obligatoire');
+    }
+    
     final response = await _supabase.auth.signUp(
       email: email,
       password: password,
-      data: username != null ? {'username': username} : null,
-      emailRedirectTo: kIsWeb ? null : 'notitia://callback',
+      data: {'user_name': username},
     );
 
-    // Important: si la confirmation email est activée côté Supabase,
-    // `response.session` peut être null et l'utilisateur n'est pas connecté.
-    // Dans ce cas, on NE DOIT PAS tenter d'écrire dans `profiles`.
-    if (response.session != null && username != null) {
+    if (response.session != null) {
       await _upsertProfile(username: username);
     }
 

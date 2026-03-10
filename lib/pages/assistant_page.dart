@@ -11,16 +11,23 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/rag_service.dart';
 import '../theme.dart';
 import '../widgets/meduza_widget.dart';
+import '../widgets/meduza_companion.dart';
 import '../widgets/meduza_speech_bubble.dart';
+import '../widgets/page_header.dart';
+import '../services/auth_service.dart';
 
 class AssistantPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
   final void Function(MeduzaState state, {String? message, BubbleStyle style})?
   onMeduzaStateChanged;
+  final UserProfile? profile;
+  final VoidCallback? onProfileTap;
   const AssistantPage({
     super.key,
     required this.refreshNotifier,
     this.onMeduzaStateChanged,
+    this.profile,
+    this.onProfileTap,
   });
 
   @override
@@ -274,57 +281,24 @@ class _AssistantPageState extends State<AssistantPage>
   // HEADER
   // ---------------------------------------------------------------------------
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: NotitiaTheme.neonPink.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.auto_awesome,
-              color: NotitiaTheme.neonPink,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'ASSISTANT',
-                  style: GoogleFonts.orbitron(
-                    fontSize: 18,
-                    color: NotitiaTheme.white,
-                    letterSpacing: 4,
-                  ),
-                ),
-                Text(
-                  'Pose-moi une question sur tes conversations',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: NotitiaTheme.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: _forceReindex,
-            icon: const Icon(Icons.sync_rounded, color: NotitiaTheme.neonCyan),
-            tooltip: 'Re-indexer les conversations',
-          ),
-          IconButton(
-            onPressed: _clearConversation,
-            icon: const Icon(Icons.refresh_rounded, color: NotitiaTheme.grey),
-            tooltip: 'Nouvelle conversation',
-          ),
-        ],
-      ),
+    return NotitiaPageHeader(
+      leading: const MeduzaMiniAvatar(state: MeduzaState.idle),
+      title: 'MEDUZA',
+      subtitle: 'Pose-moi une question sur tes conversations',
+      profile: widget.profile,
+      onProfileTap: widget.onProfileTap,
+      actions: [
+        IconButton(
+          onPressed: _forceReindex,
+          icon: const Icon(Icons.sync_rounded, color: NotitiaTheme.neonCyan),
+          tooltip: 'Re-indexer les conversations',
+        ),
+        IconButton(
+          onPressed: _clearConversation,
+          icon: const Icon(Icons.refresh_rounded, color: NotitiaTheme.grey),
+          tooltip: 'Nouvelle conversation',
+        ),
+      ],
     );
   }
 
@@ -431,21 +405,10 @@ class _AssistantPageState extends State<AssistantPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: NotitiaTheme.neonPink.withValues(alpha: 0.1),
-                ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  size: 48,
-                  color: NotitiaTheme.neonPink,
-                ),
-              ),
+              const MeduzaWidget(state: MeduzaState.hello, size: 120),
               const SizedBox(height: 24),
               Text(
-                'Salut ! Je suis ton assistant mémoire.',
+                'Salut ! Je suis Meduza, ton assistante memoire.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 16,
@@ -525,18 +488,9 @@ class _AssistantPageState extends State<AssistantPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: NotitiaTheme.neonPink.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.auto_awesome,
-                size: 16,
-                color: NotitiaTheme.neonPink,
-              ),
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: MeduzaMiniAvatar(state: MeduzaState.idle),
             ),
             const SizedBox(width: 8),
           ],
@@ -594,18 +548,7 @@ class _AssistantPageState extends State<AssistantPage>
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: NotitiaTheme.neonPink.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.auto_awesome,
-              size: 16,
-              color: NotitiaTheme.neonPink,
-            ),
-          ),
+          const MeduzaMiniAvatar(state: MeduzaState.processing),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

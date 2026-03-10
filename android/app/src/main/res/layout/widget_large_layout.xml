@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- =============================================================================
+     NOTITIA — Widget LARGE (3x3) — État IDLE
+     Gros bouton micro, titre NOTITIA, sous-titre, et zone transcription.
+     ============================================================================= -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:background="@drawable/widget_background"
+    android:padding="12dp">
+
+    <!-- En-tête : label NOTITIA -->
+    <TextView
+        android:id="@+id/widget_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="4dp"
+        android:text="N O T I T I A"
+        android:textColor="#FFFF0178"
+        android:textSize="16sp"
+        android:fontFamily="sans-serif-medium"
+        android:textStyle="bold"
+        android:letterSpacing="0.3"
+        android:shadowColor="#AAFF0178"
+        android:shadowRadius="12"
+        android:shadowDx="0"
+        android:shadowDy="0" />
+
+    <!-- Ligne séparatrice néon (TextView car View non supporté par RemoteViews) -->
+    <TextView
+        android:layout_width="80dp"
+        android:layout_height="1dp"
+        android:layout_gravity="center"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="8dp"
+        android:background="#44FF0178"
+        android:text=""
+        android:textSize="0sp" />
+
+    <!-- Conteneur bouton micro + glow ring -->
+    <FrameLayout
+        android:layout_width="110dp"
+        android:layout_height="110dp"
+        android:layout_gravity="center">
+
+        <ImageView
+            android:id="@+id/widget_glow_ring"
+            android:layout_width="110dp"
+            android:layout_height="110dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_glow_ring"
+            android:contentDescription="Halo néon"
+            android:scaleType="fitCenter" />
+
+        <ImageView
+            android:id="@+id/widget_mic_button"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_mic_widget"
+            android:contentDescription="Lancer la capture vocale"
+            android:scaleType="centerInside" />
+
+    </FrameLayout>
+
+    <!-- Sous-label "Tap to record" -->
+    <TextView
+        android:id="@+id/widget_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="6dp"
+        android:text="Tap to record"
+        android:textColor="#9900E5FF"
+        android:textSize="11sp"
+        android:fontFamily="sans-serif-light"
+        android:letterSpacing="0.08" />
+
+    <!-- Zone transcription (vide en idle) -->
+    <TextView
+        android:id="@+id/widget_transcript"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_gravity="center"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:text="Dernière transcription apparaîtra ici"
+        android:textColor="#4488AACC"
+        android:textSize="9sp"
+        android:fontFamily="sans-serif-light"
+        android:maxLines="3"
+        android:ellipsize="end" />
+
+</LinearLayout>

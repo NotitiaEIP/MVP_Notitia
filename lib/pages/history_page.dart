@@ -9,6 +9,8 @@ import '../pages/meeting_page.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../pages/tap_to_share_page.dart';
+import '../services/auth_service.dart';
+import '../widgets/page_header.dart';
 import 'edit_page.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -19,7 +21,11 @@ class HistoryPage extends StatefulWidget {
     super.key,
     required this.refreshNotifier,
     this.filterMeetingsOnly = false,
+    this.profile,
+    this.onProfileTap,
   });
+  final UserProfile? profile;
+  final VoidCallback? onProfileTap;
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -172,19 +178,8 @@ class _HistoryPageState extends State<HistoryPage> {
                     letterSpacing: 4,
                   ),
                 ),
-                const Spacer(),
-                // Bouton recevoir via NFC
-                NfcReceiveButton(onReceived: _loadData),
-                const SizedBox(width: 12),
-                Text(
-                  '${_transcriptions.length}',
-                  style: GoogleFonts.orbitron(
-                    fontSize: 14,
-                    color: NotitiaTheme.neonPink,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           Divider(

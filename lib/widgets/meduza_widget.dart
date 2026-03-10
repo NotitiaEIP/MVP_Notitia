@@ -321,7 +321,7 @@ class _MeduzaWidgetState extends State<MeduzaWidget>
                       width: widget.size * 0.8,
                       height: widget.size * 0.8,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Icon(
+                      errorBuilder: (_, _, _) => Icon(
                         Icons.auto_awesome,
                         size: widget.size * 0.5,
                         color: NotitiaTheme.neonPink,

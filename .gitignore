@@ -1,4 +1,5 @@
 # Flutter build files
+pubspec.lock
 build/
 .dart_tool/
 .flutter-plugins
