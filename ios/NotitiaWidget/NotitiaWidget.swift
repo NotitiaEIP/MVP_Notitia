@@ -704,6 +704,7 @@ struct NotitiaWidgetEntryView: View {
 // ═══════════════════════════════════════════════════════════════════════════
 
 >>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
