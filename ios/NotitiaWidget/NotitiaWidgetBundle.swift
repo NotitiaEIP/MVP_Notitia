@@ -12,7 +12,5 @@ import SwiftUI
 struct NotitiaWidgetBundle: WidgetBundle {
     var body: some Widget {
         NotitiaWidget()
-        NotitiaWidgetControl()
-        NotitiaWidgetLiveActivity()
     }
 }
