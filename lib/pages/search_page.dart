@@ -10,11 +10,20 @@ import '../models/transcription.dart';
 import '../services/search_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
+import '../services/auth_service.dart';
+import '../widgets/page_header.dart';
 import 'edit_page.dart';
 
 class SearchPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
-  const SearchPage({super.key, required this.refreshNotifier});
+  final UserProfile? profile;
+  final VoidCallback? onProfileTap;
+  const SearchPage({
+    super.key,
+    required this.refreshNotifier,
+    this.profile,
+    this.onProfileTap,
+  });
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -98,26 +107,11 @@ class _SearchPageState extends State<SearchPage> {
         children: [
           const SizedBox(height: 24),
           // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.search_rounded,
-                  color: NotitiaTheme.neonPink,
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'RECHERCHE',
-                  style: GoogleFonts.orbitron(
-                    fontSize: 18,
-                    color: NotitiaTheme.white,
-                    letterSpacing: 4,
-                  ),
-                ),
-              ],
-            ),
+          NotitiaPageHeader(
+            icon: Icons.search_rounded,
+            title: 'RECHERCHE',
+            profile: widget.profile,
+            onProfileTap: widget.onProfileTap,
           ),
           const SizedBox(height: 16),
           // Barre de recherche

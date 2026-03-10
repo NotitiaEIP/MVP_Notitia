@@ -63,7 +63,7 @@ class _ProfilePageState extends State<ProfilePage>
 
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final profile = await _authService.getProfile();
       if (mounted) {
@@ -86,10 +86,12 @@ class _ProfilePageState extends State<ProfilePage>
     setState(() => _isUpdating = true);
 
     try {
-      await _authService.updateProfile(username: _usernameController.text.trim());
+      await _authService.updateProfile(
+        username: _usernameController.text.trim(),
+      );
       await _loadProfile();
       setState(() => _isEditingUsername = false);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -136,10 +138,10 @@ class _ProfilePageState extends State<ProfilePage>
     try {
       final bytes = await File(image.path).readAsBytes();
       final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      
+
       await _authService.uploadAvatar(bytes, fileName);
       await _loadProfile();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -181,17 +183,11 @@ class _ProfilePageState extends State<ProfilePage>
         ),
         title: Text(
           'Déconnexion',
-          style: GoogleFonts.orbitron(
-            color: NotitiaTheme.white,
-            fontSize: 18,
-          ),
+          style: GoogleFonts.orbitron(color: NotitiaTheme.white, fontSize: 18),
         ),
         content: Text(
           'Êtes-vous sûr de vouloir vous déconnecter ?',
-          style: GoogleFonts.rajdhani(
-            color: NotitiaTheme.grey,
-            fontSize: 16,
-          ),
+          style: GoogleFonts.rajdhani(color: NotitiaTheme.grey, fontSize: 16),
         ),
         actions: [
           TextButton(
@@ -215,7 +211,9 @@ class _ProfilePageState extends State<ProfilePage>
     if (confirm == true) {
       await _authService.signOut();
       if (mounted) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/auth', (route) => false);
       }
     }
   }
@@ -246,6 +244,8 @@ class _ProfilePageState extends State<ProfilePage>
                       const SizedBox(height: 24),
                       _buildThemeSection(),
                       const SizedBox(height: 24),
+                      _buildPlanSection(),
+                      const SizedBox(height: 24),
                       _buildSettingsSection(),
                       const SizedBox(height: 24),
                       _buildDangerZone(),
@@ -266,9 +266,7 @@ class _ProfilePageState extends State<ProfilePage>
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              border: Border.all(
-                color: NotitiaTheme.neonPink.withOpacity(0.5),
-              ),
+              border: Border.all(color: NotitiaTheme.neonPink.withOpacity(0.5)),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -328,25 +326,26 @@ class _ProfilePageState extends State<ProfilePage>
                         ),
                       )
                     : _profile?.avatarUrl != null
-                        ? ClipOval(
-                            child: CachedNetworkImage(
-                              imageUrl: _profile!.avatarUrl!,
-                              fit: BoxFit.cover,
-                              width: 120,
-                              height: 120,
-                              placeholder: (context, url) => const Center(
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                              errorWidget: (context, url, error) => _buildDefaultAvatar(),
+                    ? ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: _profile!.avatarUrl!,
+                          fit: BoxFit.cover,
+                          width: 120,
+                          height: 120,
+                          placeholder: (context, url) => const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
                             ),
-                          )
-                        : _buildDefaultAvatar(),
+                          ),
+                          errorWidget: (context, url, error) =>
+                              _buildDefaultAvatar(),
+                        ),
+                      )
+                    : _buildDefaultAvatar(),
               ),
             ),
-            
+
             // Bouton d'édition
             Positioned(
               bottom: 0,
@@ -357,10 +356,7 @@ class _ProfilePageState extends State<ProfilePage>
                 decoration: BoxDecoration(
                   color: NotitiaTheme.darkBlue,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: NotitiaTheme.neonPink,
-                    width: 2,
-                  ),
+                  border: Border.all(color: NotitiaTheme.neonPink, width: 2),
                 ),
                 child: IconButton(
                   padding: EdgeInsets.zero,
@@ -376,7 +372,7 @@ class _ProfilePageState extends State<ProfilePage>
           ],
         ),
         const SizedBox(height: 16),
-        
+
         // Nom d'utilisateur
         if (_isEditingUsername)
           _buildUsernameEditor()
@@ -395,31 +391,25 @@ class _ProfilePageState extends State<ProfilePage>
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.edit,
-                  color: NotitiaTheme.grey,
-                  size: 18,
-                ),
+                Icon(Icons.edit, color: NotitiaTheme.grey, size: 18),
               ],
             ),
           ),
-        
+
         const SizedBox(height: 8),
-        
+
         // Email
         Text(
           _profile?.email ?? _authService.currentUser?.email ?? '',
-          style: GoogleFonts.rajdhani(
-            fontSize: 14,
-            color: NotitiaTheme.grey,
-          ),
+          style: GoogleFonts.rajdhani(fontSize: 14, color: NotitiaTheme.grey),
         ),
       ],
     );
   }
 
   Widget _buildDefaultAvatar() {
-    final initial = (_profile?.username ?? _profile?.email ?? 'U')[0].toUpperCase();
+    final initial = (_profile?.username ?? _profile?.email ?? 'U')[0]
+        .toUpperCase();
     return Center(
       child: Text(
         initial,
@@ -522,11 +512,11 @@ class _ProfilePageState extends State<ProfilePage>
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _themes.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final theme = _themes[index];
                 final isSelected = _selectedTheme == index;
-                
+
                 return GestureDetector(
                   onTap: () => setState(() => _selectedTheme = index),
                   child: AnimatedContainer(
@@ -598,6 +588,23 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
+  Widget _buildPlanSection() {
+    return _buildSection(
+      title: 'Abonnement',
+      icon: Icons.workspace_premium_rounded,
+      accentColor: NotitiaTheme.neonCyan,
+      children: [
+        _SettingsTile(
+          icon: Icons.diamond_outlined,
+          title: 'Mon Abonnement',
+          subtitle: 'Free — Gérer mon plan',
+          iconColor: NotitiaTheme.neonCyan,
+          onTap: () => Navigator.of(context).pushNamed('/subscription'),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSettingsSection() {
     return _buildSection(
       title: 'Paramètres',
@@ -613,7 +620,7 @@ class _ProfilePageState extends State<ProfilePage>
           trailing: Switch(
             value: true,
             onChanged: (value) {},
-            activeColor: NotitiaTheme.neonPink,
+            activeThumbColor: NotitiaTheme.neonPink,
           ),
         ),
         _SettingsTile(
@@ -686,13 +693,11 @@ class _ProfilePageState extends State<ProfilePage>
     Color? accentColor,
   }) {
     final color = accentColor ?? NotitiaTheme.neonPink;
-    
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(
-          color: color.withOpacity(0.3),
-        ),
+        border: Border.all(color: color.withOpacity(0.3)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -716,10 +721,7 @@ class _ProfilePageState extends State<ProfilePage>
               ],
             ),
           ),
-          Divider(
-            height: 1,
-            color: color.withOpacity(0.2),
-          ),
+          Divider(height: 1, color: color.withOpacity(0.2)),
           ...children,
         ],
       ),
@@ -728,8 +730,18 @@ class _ProfilePageState extends State<ProfilePage>
 
   String _formatDate(DateTime date) {
     final months = [
-      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
-      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+      'janvier',
+      'février',
+      'mars',
+      'avril',
+      'mai',
+      'juin',
+      'juillet',
+      'août',
+      'septembre',
+      'octobre',
+      'novembre',
+      'décembre',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
@@ -811,11 +823,7 @@ class _SettingsTile extends StatelessWidget {
             if (trailing != null)
               trailing!
             else if (onTap != null)
-              Icon(
-                Icons.chevron_right,
-                color: NotitiaTheme.grey,
-                size: 20,
-              ),
+              Icon(Icons.chevron_right, color: NotitiaTheme.grey, size: 20),
           ],
         ),
       ),

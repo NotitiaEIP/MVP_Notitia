@@ -49,11 +49,10 @@ class _RegisterPageState extends State<RegisterPage>
     );
     _animationController.forward();
 
-    // Gère OAuth/OTP: quand l'auth aboutit, on va à l'onboarding si pas encore fait.
+    // Gère OAuth/OTP: après création, on lance l'onboarding si nécessaire.
     _authSub = _authService.authStateChanges.listen((state) async {
       if (!mounted) return;
       if (state.event == AuthChangeEvent.signedIn) {
-        // Pas d'attente ici: on évite l'usage de context après un gap async.
         _authService.markAuthSeen();
         final alreadyOnboarded = await OnboardingService.isOnboarded();
         if (!mounted) return;
@@ -548,7 +547,7 @@ class _CyberpunkTextField extends StatelessWidget {
   final String hint;
   final IconData icon;
   final bool obscureText;
-  final bool enabled;
+  final bool enabled = true;
   final TextInputType keyboardType;
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
@@ -559,7 +558,6 @@ class _CyberpunkTextField extends StatelessWidget {
     required this.hint,
     required this.icon,
     this.obscureText = false,
-    this.enabled = true,
     this.keyboardType = TextInputType.text,
     this.suffixIcon,
     this.validator,

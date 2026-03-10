@@ -20,6 +20,8 @@ import '../theme.dart';
 import '../widgets/pulsing_dot.dart';
 import '../widgets/meduza_widget.dart';
 import '../widgets/meduza_speech_bubble.dart';
+import '../widgets/profile_button.dart';
+import '../services/auth_service.dart';
 
 /// Choix du moteur de transcription
 enum STTEngine {
@@ -31,10 +33,16 @@ class CapturePage extends StatefulWidget {
   final VoidCallback? onTranscriptionSaved;
   final void Function(MeduzaState state, {String? message, BubbleStyle style})?
   onMeduzaStateChanged;
+  final UserProfile? profile;
+  final VoidCallback? onProfileTap;
+  final bool fromOnboarding;
   const CapturePage({
     super.key,
     this.onTranscriptionSaved,
     this.onMeduzaStateChanged,
+    this.profile,
+    this.onProfileTap,
+    this.fromOnboarding = false,
   });
 
   @override
@@ -42,7 +50,7 @@ class CapturePage extends StatefulWidget {
 }
 
 class _CapturePageState extends State<CapturePage>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   // ---------------------------------------------------------------------------
   // Choix du moteur STT
   // ---------------------------------------------------------------------------
@@ -87,6 +95,12 @@ class _CapturePageState extends State<CapturePage>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
+  // Entrance animation (after onboarding)
+  AnimationController? _entranceController;
+  late Animation<double> _entranceFade;
+  late Animation<double> _entranceScale;
+  late Animation<double> _entranceTextFade;
+
   @override
   void initState() {
     super.initState();
@@ -106,6 +120,37 @@ class _CapturePageState extends State<CapturePage>
         _pulseController.forward();
       }
     });
+
+    // Entrance animation when arriving from onboarding
+    if (widget.fromOnboarding) {
+      _entranceController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1400),
+      );
+      _entranceFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _entranceController!,
+          curve: const Interval(0, 0.5, curve: Curves.easeOut),
+        ),
+      );
+      _entranceScale = Tween<double>(begin: 1.8, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _entranceController!,
+          curve: const Interval(0.05, 0.65, curve: Curves.easeOutCubic),
+        ),
+      );
+      _entranceTextFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _entranceController!,
+          curve: const Interval(0.45, 0.85, curve: Curves.easeOut),
+        ),
+      );
+      _entranceController!.forward();
+    } else {
+      _entranceFade = const AlwaysStoppedAnimation(1.0);
+      _entranceScale = const AlwaysStoppedAnimation(1.0);
+      _entranceTextFade = const AlwaysStoppedAnimation(1.0);
+    }
   }
 
   /// Initialise le service Deepgram Nova-3
@@ -188,6 +233,7 @@ class _CapturePageState extends State<CapturePage>
     WidgetsBinding.instance.removeObserver(this);
     _durationTimer?.cancel();
     _pulseController.dispose();
+    _entranceController?.dispose();
     _speechToText.stop();
     _deepgram.dispose();
     if (_isActiveMode) ActiveListeningService.stop();
@@ -752,55 +798,60 @@ class _CapturePageState extends State<CapturePage>
 
   // ===== HEADER =====
   Widget _buildHeader() {
+    // Meduza change d'etat selon l'activite en cours
+    MeduzaState headerState;
+    if (_isListening) {
+      headerState = MeduzaState.listening;
+    } else if (_isEnhancing) {
+      headerState = MeduzaState.processing;
+    } else {
+      headerState = MeduzaState.idle;
+    }
+
     return Column(
       children: [
-        Image.asset(
-          'assets/notitia_logo.png',
-          height: 110,
-          width: 110,
-          errorBuilder: (context, error, stackTrace) => Container(
-            height: 110,
-            width: 110,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [NotitiaTheme.neonPink, Colors.blue.shade900],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+        // Profile button row at top
+        if (widget.onProfileTap != null)
+          Align(
+            alignment: Alignment.centerRight,
+            child: NotitiaProfileButton(
+              profile: widget.profile,
+              onTap: widget.onProfileTap!,
             ),
-            child: Center(
-              child: Text(
-                'N',
-                style: GoogleFonts.orbitron(
-                  fontSize: 56,
-                  fontWeight: FontWeight.bold,
-                  color: NotitiaTheme.white,
-                ),
-              ),
-            ),
+          ),
+        FadeTransition(
+          opacity: _entranceFade,
+          child: ScaleTransition(
+            scale: _entranceScale,
+            child: MeduzaWidget(state: headerState, size: 110),
           ),
         ),
         const SizedBox(height: 14),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            'NOTITIA',
-            style: GoogleFonts.orbitron(
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
-              color: NotitiaTheme.white,
-              letterSpacing: 8,
+        FadeTransition(
+          opacity: _entranceTextFade,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              'NOTITIA',
+              style: GoogleFonts.orbitron(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                color: NotitiaTheme.white,
+                letterSpacing: 8,
+              ),
             ),
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          'Assistant Mémoire IA',
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            color: NotitiaTheme.grey,
-            letterSpacing: 2,
+        FadeTransition(
+          opacity: _entranceTextFade,
+          child: Text(
+            'Assistant Mémoire IA',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: NotitiaTheme.grey,
+              letterSpacing: 2,
+            ),
           ),
         ),
       ],

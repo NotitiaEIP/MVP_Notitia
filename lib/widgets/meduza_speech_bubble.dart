@@ -147,7 +147,8 @@ class _MeduzaSpeechBubbleState extends State<MeduzaSpeechBubble>
 }
 
 // =============================================================================
-// Texte anime caractere par caractere (typewriter)
+// Texte anime mot par mot avec fondu progressif
+// Evite les sauts de ligne brusques du mode caractere par caractere
 // =============================================================================
 class _AnimatedText extends StatefulWidget {
   final String text;
@@ -160,13 +161,14 @@ class _AnimatedText extends StatefulWidget {
 }
 
 class _AnimatedTextState extends State<_AnimatedText> {
-  String _displayedText = '';
+  late List<String> _words;
+  int _visibleWordCount = 0;
   Timer? _timer;
-  int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _words = widget.text.split(' ');
     _startTypewriter();
   }
 
@@ -175,19 +177,18 @@ class _AnimatedTextState extends State<_AnimatedText> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.text != widget.text) {
       _timer?.cancel();
-      _currentIndex = 0;
-      _displayedText = '';
+      _words = widget.text.split(' ');
+      _visibleWordCount = 0;
       _startTypewriter();
     }
   }
 
   void _startTypewriter() {
-    _timer = Timer.periodic(widget.speed, (timer) {
-      if (_currentIndex < widget.text.length) {
-        setState(() {
-          _displayedText = widget.text.substring(0, _currentIndex + 1);
-          _currentIndex++;
-        });
+    // Vitesse adaptee : ~60ms par mot pour un debit naturel
+    final wordSpeed = Duration(milliseconds: widget.speed.inMilliseconds * 2);
+    _timer = Timer.periodic(wordSpeed, (timer) {
+      if (_visibleWordCount < _words.length) {
+        setState(() => _visibleWordCount++);
       } else {
         timer.cancel();
       }
@@ -202,12 +203,26 @@ class _AnimatedTextState extends State<_AnimatedText> {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      _displayedText,
-      style: GoogleFonts.poppins(
-        fontSize: 13,
-        color: NotitiaTheme.white.withOpacity(0.9),
-        height: 1.4,
+    final baseStyle = GoogleFonts.poppins(
+      fontSize: 13,
+      color: NotitiaTheme.white.withOpacity(0.9),
+      height: 1.4,
+    );
+
+    return Text.rich(
+      TextSpan(
+        children: List.generate(_words.length, (i) {
+          final isVisible = i < _visibleWordCount;
+          final isLast = i == _visibleWordCount - 1;
+          return TextSpan(
+            text: i == 0 ? _words[i] : ' ${_words[i]}',
+            style: baseStyle.copyWith(
+              color: isVisible
+                  ? baseStyle.color!.withOpacity(isLast ? 0.7 : 1.0)
+                  : Colors.transparent,
+            ),
+          );
+        }),
       ),
     );
   }
