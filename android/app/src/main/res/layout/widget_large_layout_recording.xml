@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- =============================================================================
+     NOTITIA — Widget LARGE (3x3) — État RECORDING
+     Bouton stop, timer, label REC, et transcription live.
+     ============================================================================= -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:background="@drawable/widget_background_recording"
+    android:padding="12dp">
+
+    <!-- En-tête : ● REC + timer côte à côte -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_gravity="center"
+        android:layout_marginTop="4dp">
+
+        <TextView
+            android:id="@+id/widget_rec_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="● REC"
+            android:textColor="#FFFF3366"
+            android:textSize="14sp"
+            android:fontFamily="sans-serif-bold"
+            android:letterSpacing="0.1"
+            android:shadowColor="#CCFF3366"
+            android:shadowRadius="10"
+            android:shadowDx="0"
+            android:shadowDy="0" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="—"
+            android:textColor="#5500E5FF"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/widget_timer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="00:00"
+            android:textColor="#FF00E5FF"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold"
+            android:letterSpacing="0.1"
+            android:shadowColor="#AA00E5FF"
+            android:shadowRadius="14"
+            android:shadowDx="0"
+            android:shadowDy="0" />
+
+    </LinearLayout>
+
+    <!-- Ligne séparatrice rouge néon (TextView car View non supporté par RemoteViews) -->
+    <TextView
+        android:layout_width="80dp"
+        android:layout_height="1dp"
+        android:layout_gravity="center"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp"
+        android:background="#55FF3366"
+        android:text=""
+        android:textSize="0sp" />
+
+    <!-- Conteneur bouton stop + glow ring -->
+    <FrameLayout
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:layout_gravity="center">
+
+        <ImageView
+            android:id="@+id/widget_glow_ring_rec"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_glow_ring_recording"
+            android:contentDescription="Halo enregistrement"
+            android:scaleType="fitCenter" />
+
+        <ImageView
+            android:id="@+id/widget_stop_button"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_stop_widget"
+            android:contentDescription="Arrêter"
+            android:scaleType="centerInside" />
+
+    </FrameLayout>
+
+    <!-- Zone transcription live -->
+    <TextView
+        android:id="@+id/widget_transcript"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_gravity="center"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:text="En attente de transcription…"
+        android:textColor="#BB00E5FF"
+        android:textSize="10sp"
+        android:fontFamily="sans-serif"
+        android:maxLines="4"
+        android:ellipsize="end"
+        android:lineSpacingMultiplier="1.2" />
+
+</LinearLayout>

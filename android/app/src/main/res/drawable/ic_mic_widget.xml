@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icône micro pour le widget Notitia — gros, net, néon pink -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+
+    <!-- Cercle de fond rose néon -->
+    <path
+        android:fillColor="#FF0178"
+        android:pathData="M32,32m-28,0a28,28 0,1 1,56 0a28,28 0,1 1,-56 0" />
+
+    <!-- Sur-brillance interne (effet demi-cercle plus clair) -->
+    <path
+        android:fillColor="#33FFFFFF"
+        android:pathData="M32,4A28,28 0,0 1,60 32C60,32 48,20 32,20C16,20 4,32 4,32A28,28 0,0 1,32 4z" />
+
+    <!-- Icône micro (blanc) - body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,38c4.42,0 8,-3.58 8,-8V20c0,-4.42 -3.58,-8 -8,-8s-8,3.58 -8,8v10C24,34.42 27.58,38 32,38z" />
+
+    <!-- Icône micro (blanc) - arc + stand -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M44,30c0,6.63 -5.37,12 -12,12s-12,-5.37 -12,-12h-4c0,8.28 6.26,15.1 14,15.88V52h-6v4h16v-4h-6v-6.12C41.74,45.1 48,38.28 48,30H44z" />
+</vector>
