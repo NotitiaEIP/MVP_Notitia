@@ -1,17 +1,9 @@
-// =============================================================================
-// NOTITIA — Widget iOS (WidgetKit + SwiftUI)
 //
-// Deux tailles :
-//   ● SMALL (systemSmall, 2×2) : Micro/Stop + titre — compact
-//   ● MEDIUM (systemMedium, 3×3 equiv) : Micro/Stop + timer + transcription live
+//  NotitiaWidget.swift
+//  NotitiaWidget
 //
-// Double état :
-//   - IDLE      → Bouton micro néon rose
-//   - RECORDING → Timer cyan + bouton stop rouge
+//  Created by Lucas Lejeune on 10/03/2026.
 //
-// Communique avec Flutter via l'URI notitia://record (toggle).
-// Design identique au widget Android — cyberpunk neon DA.
-// =============================================================================
 
 import WidgetKit
 import SwiftUI
