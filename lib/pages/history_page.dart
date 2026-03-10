@@ -15,8 +15,12 @@ import 'edit_page.dart';
 
 class HistoryPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
+
   /// Si true, filtre l'historique pour n'afficher que les transcriptions de réunions.
   final bool filterMeetingsOnly;
+  final UserProfile? profile;
+  final VoidCallback? onProfileTap;
+
   const HistoryPage({
     super.key,
     required this.refreshNotifier,
@@ -24,8 +28,6 @@ class HistoryPage extends StatefulWidget {
     this.profile,
     this.onProfileTap,
   });
-  final UserProfile? profile;
-  final VoidCallback? onProfileTap;
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -73,7 +75,9 @@ class _HistoryPageState extends State<HistoryPage> {
     if (mounted) {
       setState(() {
         if (widget.filterMeetingsOnly) {
-          _transcriptions = data.where((t) => meetingIds.contains(t.id)).toList();
+          _transcriptions = data
+              .where((t) => meetingIds.contains(t.id))
+              .toList();
         } else {
           _transcriptions = data;
         }
@@ -153,33 +157,21 @@ class _HistoryPageState extends State<HistoryPage> {
   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    final headerTitle = widget.filterMeetingsOnly ? 'RÉUNIONS' : 'HISTORIQUE';
+    final headerIcon = widget.filterMeetingsOnly
+        ? Icons.groups_rounded
+        : Icons.history_rounded;
+
     return SafeArea(
       child: Column(
         children: [
           const SizedBox(height: 24),
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Icon(
-                  widget.filterMeetingsOnly
-                      ? Icons.groups_rounded
-                      : Icons.history_rounded,
-                  color: NotitiaTheme.neonPink,
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  widget.filterMeetingsOnly ? 'RÉUNIONS' : 'HISTORIQUE',
-                  style: GoogleFonts.orbitron(
-                    fontSize: 18,
-                    color: NotitiaTheme.white,
-                    letterSpacing: 4,
-                  ),
-                ),
-              ),
-            ],
+          // Header uniforme
+          NotitiaPageHeader(
+            icon: headerIcon,
+            title: headerTitle,
+            profile: widget.profile,
+            onProfileTap: widget.onProfileTap,
           ),
           const SizedBox(height: 6),
           Divider(

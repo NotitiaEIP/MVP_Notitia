@@ -198,7 +198,9 @@ class _MainNavigationState extends State<MainNavigation>
     final saved = await HomeWidgetService.checkPendingTranscription();
     if (saved && mounted) {
       _refreshNotifier.value++;
-      debugPrint('[MainNavigation] Widget pending transcription traitée → refresh');
+      debugPrint(
+        '[MainNavigation] Widget pending transcription traitée → refresh',
+      );
     }
   }
 
@@ -265,9 +267,6 @@ class _MainNavigationState extends State<MainNavigation>
                 refreshNotifier: _refreshNotifier,
                 profile: _profile,
                 onProfileTap: _openProfile,
-              ),
-              HistoryPage(
-                refreshNotifier: _refreshNotifier,
                 filterMeetingsOnly: _filterHistoryMeetings,
               ),
               MeetingPage(
