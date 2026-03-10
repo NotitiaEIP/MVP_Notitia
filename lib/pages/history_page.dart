@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../models/transcription.dart';
 import '../pages/meeting_page.dart';
+import '../services/language_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../pages/tap_to_share_page.dart';
@@ -36,6 +37,7 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   List<Transcription> _transcriptions = [];
   bool _loading = true;
+  final LanguageService _languageService = LanguageService();
 
   @override
   void initState() {
@@ -96,7 +98,7 @@ class _HistoryPageState extends State<HistoryPage> {
           side: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.5)),
         ),
         title: Text(
-          'SUPPRIMER',
+          _languageService.translate('delete'),
           style: GoogleFonts.orbitron(
             fontSize: 16,
             color: NotitiaTheme.redRecording,
@@ -104,14 +106,14 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         ),
         content: Text(
-          'Supprimer « ${t.title} » ?',
+          '${_languageService.translate('delete_confirm')} « ${t.title} » ?',
           style: GoogleFonts.poppins(fontSize: 14, color: NotitiaTheme.white),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
-              'ANNULER',
+              _languageService.translate('cancel'),
               style: GoogleFonts.orbitron(
                 fontSize: 11,
                 color: NotitiaTheme.grey,
@@ -127,7 +129,7 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
             ),
             child: Text(
-              'SUPPRIMER',
+              _languageService.translate('delete'),
               style: GoogleFonts.orbitron(
                 fontSize: 11,
                 color: NotitiaTheme.white,
@@ -218,12 +220,12 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Aucune transcription',
+            _languageService.translate('no_transcriptions'),
             style: GoogleFonts.poppins(fontSize: 16, color: NotitiaTheme.grey),
           ),
           const SizedBox(height: 6),
           Text(
-            'Vos transcriptions sauvegardées\napparaîtront ici',
+            _languageService.translate('saved_transcriptions_here'),
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 13,

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/transcription.dart';
+import '../services/language_service.dart';
 import '../services/search_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
@@ -36,6 +37,7 @@ class _SearchPageState extends State<SearchPage> {
   Timer? _debounce;
   bool _loading = false;
   bool _hasSearched = false;
+  final LanguageService _languageService = LanguageService();
 
   @override
   void initState() {
@@ -125,7 +127,7 @@ class _SearchPageState extends State<SearchPage> {
                 fontSize: 15,
               ),
               decoration: InputDecoration(
-                hintText: 'Rechercher dans les transcriptions…',
+                hintText: _languageService.translate('search_hint'),
                 hintStyle: GoogleFonts.poppins(
                   color: NotitiaTheme.grey,
                   fontSize: 14,
@@ -203,14 +205,14 @@ class _SearchPageState extends State<SearchPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Recherche sémantique',
+            _languageService.translate('semantic_search'),
             style: GoogleFonts.poppins(fontSize: 16, color: NotitiaTheme.grey),
           ),
           const SizedBox(height: 6),
           Text(
             _allTranscriptions.isEmpty
-                ? 'Enregistrez des transcriptions\npour pouvoir les rechercher'
-                : 'Tapez un mot-clé, une phrase ou\nune question pour fouiller vos notes',
+                ? _languageService.translate('record_transcriptions_to_search')
+                : _languageService.translate('type_keyword_phrase_question'),
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 13,
@@ -234,12 +236,12 @@ class _SearchPageState extends State<SearchPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Aucun résultat',
+            _languageService.translate('no_results'),
             style: GoogleFonts.poppins(fontSize: 16, color: NotitiaTheme.grey),
           ),
           const SizedBox(height: 6),
           Text(
-            'Essayez avec d\'autres termes',
+            _languageService.translate('try_other_terms'),
             style: GoogleFonts.poppins(
               fontSize: 13,
               color: NotitiaTheme.grey.withValues(alpha: 0.6),
@@ -259,7 +261,7 @@ class _SearchPageState extends State<SearchPage> {
           return Padding(
             padding: const EdgeInsets.only(bottom: 12, left: 4),
             child: Text(
-              '${_results.length} résultat${_results.length > 1 ? 's' : ''} trouvé${_results.length > 1 ? 's' : ''}',
+              '${_results.length} ${_languageService.translate('results_found')}',
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 color: NotitiaTheme.grey,

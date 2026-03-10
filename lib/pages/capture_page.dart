@@ -13,6 +13,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../models/transcription.dart';
 import '../services/deepgram_service.dart';
 import '../services/foreground_service.dart';
+import '../services/language_service.dart';
 import '../services/mistral_service.dart';
 import '../services/rag_service.dart';
 import '../services/storage_service.dart';
@@ -55,6 +56,7 @@ class _CapturePageState extends State<CapturePage>
   // Choix du moteur STT
   // ---------------------------------------------------------------------------
   STTEngine _sttEngine = STTEngine.deepgram; // Par défaut: Deepgram Nova-3
+  final LanguageService _languageService = LanguageService();
 
   // ---------------------------------------------------------------------------
   // Speech-to-Text (Natif)
@@ -538,7 +540,7 @@ class _CapturePageState extends State<CapturePage>
           side: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.5)),
         ),
         title: Text(
-          'SAUVEGARDER',
+          _languageService.translate('save'),
           style: GoogleFonts.orbitron(
             fontSize: 16,
             color: NotitiaTheme.neonPink,
@@ -601,7 +603,7 @@ class _CapturePageState extends State<CapturePage>
               ),
             ),
             child: Text(
-              'SAUVEGARDER',
+              _languageService.translate('save'),
               style: GoogleFonts.orbitron(
                 fontSize: 11,
                 color: NotitiaTheme.white,
@@ -860,7 +862,7 @@ class _CapturePageState extends State<CapturePage>
 
   Widget _buildSectionTitle() {
     return Text(
-      '[ VOICE TO TEXT ]',
+      _languageService.translate('voice_to_text'),
       style: GoogleFonts.orbitron(
         fontSize: 13,
         color: NotitiaTheme.grey,
@@ -900,7 +902,7 @@ class _CapturePageState extends State<CapturePage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'ÉCOUTE ACTIVE',
+                  _languageService.translate('active_listening'),
                   style: GoogleFonts.orbitron(
                     fontSize: 11,
                     color: _isActiveMode
@@ -912,8 +914,8 @@ class _CapturePageState extends State<CapturePage>
                 const SizedBox(height: 2),
                 Text(
                   _isActiveMode
-                      ? 'Transcription en arrière-plan'
-                      : 'Continue même écran verrouillé',
+                      ? _languageService.translate('background_transcription')
+                      : _languageService.translate('continue_locked_screen'),
                   style: GoogleFonts.poppins(
                     fontSize: 10,
                     color: NotitiaTheme.grey.withValues(alpha: 0.7),
@@ -1054,10 +1056,10 @@ class _CapturePageState extends State<CapturePage>
 
     return Text(
       _fullTranscript.isEmpty
-          ? 'Appuyez pour dicter'
+          ? _languageService.translate('press_to_dictate')
           : (_iaCorrectionCount > 0
-                ? 'Amélioré par IA ($_iaCorrectionCount corrections)'
-                : 'Transcription terminée'),
+                ? '${_languageService.translate('ai_enhanced')} ($_iaCorrectionCount ${_languageService.translate('corrections_applied')})'
+                : _languageService.translate('transcription_completed')),
       style: GoogleFonts.poppins(
         fontSize: 15,
         color: _iaCorrectionCount > 0
@@ -1130,7 +1132,7 @@ class _CapturePageState extends State<CapturePage>
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  _isListening ? 'TRANSCRIPTION EN DIRECT' : 'TRANSCRIPTION',
+                  _isListening ? _languageService.translate('live_transcription') : _languageService.translate('transcription'),
                   style: GoogleFonts.orbitron(
                     fontSize: 10,
                     color: accentColor,
@@ -1216,8 +1218,8 @@ class _CapturePageState extends State<CapturePage>
               : Text(
                   isEmpty
                       ? (_isListening
-                            ? 'En attente de parole…'
-                            : 'Le texte transcrit apparaîtra ici')
+                            ? _languageService.translate('waiting_for_speech')
+                            : _languageService.translate('transcribed_text_here'))
                       : displayText,
                   style: GoogleFonts.poppins(
                     fontSize: 16,

@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/language_service.dart';
 import '../services/rag_service.dart';
 import '../theme.dart';
 import '../widgets/meduza_widget.dart';
@@ -39,6 +40,7 @@ class _AssistantPageState extends State<AssistantPage>
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final RAGService _rag = RAGService.instance;
+  final LanguageService _languageService = LanguageService();
 
   bool _isLoading = false;
   bool _isIndexing = false;
@@ -208,18 +210,18 @@ class _AssistantPageState extends State<AssistantPage>
           side: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.3)),
         ),
         title: Text(
-          'Nouvelle conversation',
+          _languageService.translate('new_conversation'),
           style: GoogleFonts.orbitron(color: NotitiaTheme.white, fontSize: 16),
         ),
         content: Text(
-          'Effacer l\'historique de cette conversation ?',
+          _languageService.translate('clear_history_question'),
           style: GoogleFonts.poppins(color: NotitiaTheme.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
-              'Annuler',
+              _languageService.translate('cancel'),
               style: GoogleFonts.poppins(color: NotitiaTheme.grey),
             ),
           ),
@@ -230,7 +232,7 @@ class _AssistantPageState extends State<AssistantPage>
               setState(() {});
             },
             child: Text(
-              'Effacer',
+              _languageService.translate('clear'),
               style: GoogleFonts.poppins(color: NotitiaTheme.neonPink),
             ),
           ),
@@ -408,7 +410,7 @@ class _AssistantPageState extends State<AssistantPage>
               const MeduzaWidget(state: MeduzaState.hello, size: 120),
               const SizedBox(height: 24),
               Text(
-                'Salut ! Je suis Meduza, ton assistante memoire.',
+                _languageService.translate('hi_memory_assistant'),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 16,
@@ -418,8 +420,7 @@ class _AssistantPageState extends State<AssistantPage>
               ),
               const SizedBox(height: 8),
               Text(
-                'Je connais toutes tes conversations enregistrées. '
-                'Pose-moi une question !',
+                _languageService.translate('i_know_conversations'),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
@@ -433,9 +434,9 @@ class _AssistantPageState extends State<AssistantPage>
                 runSpacing: 8,
                 alignment: WrapAlignment.center,
                 children: [
-                  _buildSuggestionChip('De quoi a-t-on parlé récemment ?'),
-                  _buildSuggestionChip('Résume mes dernières conversations'),
-                  _buildSuggestionChip('Qu\'a-t-on dit sur le budget ?'),
+                  _buildSuggestionChip(_languageService.translate('recent_discussions')),
+                  _buildSuggestionChip(_languageService.translate('summarize_conversations')),
+                  _buildSuggestionChip(_languageService.translate('budget_discussion')),
                 ],
               ),
             ],
@@ -569,7 +570,7 @@ class _AssistantPageState extends State<AssistantPage>
                 _buildDot(2),
                 const SizedBox(width: 8),
                 Text(
-                  'Recherche dans tes conversations...',
+                  _languageService.translate('searching_conversations'),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: NotitiaTheme.grey,
@@ -627,7 +628,7 @@ class _AssistantPageState extends State<AssistantPage>
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _sendMessage(),
               decoration: InputDecoration(
-                hintText: 'Pose une question...',
+                hintText: _languageService.translate('ask_question'),
                 hintStyle: GoogleFonts.poppins(
                   color: NotitiaTheme.grey,
                   fontSize: 14,

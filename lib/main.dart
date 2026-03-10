@@ -26,6 +26,7 @@ import 'pages/splash_screen.dart';
 import 'services/auth_service.dart';
 import 'services/foreground_service.dart';
 import 'services/home_widget_service.dart';
+import 'services/language_service.dart';
 import 'services/nfc_share_service.dart';
 import 'services/notitia_file_service.dart';
 import 'theme.dart';
@@ -44,6 +45,9 @@ void main() async {
 
   // Initialisation de Supabase
   await AuthService.initialize();
+
+  // Initialisation du service de langue
+  await LanguageService().initialize();
 
   // Port de communication pour le foreground service
   FlutterForegroundTask.initCommunicationPort();
@@ -110,6 +114,7 @@ class _MainNavigationState extends State<MainNavigation>
     with WidgetsBindingObserver {
   int _currentIndex = 0;
   final _authService = AuthService();
+  final _languageService = LanguageService();
   UserProfile? _profile;
   bool _fromOnboarding = false;
 
@@ -326,30 +331,30 @@ class _MainNavigationState extends State<MainNavigation>
         selectedLabelStyle: GoogleFonts.orbitron(fontSize: 10),
         unselectedLabelStyle: GoogleFonts.orbitron(fontSize: 10),
         type: BottomNavigationBarType.fixed,
-        items: const [
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.mic_rounded),
-            label: 'CAPTURE',
+            icon: const Icon(Icons.mic_rounded),
+            label: _languageService.translate('capture').toUpperCase(),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.history_rounded),
-            label: 'HISTORIQUE',
+            icon: const Icon(Icons.history_rounded),
+            label: _languageService.translate('history_title'),
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.groups_rounded),
             label: 'RÉUNION',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.account_tree_rounded),
-            label: 'MIND MAP',
+            icon: const Icon(Icons.account_tree_rounded),
+            label: _languageService.translate('mindmap').toUpperCase(),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.search_rounded),
-            label: 'RECHERCHE',
+            icon: const Icon(Icons.search_rounded),
+            label: _languageService.translate('search_title'),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.auto_awesome),
-            label: 'ASSISTANT',
+            icon: const Icon(Icons.auto_awesome),
+            label: _languageService.translate('assistant').toUpperCase(),
           ),
         ],
       ),
