@@ -260,7 +260,7 @@ class _CapturePageState extends State<CapturePage>
   Future<bool> _requestMicPermission() async {
     final status = await Permission.microphone.request();
     if (!status.isGranted) {
-      _showSnackBar('Permission microphone refusée');
+      _showSnackBar(_languageService.translate('mic_permission_denied'));
       return false;
     }
     return true;
@@ -293,7 +293,7 @@ class _CapturePageState extends State<CapturePage>
     // Vérifier la disponibilité selon le moteur
     if (_sttEngine == STTEngine.native && !_speechEnabled) {
       _showSnackBar(
-        'Service natif non disponible. Vérifiez les permissions de reconnaissance vocale.',
+        _languageService.translate('native_service_unavailable'),
       );
       // Tenter de réinitialiser
       await _initSpeech();
@@ -311,7 +311,7 @@ class _CapturePageState extends State<CapturePage>
     // Meduza - ecoute active
     widget.onMeduzaStateChanged?.call(
       MeduzaState.listening,
-      message: 'Je t\'ecoute, parle quand tu es pret...',
+      message: _languageService.translate('listening_prompt'),
     );
 
     _pulseController.forward();
@@ -327,7 +327,7 @@ class _CapturePageState extends State<CapturePage>
         // Mettre à jour la notification avec la durée
         if (_isActiveMode && ActiveListeningService.isRunning) {
           ActiveListeningService.updateNotification(
-            'Transcription en cours… ${_formatDuration(_listenDuration)}',
+            _languageService.translate('transcription_in_progress').replaceAll('{duration}', _formatDuration(_listenDuration)),
           );
         }
       }
@@ -551,7 +551,7 @@ class _CapturePageState extends State<CapturePage>
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Donnez un titre à cette transcription :',
+              _languageService.translate('give_transcription_title'),
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 color: NotitiaTheme.grey,
@@ -565,7 +565,7 @@ class _CapturePageState extends State<CapturePage>
                 fontSize: 14,
               ),
               decoration: InputDecoration(
-                hintText: 'Titre…',
+                hintText: _languageService.translate('title_placeholder'),
                 hintStyle: GoogleFonts.poppins(color: NotitiaTheme.grey),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -587,7 +587,7 @@ class _CapturePageState extends State<CapturePage>
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
-              'ANNULER',
+              _languageService.translate('cancel'),
               style: GoogleFonts.orbitron(
                 fontSize: 11,
                 color: NotitiaTheme.grey,
@@ -714,7 +714,7 @@ class _CapturePageState extends State<CapturePage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'DEEPGRAM',
+                      _languageService.translate('engine_deepgram'),
                       style: GoogleFonts.orbitron(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -725,7 +725,7 @@ class _CapturePageState extends State<CapturePage>
                       ),
                     ),
                     Text(
-                      'Nova-3 • Cloud',
+                      _languageService.translate('deepgram_subtitle'),
                       style: GoogleFonts.poppins(
                         fontSize: 9,
                         color: NotitiaTheme.grey.withValues(alpha: 0.7),
@@ -771,7 +771,7 @@ class _CapturePageState extends State<CapturePage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'NATIF',
+                      _languageService.translate('engine_native'),
                       style: GoogleFonts.orbitron(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -782,7 +782,7 @@ class _CapturePageState extends State<CapturePage>
                       ),
                     ),
                     Text(
-                      Platform.isAndroid ? 'Google • Local' : 'Apple • Local',
+                      Platform.isAndroid ? _languageService.translate('native_google') : _languageService.translate('native_apple'),
                       style: GoogleFonts.poppins(
                         fontSize: 9,
                         color: NotitiaTheme.grey.withValues(alpha: 0.7),
@@ -834,7 +834,7 @@ class _CapturePageState extends State<CapturePage>
           child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              'NOTITIA',
+              _languageService.translate('app_title'),
               style: GoogleFonts.orbitron(
                 fontSize: 30,
                 fontWeight: FontWeight.bold,
@@ -848,7 +848,7 @@ class _CapturePageState extends State<CapturePage>
         FadeTransition(
           opacity: _entranceTextFade,
           child: Text(
-            'Assistant Mémoire IA',
+            _languageService.translate('ai_memory_assistant_subtitle'),
             style: GoogleFonts.poppins(
               fontSize: 13,
               color: NotitiaTheme.grey,
@@ -992,7 +992,7 @@ class _CapturePageState extends State<CapturePage>
           ),
           const SizedBox(width: 10),
           Text(
-            'AMÉLIORATION IA EN COURS...',
+            _languageService.translate('ai_enhancement_in_progress'),
             style: GoogleFonts.orbitron(
               fontSize: 14,
               color: NotitiaTheme.neonPink,
@@ -1032,7 +1032,7 @@ class _CapturePageState extends State<CapturePage>
               ),
               const SizedBox(width: 10),
               Text(
-                'ÉCOUTE ${_formatDuration(_listenDuration)}',
+                _languageService.translate('listening_duration').replaceAll('{duration}', _formatDuration(_listenDuration)),
                 style: GoogleFonts.orbitron(
                   fontSize: 18,
                   color: NotitiaTheme.redRecording,
@@ -1191,7 +1191,7 @@ class _CapturePageState extends State<CapturePage>
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'SAUVER',
+                          _languageService.translate('save_button'),
                           style: GoogleFonts.orbitron(
                             fontSize: 10,
                             color: NotitiaTheme.white,

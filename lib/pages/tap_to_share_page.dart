@@ -231,7 +231,7 @@ class _TapToSharePageState extends State<TapToSharePage>
             ),
             const SizedBox(height: 24),
             Text(
-              'NFC NON DISPONIBLE',
+              _languageService.translate('nfc_unavailable_title'),
               style: GoogleFonts.orbitron(
                 color: NotitiaTheme.neonPink,
                 fontSize: 18,
@@ -241,7 +241,7 @@ class _TapToSharePageState extends State<TapToSharePage>
             ),
             const SizedBox(height: 16),
             Text(
-              'Activez le NFC dans les paramètres de votre téléphone ou vérifiez que votre appareil le supporte.',
+              _languageService.translate('nfc_unavailable_desc'),
               style: GoogleFonts.poppins(
                 color: NotitiaTheme.grey,
                 fontSize: 14,
@@ -253,7 +253,7 @@ class _TapToSharePageState extends State<TapToSharePage>
             OutlinedButton.icon(
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(Icons.arrow_back),
-              label: Text('RETOUR', style: GoogleFonts.orbitron(fontSize: 12)),
+              label: Text(_languageService.translate('button_back'), style: GoogleFonts.orbitron(fontSize: 12)),
               style: OutlinedButton.styleFrom(
                 foregroundColor: NotitiaTheme.neonPink,
                 side: const BorderSide(color: NotitiaTheme.neonPink),
@@ -309,7 +309,7 @@ class _TapToSharePageState extends State<TapToSharePage>
           ),
           const SizedBox(height: 24),
           Text(
-            'PARTAGE PAR NFC',
+            _languageService.translate('nfc_sharing_title'),
             style: GoogleFonts.orbitron(
               color: NotitiaTheme.white,
               fontSize: 18,
@@ -318,7 +318,7 @@ class _TapToSharePageState extends State<TapToSharePage>
           ),
           const SizedBox(height: 8),
           Text(
-            'Collez deux téléphones pour transférer\nune transcription instantanément',
+            _languageService.translate('nfc_sharing_desc'),
             style: GoogleFonts.poppins(
               color: NotitiaTheme.grey,
               fontSize: 14,
@@ -332,7 +332,7 @@ class _TapToSharePageState extends State<TapToSharePage>
           if (widget.transcription != null) ...[
             _buildModeCard(
               icon: Icons.upload_rounded,
-              title: 'ENVOYER',
+              title: _languageService.translate('nfc_sender_mode'),
               subtitle: widget.transcription!.title,
               color: NotitiaTheme.neonPink,
               onTap: _startSending,
@@ -343,8 +343,8 @@ class _TapToSharePageState extends State<TapToSharePage>
           // Carte Récepteur
           _buildModeCard(
             icon: Icons.download_rounded,
-            title: 'RECEVOIR',
-            subtitle: 'Scanner un appareil à proximité',
+            title: _languageService.translate('nfc_receiver_mode'),
+            subtitle: _languageService.translate('nfc_receiver_subtitle'),
             color: NotitiaTheme.neonCyan,
             onTap: _startReceiving,
           ),
@@ -365,7 +365,7 @@ class _TapToSharePageState extends State<TapToSharePage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'COMMENT ÇA MARCHE',
+                  _languageService.translate('nfc_instructions_title'),
                   style: GoogleFonts.orbitron(
                     color: NotitiaTheme.grey,
                     fontSize: 11,
@@ -373,11 +373,10 @@ class _TapToSharePageState extends State<TapToSharePage>
                   ),
                 ),
                 const SizedBox(height: 12),
-                _buildStep('1', 'L\'émetteur choisit ENVOYER'),
-                _buildStep('2', 'Le récepteur choisit RECEVOIR'),
-                _buildStep('3', 'Collez les deux téléphones dos à dos'),
-                _buildStep('4',
-                    'La transcription est transférée instantanément'),
+                _buildStep('1', _languageService.translate('nfc_step_1')),
+                _buildStep('2', _languageService.translate('nfc_step_2')),
+                _buildStep('3', _languageService.translate('nfc_step_3')),
+                _buildStep('4', _languageService.translate('nfc_step_4')),
               ],
             ),
           ),
@@ -614,22 +613,22 @@ class _TapToSharePageState extends State<TapToSharePage>
 
     switch (session.state) {
       case NfcShareState.writing:
-        title = 'ÉMISSION NFC';
-        subtitle = 'Approchez l\'autre téléphone pour partager';
+        title = _languageService.translate('nfc_sending_state_title');
+        subtitle = _languageService.translate('nfc_sending_state_subtitle');
         break;
       case NfcShareState.reading:
-        title = 'RÉCEPTION NFC';
-        subtitle = 'Approchez l\'autre téléphone pour recevoir';
+        title = _languageService.translate('nfc_receiving_state_title');
+        subtitle = _languageService.translate('nfc_receiving_state_subtitle');
         break;
       case NfcShareState.completed:
-        title = 'TERMINÉ';
+        title = _languageService.translate('nfc_completed_title');
         subtitle = session.mode == ShareMode.sender
-            ? 'Transcription envoyée !'
-            : 'Transcription reçue et importée !';
+            ? _languageService.translate('nfc_sent_success')
+            : _languageService.translate('nfc_received_success');
         break;
       case NfcShareState.failed:
-        title = 'ERREUR';
-        subtitle = 'Le partage NFC a échoué';
+        title = _languageService.translate('nfc_error_title');
+        subtitle = _languageService.translate('nfc_error_subtitle');
         break;
       default:
         title = '';
@@ -705,7 +704,7 @@ class _TapToSharePageState extends State<TapToSharePage>
                 Navigator.of(context).pop(session.receivedTranscription);
               },
               icon: const Icon(Icons.visibility_rounded),
-              label: Text('VOIR LA TRANSCRIPTION',
+              label: Text(_languageService.translate('nfc_view_transcription'),
                   style: GoogleFonts.orbitron(fontSize: 13)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: NotitiaTheme.neonCyan,
@@ -719,7 +718,7 @@ class _TapToSharePageState extends State<TapToSharePage>
             const SizedBox(height: 12),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: Text('FERMER',
+              child: Text(_languageService.translate('button_close'),
                   style: GoogleFonts.orbitron(
                       fontSize: 11, color: NotitiaTheme.grey)),
             ),
@@ -731,7 +730,7 @@ class _TapToSharePageState extends State<TapToSharePage>
       return ElevatedButton.icon(
         onPressed: () => Navigator.of(context).pop(),
         icon: const Icon(Icons.check_rounded),
-        label: Text('TERMINÉ', style: GoogleFonts.orbitron(fontSize: 13)),
+        label: Text(_languageService.translate('nfc_completed_action'), style: GoogleFonts.orbitron(fontSize: 13)),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
@@ -752,7 +751,7 @@ class _TapToSharePageState extends State<TapToSharePage>
               Navigator.of(context).pop();
             },
             icon: const Icon(Icons.close_rounded),
-            label: Text('FERMER', style: GoogleFonts.orbitron(fontSize: 11)),
+            label: Text(_languageService.translate('button_close'), style: GoogleFonts.orbitron(fontSize: 11)),
             style: OutlinedButton.styleFrom(
               foregroundColor: NotitiaTheme.grey,
               side: const BorderSide(color: NotitiaTheme.grey),
@@ -771,7 +770,7 @@ class _TapToSharePageState extends State<TapToSharePage>
               }
             },
             icon: const Icon(Icons.refresh_rounded),
-            label: Text('RÉESSAYER', style: GoogleFonts.orbitron(fontSize: 11)),
+            label: Text(_languageService.translate('button_retry'), style: GoogleFonts.orbitron(fontSize: 11)),
             style: ElevatedButton.styleFrom(
               backgroundColor: NotitiaTheme.neonPink,
               foregroundColor: Colors.white,
@@ -789,7 +788,7 @@ class _TapToSharePageState extends State<TapToSharePage>
     return OutlinedButton.icon(
       onPressed: _cancel,
       icon: const Icon(Icons.close_rounded),
-      label: Text('ANNULER', style: GoogleFonts.orbitron(fontSize: 12)),
+      label: Text(_languageService.translate('button_cancel'), style: GoogleFonts.orbitron(fontSize: 12)),
       style: OutlinedButton.styleFrom(
         foregroundColor: NotitiaTheme.redRecording,
         side: const BorderSide(color: NotitiaTheme.redRecording),
@@ -844,7 +843,7 @@ class _RipplePainter extends CustomPainter {
 // =============================================================================
 
 /// Bouton "Partager via NFC" à placer dans les pages.
-class NfcShareButton extends StatelessWidget {
+class NfcShareButton extends StatefulWidget {
   final Transcription transcription;
   final VoidCallback? onShared;
 
@@ -855,25 +854,32 @@ class NfcShareButton extends StatelessWidget {
   });
 
   @override
+  State<NfcShareButton> createState() => _NfcShareButtonState();
+}
+
+class _NfcShareButtonState extends State<NfcShareButton> {
+  final LanguageService _languageService = LanguageService();
+
+  @override
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.nfc_rounded, color: NotitiaTheme.neonCyan),
-      tooltip: 'Partager via NFC',
+      tooltip: _languageService.translate('nfc_share_tooltip'),
       onPressed: () async {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => TapToSharePage(transcription: transcription),
+            builder: (_) => TapToSharePage(transcription: widget.transcription),
           ),
         );
-        onShared?.call();
+        widget.onShared?.call();
       },
     );
   }
 }
 
 /// Bouton "Recevoir via NFC" à placer dans les pages.
-class NfcReceiveButton extends StatelessWidget {
+class NfcReceiveButton extends StatefulWidget {
   final VoidCallback? onReceived;
 
   const NfcReceiveButton({
@@ -882,16 +888,23 @@ class NfcReceiveButton extends StatelessWidget {
   });
 
   @override
+  State<NfcReceiveButton> createState() => _NfcReceiveButtonState();
+}
+
+class _NfcReceiveButtonState extends State<NfcReceiveButton> {
+  final LanguageService _languageService = LanguageService();
+
+  @override
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.contactless_rounded, color: NotitiaTheme.neonCyan),
-      tooltip: 'Recevoir via NFC',
+      tooltip: _languageService.translate('nfc_receive_tooltip'),
       onPressed: () async {
         final result = await Navigator.push<dynamic>(
           context,
           MaterialPageRoute(
             builder: (_) => TapToSharePage(
-              onReceived: (_) => onReceived?.call(),
+              onReceived: (_) => widget.onReceived?.call(),
             ),
           ),
         );
@@ -903,10 +916,10 @@ class NfcReceiveButton extends StatelessWidget {
               builder: (_) => EditPage(transcription: result),
             ),
           );
-          onReceived?.call();
+          widget.onReceived?.call();
         } else if (result == true) {
           // FERMER pressé après réception réussie → rafraîchir l'historique
-          onReceived?.call();
+          widget.onReceived?.call();
         }
       },
     );

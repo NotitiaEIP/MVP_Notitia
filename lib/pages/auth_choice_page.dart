@@ -143,7 +143,7 @@ class _AuthChoicePageState extends State<AuthChoicePage>
         
         // Titre
         Text(
-          'NOTITIA',
+          _languageService.translate('app_title'),
           style: GoogleFonts.orbitron(
             fontSize: 36,
             fontWeight: FontWeight.bold,

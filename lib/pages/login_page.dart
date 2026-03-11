@@ -104,10 +104,10 @@ class _LoginPageState extends State<LoginPage>
 
   String _getErrorMessage(String message) {
     if (message.contains('Invalid login credentials')) {
-      return 'Email ou mot de passe incorrect';
+      return _languageService.translate('invalid_credentials');
     }
     if (message.contains('Email not confirmed')) {
-      return 'Veuillez confirmer votre email. Vérifiez vos emails ou cliquez pour renvoyer le code.';
+      return _languageService.translate('email_not_confirmed_instruction');
     }
     return message;
   }
@@ -123,7 +123,7 @@ class _LoginPageState extends State<LoginPage>
       await _authService.markAuthSeen();
     } catch (e) {
       setState(() {
-        _errorMessage = 'Erreur de connexion avec Google';
+        _errorMessage = _languageService.translate('google_signin_error');
       });
     } finally {
       if (mounted) {
@@ -143,7 +143,7 @@ class _LoginPageState extends State<LoginPage>
       await _authService.markAuthSeen();
     } catch (e) {
       setState(() {
-        _errorMessage = 'Erreur de connexion avec GitHub';
+        _errorMessage = _languageService.translate('github_signin_error');
       });
     } finally {
       if (mounted) {
@@ -237,8 +237,8 @@ class _LoginPageState extends State<LoginPage>
           // Email
           _CyberpunkTextField(
             controller: _emailController,
-            label: 'Email',
-            hint: 'votre@email.com',
+            label: _languageService.translate('email_label'),
+            hint: _languageService.translate('email_placeholder'),
             icon: Icons.email_outlined,
             keyboardType: TextInputType.emailAddress,
             validator: (value) {
@@ -256,8 +256,8 @@ class _LoginPageState extends State<LoginPage>
           // Mot de passe
           _CyberpunkTextField(
             controller: _passwordController,
-            label: 'Mot de passe',
-            hint: '••••••••',
+            label: _languageService.translate('password_label'),
+            hint: _languageService.translate('password_placeholder'),
             icon: Icons.lock_outlined,
             obscureText: _obscurePassword,
             suffixIcon: IconButton(
@@ -319,7 +319,7 @@ class _LoginPageState extends State<LoginPage>
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Code de confirmation renvoyé à $email',
+                                _languageService.translate('confirmation_code_resent').replaceAll('{email}', email),
                                 style: GoogleFonts.rajdhani(),
                               ),
                               backgroundColor: NotitiaTheme.neonPink,
@@ -339,7 +339,7 @@ class _LoginPageState extends State<LoginPage>
                         } catch (e) {
                           if (!mounted) return;
                           setState(() {
-                            _errorMessage = 'Erreur lors de l\'envoi du code : ${e.toString()}';
+                            _errorMessage = _languageService.translate('resend_code_error').replaceAll('{error}', e.toString());
                           });
                         } finally {
                           if (mounted) setState(() => _isLoading = false);
@@ -347,7 +347,7 @@ class _LoginPageState extends State<LoginPage>
                       }
                     },
                     child: Text(
-                      'Renvoyer le code de confirmation',
+                      _languageService.translate('resend_confirmation_code'),
                       style: GoogleFonts.rajdhani(
                         color: NotitiaTheme.neonPink,
                         fontSize: 14,

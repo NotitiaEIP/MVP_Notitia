@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/transcription.dart';
+import '../services/language_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import 'tap_to_share_page.dart';
@@ -18,6 +19,7 @@ class EditPage extends StatefulWidget {
 }
 
 class _EditPageState extends State<EditPage> {
+  final LanguageService _languageService = LanguageService();
   late TextEditingController _titleController;
   late TextEditingController _contentController;
   bool _hasChanges = false;
@@ -58,7 +60,7 @@ class _EditPageState extends State<EditPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Transcription mise à jour ✓',
+            _languageService.translate('transcription_updated'),
             style: GoogleFonts.poppins(),
           ),
           backgroundColor: NotitiaTheme.neonPink,
@@ -78,7 +80,7 @@ class _EditPageState extends State<EditPage> {
           side: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.5)),
         ),
         title: Text(
-          'SUPPRIMER',
+          _languageService.translate('delete_transcription'),
           style: GoogleFonts.orbitron(
             fontSize: 16,
             color: NotitiaTheme.redRecording,
@@ -86,14 +88,14 @@ class _EditPageState extends State<EditPage> {
           ),
         ),
         content: Text(
-          'Supprimer cette transcription ?',
+          _languageService.translate('delete_transcription_confirm'),
           style: GoogleFonts.poppins(fontSize: 14, color: NotitiaTheme.white),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
-              'ANNULER',
+              _languageService.translate('cancel'),
               style: GoogleFonts.orbitron(
                 fontSize: 11,
                 color: NotitiaTheme.grey,
@@ -109,7 +111,7 @@ class _EditPageState extends State<EditPage> {
               ),
             ),
             child: Text(
-              'SUPPRIMER',
+              _languageService.translate('delete_transcription'),
               style: GoogleFonts.orbitron(
                 fontSize: 11,
                 color: NotitiaTheme.white,
@@ -137,7 +139,7 @@ class _EditPageState extends State<EditPage> {
           side: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.5)),
         ),
         title: Text(
-          'MODIFICATIONS NON SAUVÉES',
+          _languageService.translate('unsaved_changes'),
           style: GoogleFonts.orbitron(
             fontSize: 13,
             color: NotitiaTheme.neonPink,
@@ -145,14 +147,14 @@ class _EditPageState extends State<EditPage> {
           ),
         ),
         content: Text(
-          'Vous avez des modifications non sauvées. Quitter ?',
+          _languageService.translate('unsaved_changes_desc'),
           style: GoogleFonts.poppins(fontSize: 14, color: NotitiaTheme.white),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
-              'RESTER',
+              _languageService.translate('stay'),
               style: GoogleFonts.orbitron(
                 fontSize: 11,
                 color: NotitiaTheme.grey,
@@ -168,7 +170,7 @@ class _EditPageState extends State<EditPage> {
               ),
             ),
             child: Text(
-              'QUITTER',
+              _languageService.translate('leave'),
               style: GoogleFonts.orbitron(
                 fontSize: 11,
                 color: NotitiaTheme.white,
@@ -222,7 +224,7 @@ class _EditPageState extends State<EditPage> {
             },
           ),
           title: Text(
-            'ÉDITION',
+            _languageService.translate('editing'),
             style: GoogleFonts.orbitron(
               fontSize: 16,
               color: NotitiaTheme.white,
@@ -255,7 +257,7 @@ class _EditPageState extends State<EditPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'SAUVER',
+                    _languageService.translate('save'),
                     style: GoogleFonts.orbitron(
                       fontSize: 11,
                       color: NotitiaTheme.white,
@@ -273,7 +275,7 @@ class _EditPageState extends State<EditPage> {
             children: [
               // Dates
               Text(
-                'Créé le ${widget.transcription.formattedDate}',
+                _languageService.translate('created_on').replaceAll('{date}', widget.transcription.formattedDate),
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: NotitiaTheme.grey,
@@ -282,7 +284,7 @@ class _EditPageState extends State<EditPage> {
               if (widget.transcription.updatedAt !=
                   widget.transcription.createdAt)
                 Text(
-                  'Modifié le ${widget.transcription.formattedUpdateDate}',
+                  _languageService.translate('modified_on').replaceAll('{date}', widget.transcription.formattedUpdateDate),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: NotitiaTheme.grey,
@@ -292,7 +294,7 @@ class _EditPageState extends State<EditPage> {
 
               // ── Titre ──
               Text(
-                'TITRE',
+                _languageService.translate('title'),
                 style: GoogleFonts.orbitron(
                   fontSize: 10,
                   color: NotitiaTheme.neonPink,
@@ -325,7 +327,7 @@ class _EditPageState extends State<EditPage> {
 
               // ── Contenu ──
               Text(
-                'CONTENU',
+                _languageService.translate('content'),
                 style: GoogleFonts.orbitron(
                   fontSize: 10,
                   color: NotitiaTheme.neonPink,
@@ -363,7 +365,7 @@ class _EditPageState extends State<EditPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: Text(
-                  '$wordCount mot${wordCount > 1 ? 's' : ''}',
+                  _languageService.translate('word_count').replaceAll('{count}', wordCount.toString()),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: NotitiaTheme.grey,

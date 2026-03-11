@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class LanguageService {
   static const String _languageKey = 'app_language';
-  static const String _defaultLanguage = 'en';
+  static const String _defaultLanguage = 'fr';
   
   static final LanguageService _instance = LanguageService._internal();
   

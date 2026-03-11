@@ -159,7 +159,7 @@ class _HistoryPageState extends State<HistoryPage> {
   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    final headerTitle = widget.filterMeetingsOnly ? 'RÉUNIONS' : 'HISTORIQUE';
+    final headerTitle = widget.filterMeetingsOnly ? _languageService.translate('meetings_title') : _languageService.translate('history_title');
     final headerIcon = widget.filterMeetingsOnly
         ? Icons.groups_rounded
         : Icons.history_rounded;

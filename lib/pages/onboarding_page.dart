@@ -10,6 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/auth_service.dart';
+import '../services/language_service.dart';
 import '../theme.dart';
 import '../widgets/meduza_widget.dart';
 import '../widgets/pricing_cards.dart';
@@ -101,6 +102,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   int _direction = 1; // 1 = forward, -1 = backward
   String _username = '';
   final _authService = AuthService();
+  final _languageService = LanguageService();
 
   // Animation controllers
   late AnimationController _entranceController;
@@ -120,58 +122,53 @@ class _OnboardingPageState extends State<OnboardingPage>
   List<_JourneyStep> get _steps => [
     _JourneyStep(
       meduzaState: MeduzaState.hello,
-      title: 'Salut $_displayName',
-      subtitle: 'BIENVENUE DANS NOTITIA',
+      title: _languageService.translate('onboarding_welcome_user').replaceAll('{username}', _displayName),
+      subtitle: _languageService.translate('onboarding_welcome_subtitle'),
       description:
-          'Je suis Meduza, ton assistante memoire. '
-          'Ensemble, on va transformer ta voix en connaissances organisees.',
+          _languageService.translate('onboarding_meduza_intro_desc'),
       icon: Icons.auto_awesome,
       accentColor: NotitiaTheme.neonPink,
     ),
     _JourneyStep(
       meduzaState: MeduzaState.listening,
-      title: 'Capture vocale',
-      subtitle: 'TA VOIX, TRANSCRITE EN TEMPS REEL',
+      title: _languageService.translate('onboarding_voice_capture_title'),
+      subtitle: _languageService.translate('onboarding_voice_transcribed_realtime'),
       description:
-          'Parle naturellement. Notre moteur IA transcrit tout '
-          'instantanement avec une precision chirurgicale.',
+          _languageService.translate('onboarding_voice_transcription_desc'),
       icon: Icons.mic_rounded,
       accentColor: NotitiaTheme.neonCyan,
     ),
     _JourneyStep(
       meduzaState: MeduzaState.processing,
-      title: 'Organisation',
-      subtitle: 'MIND MAPS & HISTORIQUE',
+      title: _languageService.translate('onboarding_organization_title'),
+      subtitle: _languageService.translate('onboarding_mind_maps_history'),
       description:
-          'Tes notes se structurent en cartes mentales. '
-          'Retrouve, edite et partage tout depuis ton historique.',
+          _languageService.translate('onboarding_organization_desc'),
       icon: Icons.account_tree_rounded,
       accentColor: const Color(0xFF7C4DFF),
     ),
     _JourneyStep(
       meduzaState: MeduzaState.idle,
-      title: 'Recherche IA',
-      subtitle: 'RETROUVE N\'IMPORTE QUELLE IDEE',
+      title: _languageService.translate('onboarding_ai_search_title'),
+      subtitle: _languageService.translate('onboarding_find_any_idea'),
       description:
-          'Une recherche semantique ultra-rapide dans toutes tes notes. '
-          'Decris ce que tu cherches, je le trouve.',
+          _languageService.translate('onboarding_search_desc'),
       icon: Icons.search_rounded,
       accentColor: const Color(0xFF00E676),
     ),
     _JourneyStep(
       meduzaState: MeduzaState.happy,
-      title: 'C\'est parti !',
-      subtitle: 'TON ASSISTANT EST PRET',
+      title: _languageService.translate('onboarding_lets_go_title'),
+      subtitle: _languageService.translate('onboarding_assistant_ready'),
       description:
-          'Pose-moi des questions, dicte tes idees, explore tes notes. '
-          'Je suis la pour toi, $_displayName.',
+          _languageService.translate('onboarding_assistant_ready_desc').replaceAll('{username}', _displayName),
       icon: Icons.rocket_launch_rounded,
       accentColor: NotitiaTheme.neonPink,
     ),
     _JourneyStep(
       meduzaState: MeduzaState.happy,
-      title: 'Choisis ton plan',
-      subtitle: 'OFFRES & TARIFS',
+      title: _languageService.translate('onboarding_choose_plan'),
+      subtitle: _languageService.translate('onboarding_offers_pricing'),
       description: '',
       icon: Icons.workspace_premium_rounded,
       accentColor: NotitiaTheme.neonCyan,
@@ -490,7 +487,7 @@ class _OnboardingPageState extends State<OnboardingPage>
               child: TextButton(
                 onPressed: _finishOnboarding,
                 child: Text(
-                  'PASSER',
+                  _languageService.translate('onboarding_skip'),
                   style: GoogleFonts.orbitron(
                     fontSize: 11,
                     color: NotitiaTheme.grey.withValues(alpha: 0.7),
@@ -727,7 +724,7 @@ class _OnboardingPageState extends State<OnboardingPage>
         child: Column(
           children: [
             Text(
-              'Choisis ton plan',
+              _languageService.translate('onboarding_choose_plan'),
               style: GoogleFonts.orbitron(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -737,7 +734,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             ),
             const SizedBox(height: 6),
             Text(
-              'Tu pourras changer à tout moment',
+              _languageService.translate('onboarding_can_change_anytime'),
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 color: NotitiaTheme.grey,
@@ -815,7 +812,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                       const SizedBox(width: 10),
                     ],
                     Text(
-                      isLast ? 'LANCER NOTITIA' : 'CONTINUER',
+                      isLast ? _languageService.translate('onboarding_launch_notitia') : _languageService.translate('onboarding_continue'),
                       style: GoogleFonts.orbitron(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
