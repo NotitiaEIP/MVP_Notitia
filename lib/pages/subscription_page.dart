@@ -6,12 +6,20 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/language_service.dart';
 import '../theme.dart';
 import '../widgets/meduza_widget.dart';
 import '../widgets/pricing_cards.dart';
 
-class SubscriptionPage extends StatelessWidget {
+class SubscriptionPage extends StatefulWidget {
   const SubscriptionPage({super.key});
+
+  @override
+  State<SubscriptionPage> createState() => _SubscriptionPageState();
+}
+
+class _SubscriptionPageState extends State<SubscriptionPage> {
+  final _languageService = LanguageService();
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +53,7 @@ class SubscriptionPage extends StatelessWidget {
                   ),
                   const Spacer(),
                   Text(
-                    'ABONNEMENT',
+                    _languageService.translate('subscription_title'),
                     style: GoogleFonts.orbitron(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -69,7 +77,7 @@ class SubscriptionPage extends StatelessWidget {
                     const MeduzaWidget(state: MeduzaState.happy, size: 70),
                     const SizedBox(height: 16),
                     Text(
-                      'Choisis ton plan',
+                      _languageService.translate('subscription_choose_plan'),
                       style: GoogleFonts.orbitron(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -79,7 +87,7 @@ class SubscriptionPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Tu pourras changer à tout moment',
+                      _languageService.translate('subscription_can_change_anytime'),
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         color: NotitiaTheme.grey,

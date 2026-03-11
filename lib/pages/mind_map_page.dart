@@ -304,9 +304,9 @@ class _MindMapPageState extends State<MindMapPage>
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            'Choisir le moteur IA',
-            style: TextStyle(
+          Text(
+            _languageService.translate('choose_ai_engine'),
+            style: const TextStyle(
               color: NotitiaTheme.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -320,10 +320,10 @@ class _MindMapPageState extends State<MindMapPage>
             engine: MindMapEngine.gemini,
             icon: Icons.auto_awesome,
             color: Colors.blueAccent,
-            title: 'Gemini',
-            subtitle: 'Gratuit',
+            title: _languageService.translate('engine_gemini_label'),
+            subtitle: _languageService.translate('free_label'),
             description: _languageService.translate('gemini_description'),
-            badge: 'GRATUIT',
+            badge: _languageService.translate('free_badge'),
             badgeColor: Colors.green,
           ),
           const SizedBox(height: 12),
@@ -334,10 +334,10 @@ class _MindMapPageState extends State<MindMapPage>
             engine: MindMapEngine.claude,
             icon: Icons.diamond,
             color: NotitiaTheme.neonPink,
-            title: 'Claude Sonnet',
-            subtitle: 'Premium',
+            title: _languageService.translate('engine_claude_sonnet_label'),
+            subtitle: _languageService.translate('premium_label'),
             description: _languageService.translate('claude_description'),
-            badge: 'PREMIUM',
+            badge: _languageService.translate('premium_badge'),
             badgeColor: NotitiaTheme.neonPink,
           ),
         ],
@@ -647,9 +647,9 @@ class _MindMapPageState extends State<MindMapPage>
             children: [
               Icon(Icons.format_quote, color: NotitiaTheme.neonCyan, size: 18),
               const SizedBox(width: 8),
-              const Text(
-                'Passage source',
-                style: TextStyle(
+              Text(
+                _languageService.translate('source_passage_title'),
+                style: const TextStyle(
                   color: NotitiaTheme.neonCyan,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
@@ -777,7 +777,7 @@ class _MindMapPageState extends State<MindMapPage>
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${_currentMindMap!.totalNodes} nœuds',
+                      _languageService.translate('mindmap_nodes_label').replaceAll('{count}', _currentMindMap!.totalNodes.toString()),
                       style: const TextStyle(
                         color: NotitiaTheme.neonPink,
                         fontSize: 12,
@@ -787,13 +787,13 @@ class _MindMapPageState extends State<MindMapPage>
                 if (_currentMindMap == null)
                   IconButton(
                     icon: Icon(Icons.refresh, color: NotitiaTheme.neonCyan),
-                    tooltip: 'Rafraîchir les transcriptions',
+                    tooltip: _languageService.translate('refresh_transcriptions_tooltip'),
                     onPressed: _loadTranscriptions,
                   ),
                 if (_currentMindMap != null)
                   IconButton(
                     icon: Icon(Icons.refresh, color: NotitiaTheme.grey),
-                    tooltip: 'Nouvelle mind map',
+                    tooltip: _languageService.translate('new_mindmap_tooltip'),
                     onPressed: () {
                       setState(() {
                         _currentMindMap = null;
@@ -887,12 +887,12 @@ class _MindMapPageState extends State<MindMapPage>
             ),
             const SizedBox(height: 16),
             Text(
-              'Aucune transcription disponible',
+              _languageService.translate('no_transcriptions_available'),
               style: TextStyle(color: NotitiaTheme.grey, fontSize: 16),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Commencez par enregistrer une transcription',
+            Text(
+              _languageService.translate('start_with_transcription_hint'),
               style: TextStyle(color: NotitiaTheme.grey),
             ),
           ],
@@ -917,7 +917,7 @@ class _MindMapPageState extends State<MindMapPage>
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '${_selectedTranscriptionIds.length} transcription${_selectedTranscriptionIds.length > 1 ? 's' : ''} sélectionnée${_selectedTranscriptionIds.length > 1 ? 's' : ''}',
+                  _languageService.translate('transcription_selected_count').replaceAll('{count}', _selectedTranscriptionIds.length.toString()),
                   style: const TextStyle(
                     color: NotitiaTheme.neonCyan,
                     fontWeight: FontWeight.w600,
@@ -928,9 +928,9 @@ class _MindMapPageState extends State<MindMapPage>
                 GestureDetector(
                   onTap: () =>
                       setState(() => _selectedTranscriptionIds.clear()),
-                  child: const Text(
-                    'Tout désélectionner',
-                    style: TextStyle(
+                  child: Text(
+                    _languageService.translate('deselect_all'),
+                    style: const TextStyle(
                       color: NotitiaTheme.grey,
                       fontSize: 12,
                       decoration: TextDecoration.underline,
@@ -1329,8 +1329,8 @@ class _MindMapPageState extends State<MindMapPage>
                       ),
                       child: Text(
                         _selectedEngine == MindMapEngine.claude
-                            ? '✦ Claude'
-                            : '✦ Gemini',
+                            ? _languageService.translate('engine_claude_badge')
+                            : _languageService.translate('engine_gemini_badge'),
                         style: TextStyle(
                           color: _selectedEngine == MindMapEngine.claude
                               ? NotitiaTheme.neonPink
@@ -1442,11 +1442,11 @@ class _MindMapPageState extends State<MindMapPage>
   String _viewModeLabel(MindMapViewMode mode) {
     switch (mode) {
       case MindMapViewMode.radial:
-        return 'Radial';
+        return _languageService.translate('view_mode_radial');
       case MindMapViewMode.organigramme:
-        return 'Organigramme';
+        return _languageService.translate('view_mode_organigramme');
       case MindMapViewMode.horizontal:
-        return 'Horizontal';
+        return _languageService.translate('view_mode_horizontal');
     }
   }
 
@@ -1474,7 +1474,7 @@ class _MindMapPageState extends State<MindMapPage>
             )
           : Icon(Icons.auto_awesome, color: NotitiaTheme.deepBlue),
       label: Text(
-        _isLoading ? 'Génération...' : 'Générer Mind Map',
+        _isLoading ? _languageService.translate('generating_label') : _languageService.translate('generate_mindmap_button_label'),
         style: TextStyle(
           color: NotitiaTheme.deepBlue,
           fontWeight: FontWeight.bold,

@@ -111,7 +111,7 @@ class _SearchPageState extends State<SearchPage> {
           // Header
           NotitiaPageHeader(
             icon: Icons.search_rounded,
-            title: 'RECHERCHE',
+            title: _languageService.translate('search_title'),
             profile: widget.profile,
             onProfileTap: widget.onProfileTap,
           ),

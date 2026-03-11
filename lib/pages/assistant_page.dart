@@ -126,7 +126,7 @@ class _AssistantPageState extends State<AssistantPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Re-indexation terminée : ${status.totalChunks} fragments créés',
+              _languageService.translate('reindex_completed').replaceAll('{count}', status.totalChunks.toString()),
               style: GoogleFonts.poppins(),
             ),
             backgroundColor: NotitiaTheme.neonCyan,
@@ -139,7 +139,7 @@ class _AssistantPageState extends State<AssistantPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Erreur de ré-indexation: $e',
+              _languageService.translate('reindex_error').replaceAll('{error}', e.toString()),
               style: GoogleFonts.poppins(),
             ),
             backgroundColor: Colors.red,
@@ -160,7 +160,7 @@ class _AssistantPageState extends State<AssistantPage>
     // Meduza - recherche en cours
     widget.onMeduzaStateChanged?.call(
       MeduzaState.processing,
-      message: 'Recherche dans tes notes...',
+      message: _languageService.translate('searching_notes'),
     );
 
     _scrollToBottom();
@@ -170,14 +170,14 @@ class _AssistantPageState extends State<AssistantPage>
       // Meduza - reponse trouvee
       widget.onMeduzaStateChanged?.call(
         MeduzaState.happy,
-        message: 'Reponse generee a partir de tes notes.',
+        message: _languageService.translate('answer_generated_from_notes'),
         style: BubbleStyle.success,
       );
     } catch (e) {
       // Meduza - erreur
       widget.onMeduzaStateChanged?.call(
         MeduzaState.confused,
-        message: 'Je n\'ai pas pu trouver de reponse pertinente.',
+        message: _languageService.translate('no_relevant_answer_available'),
         style: BubbleStyle.error,
       );
     }
@@ -335,7 +335,7 @@ class _AssistantPageState extends State<AssistantPage>
             child: Text(
               status.currentTitle != null
                   ? 'Indexation : ${status.currentTitle}...'
-                  : 'Indexation des conversations...',
+                  : _languageService.translate('indexing_conversations'),
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: NotitiaTheme.neonCyan,
@@ -367,9 +367,9 @@ class _AssistantPageState extends State<AssistantPage>
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       child: Row(
         children: [
-          _buildStatChip(Icons.memory, '$chunks fragments'),
+          _buildStatChip(Icons.memory, _languageService.translate('fragments_label').replaceAll('{count}', chunks.toString())),
           const SizedBox(width: 8),
-          _buildStatChip(Icons.check_circle_outline, '$indexed/$total indexés'),
+          _buildStatChip(Icons.check_circle_outline, _languageService.translate('indexed_label').replaceAll('{indexed}', indexed.toString()).replaceAll('{total}', total.toString())),
         ],
       ),
     );

@@ -238,16 +238,16 @@ class _ProfilePageState extends State<ProfilePage>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildLanguageOption('en', 'English', _selectedLanguage == 'en'),
+            _buildLanguageOption('en', _languageService.getLanguageLabel('en'), _selectedLanguage == 'en'),
             const SizedBox(height: 12),
-            _buildLanguageOption('fr', 'Français', _selectedLanguage == 'fr'),
+            _buildLanguageOption('fr', _languageService.getLanguageLabel('fr'), _selectedLanguage == 'fr'),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
-              'Annuler',
+              _languageService.translate('cancel'),
               style: GoogleFonts.rajdhani(color: NotitiaTheme.grey),
             ),
           ),
@@ -264,7 +264,7 @@ class _ProfilePageState extends State<ProfilePage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Langue modifiée avec succès',
+              _languageService.translate('language_changed'),
               style: GoogleFonts.rajdhani(),
             ),
             backgroundColor: NotitiaTheme.neonPink,
@@ -593,13 +593,13 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildAccountSection() {
     return _buildSection(
-      title: 'Compte',
+      title: _languageService.translate('profile_account_section'),
       icon: Icons.person_outline,
       children: [
         _SettingsTile(
           icon: Icons.email_outlined,
-          title: 'Email',
-          subtitle: _profile?.email ?? 'Non défini',
+          title: _languageService.translate('profile_email_label'),
+          subtitle: _profile?.email ?? _languageService.translate('profile_undefined'),
           onTap: null, // Email non modifiable directement
         ),
         _SettingsTile(
@@ -607,7 +607,7 @@ class _ProfilePageState extends State<ProfilePage>
           title: _languageService.translate('member_since'),
           subtitle: _profile != null
               ? _formatDate(_profile!.createdAt)
-              : 'Inconnu',
+              : _languageService.translate('profile_unknown'),
           onTap: null,
         ),
       ],
@@ -704,14 +704,14 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildPlanSection() {
     return _buildSection(
-      title: 'Abonnement',
+      title: _languageService.translate('profile_subscription_section'),
       icon: Icons.workspace_premium_rounded,
       accentColor: NotitiaTheme.neonCyan,
       children: [
         _SettingsTile(
           icon: Icons.diamond_outlined,
-          title: 'Mon Abonnement',
-          subtitle: 'Découverte — Gérer mon plan',
+          title: _languageService.translate('profile_my_subscription'),
+          subtitle: _languageService.translate('profile_subscription_description'),
           iconColor: NotitiaTheme.neonCyan,
           onTap: () => Navigator.of(context).pushNamed('/subscription'),
         ),
@@ -842,18 +842,18 @@ class _ProfilePageState extends State<ProfilePage>
 
   String _formatDate(DateTime date) {
     final months = [
-      'janvier',
-      'février',
-      'mars',
-      'avril',
-      'mai',
-      'juin',
-      'juillet',
-      'août',
-      'septembre',
-      'octobre',
-      'novembre',
-      'décembre',
+      _languageService.translate('month_january'),
+      _languageService.translate('month_february'),
+      _languageService.translate('month_march'),
+      _languageService.translate('month_april'),
+      _languageService.translate('month_may'),
+      _languageService.translate('month_june'),
+      _languageService.translate('month_july'),
+      _languageService.translate('month_august'),
+      _languageService.translate('month_september'),
+      _languageService.translate('month_october'),
+      _languageService.translate('month_november'),
+      _languageService.translate('month_december'),
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }

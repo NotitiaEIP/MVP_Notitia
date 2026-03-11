@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:notitia/theme.dart';
 import '../services/auth_service.dart';
+import '../services/language_service.dart';
 
 /// Écran de splash au démarrage de l'application
 /// Affiche le logo Notitia pendant 2-3 secondes
@@ -18,6 +19,7 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
   final _authService = AuthService();
+  final _languageService = LanguageService();
 
   @override
   void initState() {
@@ -97,7 +99,7 @@ class _SplashScreenState extends State<SplashScreen>
                 const SizedBox(height: 30),
                 // Texte de chargement
                 Text(
-                  'Notitia',
+                  _languageService.translate('splash_app_name'),
                   style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                     color: NotitiaTheme.neonPink,
                     fontWeight: FontWeight.bold,
@@ -105,7 +107,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Votre assistant mémoire IA',
+                  _languageService.translate('splash_tagline'),
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: Colors.grey[400]),
