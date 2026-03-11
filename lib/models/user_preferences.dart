@@ -2,7 +2,7 @@ import 'package:flutter/material.dart' show ChangeNotifier;
 
 /// Modèle pour gérer les préférences utilisateur (langue, thème, etc.)
 class UserPreferences with ChangeNotifier {
-  String _language = 'en'; // 'en' ou 'fr'
+  String _language = 'fr'; // 'en' ou 'fr'
   
   UserPreferences(String initialLanguage) {
     _language = initialLanguage;
