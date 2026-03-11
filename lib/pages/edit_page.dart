@@ -8,6 +8,7 @@ import '../models/transcription.dart';
 import '../services/language_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
+import '../pages/rich_summary_page.dart';
 import 'tap_to_share_page.dart';
 
 class EditPage extends StatefulWidget {
@@ -232,6 +233,23 @@ class _EditPageState extends State<EditPage> {
             ),
           ),
           actions: [
+            // ── Bouton Résumé Intelligent ──
+            IconButton(
+              icon: const Icon(
+                Icons.auto_awesome,
+                color: NotitiaTheme.neonCyan,
+              ),
+              tooltip: 'Résumé intelligent',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        RichSummaryPage(transcription: widget.transcription),
+                  ),
+                );
+              },
+            ),
             NfcShareButton(transcription: widget.transcription),
             IconButton(
               icon: const Icon(
