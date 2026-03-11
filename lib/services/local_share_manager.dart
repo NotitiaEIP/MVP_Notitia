@@ -34,14 +34,12 @@ class ShareSession {
   String? errorMessage;
   Transcription? receivedTranscription;
 
-  ShareSession({
-    required this.mode,
-  })  : startedAt = DateTime.now(),
-        state = NfcShareState.idle;
+  ShareSession({required this.mode})
+    : startedAt = DateTime.now(),
+      state = NfcShareState.idle;
 
   bool get isActive =>
-      state == NfcShareState.writing ||
-      state == NfcShareState.reading;
+      state == NfcShareState.writing || state == NfcShareState.reading;
 
   Duration get elapsed => DateTime.now().difference(startedAt);
 }
@@ -100,8 +98,9 @@ class LocalShareManager extends ChangeNotifier {
 
     try {
       // 1. Créer le fichier .notitia en mémoire
-      final notitiaFile =
-          NotitiaFileService.createFromTranscription(transcription);
+      final notitiaFile = NotitiaFileService.createFromTranscription(
+        transcription,
+      );
       final bytes = NotitiaFileService.exportToBytes(notitiaFile);
 
       // 2. Créer la session
@@ -120,7 +119,8 @@ class LocalShareManager extends ChangeNotifier {
       }
 
       debugPrint(
-          '[LocalShareManager] Sender ready — ${bytes.length} bytes to write on NFC tag');
+        '[LocalShareManager] Sender ready — ${bytes.length} bytes to write on NFC tag',
+      );
       return true;
     } catch (e) {
       debugPrint('[LocalShareManager] Start sending error: $e');
@@ -239,6 +239,7 @@ class LocalShareManager extends ChangeNotifier {
           id: now.millisecondsSinceEpoch.toString(),
           title: 'Importation NFC — ${importResult.transcription!.title}',
           content: importResult.transcription!.content,
+          tag: TranscriptionTag.nfc,
           createdAt: importResult.transcription!.createdAt,
           updatedAt: now,
         );

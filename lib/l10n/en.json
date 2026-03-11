@@ -393,5 +393,8 @@
   "nfc_view_transcription": "VIEW TRANSCRIPT",
   "nfc_completed_action": "DONE",
   "nfc_share_tooltip": "Share via NFC",
-  "nfc_receive_tooltip": "Receive via NFC"
+  "nfc_receive_tooltip": "Receive via NFC",
+  "filter_all": "All",
+  "no_transcriptions_for_tag": "No transcriptions",
+  "no_results_tag_prefix": "No results for filter"
 }

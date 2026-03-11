@@ -36,21 +36,29 @@ class WidgetRecordingService {
   Future<bool> processPendingTranscription() async {
     try {
       // Lire le transcript en attente depuis SharedPreferences (home_widget)
-      final pending = await HomeWidget.getWidgetData<String>('pending_transcription');
+      final pending = await HomeWidget.getWidgetData<String>(
+        'pending_transcription',
+      );
 
       if (pending == null || pending.trim().isEmpty) {
         return false;
       }
 
-      final dateStr = await HomeWidget.getWidgetData<String>('pending_transcription_date');
-      debugPrint('[WidgetRecording] Transcript en attente détecté (${pending.length} chars)');
+      final dateStr = await HomeWidget.getWidgetData<String>(
+        'pending_transcription_date',
+      );
+      debugPrint(
+        '[WidgetRecording] Transcript en attente détecté (${pending.length} chars)',
+      );
 
       // Correction Mistral IA
       String finalText = pending.trim();
       if (finalText.length > 10) {
         try {
           debugPrint('[WidgetRecording] Correction Mistral en cours...');
-          final corrected = await MistralService.instance.correctTranscription(finalText);
+          final corrected = await MistralService.instance.correctTranscription(
+            finalText,
+          );
           if (corrected.isNotEmpty) {
             finalText = corrected;
             debugPrint('[WidgetRecording] Correction Mistral appliquée');
@@ -61,7 +69,9 @@ class WidgetRecordingService {
       }
 
       // Créer la transcription avec titre automatique
-      final now = dateStr != null ? DateTime.tryParse(dateStr) ?? DateTime.now() : DateTime.now();
+      final now = dateStr != null
+          ? DateTime.tryParse(dateStr) ?? DateTime.now()
+          : DateTime.now();
       final title =
           'Widget ${now.day.toString().padLeft(2, '0')}/'
           '${now.month.toString().padLeft(2, '0')}/${now.year} '
@@ -71,6 +81,7 @@ class WidgetRecordingService {
       final transcription = Transcription.create(
         content: finalText,
         title: title,
+        tag: TranscriptionTag.widget,
       );
 
       // Sauvegarder
@@ -81,16 +92,23 @@ class WidgetRecordingService {
 
       // Nettoyer les données en attente
       await HomeWidget.saveWidgetData<String?>('pending_transcription', null);
-      await HomeWidget.saveWidgetData<String?>('pending_transcription_date', null);
+      await HomeWidget.saveWidgetData<String?>(
+        'pending_transcription_date',
+        null,
+      );
 
-      debugPrint('[WidgetRecording] ✅ Transcription widget sauvegardée: "$title"');
+      debugPrint(
+        '[WidgetRecording] ✅ Transcription widget sauvegardée: "$title"',
+      );
 
       // Notifier l'UI
       onNewTranscriptionSaved?.call();
 
       return true;
     } catch (e) {
-      debugPrint('[WidgetRecording] Erreur traitement transcript en attente: $e');
+      debugPrint(
+        '[WidgetRecording] Erreur traitement transcript en attente: $e',
+      );
       return false;
     }
   }

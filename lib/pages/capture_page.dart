@@ -617,6 +617,7 @@ class _CapturePageState extends State<CapturePage>
         title: titleController.text.trim().isEmpty
             ? defaultTitle
             : titleController.text.trim(),
+        tag: TranscriptionTag.transcription,
       );
       await StorageService.save(transcription);
 

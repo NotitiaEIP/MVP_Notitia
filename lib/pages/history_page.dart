@@ -37,6 +37,7 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   List<Transcription> _transcriptions = [];
   bool _loading = true;
+  String? _selectedTag;
   final LanguageService _languageService = LanguageService();
 
   @override
@@ -166,6 +167,10 @@ class _HistoryPageState extends State<HistoryPage> {
         ? Icons.groups_rounded
         : Icons.history_rounded;
 
+    final filtered = _selectedTag == null
+        ? _transcriptions
+        : _transcriptions.where((t) => t.tag == _selectedTag).toList();
+
     return SafeArea(
       child: Column(
         children: [
@@ -184,6 +189,8 @@ class _HistoryPageState extends State<HistoryPage> {
             indent: 20,
             endIndent: 20,
           ),
+          // Tag filter chips
+          if (!widget.filterMeetingsOnly) _buildTagFilters(),
           const SizedBox(height: 8),
           // Liste
           Expanded(
@@ -193,7 +200,7 @@ class _HistoryPageState extends State<HistoryPage> {
                       color: NotitiaTheme.neonPink,
                     ),
                   )
-                : _transcriptions.isEmpty
+                : filtered.isEmpty
                 ? _buildEmptyState()
                 : RefreshIndicator(
                     onRefresh: _loadData,
@@ -204,9 +211,9 @@ class _HistoryPageState extends State<HistoryPage> {
                         right: 16,
                         bottom: 16,
                       ),
-                      itemCount: _transcriptions.length,
+                      itemCount: filtered.length,
                       itemBuilder: (context, index) =>
-                          _buildCard(_transcriptions[index]),
+                          _buildCard(filtered[index]),
                     ),
                   ),
           ),
@@ -227,12 +234,16 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            _languageService.translate('no_transcriptions'),
+            _selectedTag != null
+                ? _languageService.translate('no_transcriptions_for_tag')
+                : _languageService.translate('no_transcriptions'),
             style: GoogleFonts.poppins(fontSize: 16, color: NotitiaTheme.grey),
           ),
           const SizedBox(height: 6),
           Text(
-            _languageService.translate('saved_transcriptions_here'),
+            _selectedTag != null
+                ? '${_languageService.translate('no_results_tag_prefix')} $_selectedTag'
+                : _languageService.translate('saved_transcriptions_here'),
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 13,
@@ -242,6 +253,116 @@ class _HistoryPageState extends State<HistoryPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildTagFilters() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildFilterChip(
+              label: _languageService.translate('filter_all'),
+              selected: _selectedTag == null,
+              onTap: () => setState(() => _selectedTag = null),
+            ),
+            const SizedBox(width: 8),
+            ...TranscriptionTag.all.map(
+              (tag) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _buildFilterChip(
+                  label: tag,
+                  selected: _selectedTag == tag,
+                  onTap: () => setState(() {
+                    _selectedTag = _selectedTag == tag ? null : tag;
+                  }),
+                  icon: _iconForTag(tag),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    IconData? icon,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? NotitiaTheme.neonPink.withValues(alpha: 0.2)
+              : NotitiaTheme.darkBlue,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? NotitiaTheme.neonPink
+                : NotitiaTheme.grey.withValues(alpha: 0.3),
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 14,
+                color: selected ? NotitiaTheme.neonPink : NotitiaTheme.grey,
+              ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: selected ? NotitiaTheme.neonPink : NotitiaTheme.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _iconForTag(String tag) {
+    switch (tag) {
+      case TranscriptionTag.transcription:
+        return Icons.mic_rounded;
+      case TranscriptionTag.reunion:
+        return Icons.groups_rounded;
+      case TranscriptionTag.nfc:
+        return Icons.nfc_rounded;
+      case TranscriptionTag.widget:
+        return Icons.widgets_rounded;
+      default:
+        return Icons.label_rounded;
+    }
+  }
+
+  Color _colorForTag(String tag) {
+    switch (tag) {
+      case TranscriptionTag.transcription:
+        return NotitiaTheme.neonPink;
+      case TranscriptionTag.reunion:
+        return NotitiaTheme.neonCyan;
+      case TranscriptionTag.nfc:
+        return const Color(0xFFFFA726); // orange
+      case TranscriptionTag.widget:
+        return const Color(0xFF66BB6A); // vert
+      default:
+        return NotitiaTheme.grey;
+    }
   }
 
   Widget _buildCard(Transcription t) {
@@ -263,6 +384,39 @@ class _HistoryPageState extends State<HistoryPage> {
             children: [
               Row(
                 children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _colorForTag(t.tag).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: _colorForTag(t.tag).withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _iconForTag(t.tag),
+                          size: 10,
+                          color: _colorForTag(t.tag),
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          t.tag,
+                          style: GoogleFonts.poppins(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w500,
+                            color: _colorForTag(t.tag),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       t.title,

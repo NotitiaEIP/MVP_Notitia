@@ -278,6 +278,7 @@ class _MeetingPageState extends State<MeetingPage> {
           ? _languageService.translate('no_transcription_recorded')
           : finalContent,
       title: title,
+      tag: TranscriptionTag.reunion,
     );
 
     // Sauvegarder localement (host)
