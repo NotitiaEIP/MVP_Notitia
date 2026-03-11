@@ -181,7 +181,6 @@ class _OnboardingPageState extends State<OnboardingPage>
   @override
   void initState() {
     super.initState();
-    _loadUsername();
 
     // Entrance: fade+scale reveal
     _entranceController = AnimationController(
@@ -216,7 +215,10 @@ class _OnboardingPageState extends State<OnboardingPage>
       duration: const Duration(seconds: 20),
     )..repeat();
 
-    _entranceController.forward();
+    // Load username BEFORE starting entrance to avoid mid-animation rebuild
+    _loadUsername().then((_) {
+      if (mounted) _entranceController.forward();
+    });
   }
 
   Future<void> _loadUsername() async {
@@ -254,10 +256,10 @@ class _OnboardingPageState extends State<OnboardingPage>
     _isExiting = true;
     await OnboardingService.markOnboarded();
 
-    // Prepare exit animation
+    // Prepare exit animation (longer for smooth cinematic feel)
     _exitController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1200),
     );
     setState(() {});
 

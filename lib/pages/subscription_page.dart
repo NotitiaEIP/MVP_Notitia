@@ -1,6 +1,6 @@
 // =============================================================================
 // NOTITIA — Page Abonnement
-// Affiche les 3 plans (Free / Essential / Business) en plein écran
+// Affiche les 5 plans en plein écran
 // =============================================================================
 
 import 'package:flutter/material.dart';

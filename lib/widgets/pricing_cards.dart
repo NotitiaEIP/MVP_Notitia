@@ -1,6 +1,6 @@
 // =============================================================================
 // NOTITIA — Pricing Cards Widget
-// 3 tiers: Free, Essential (recommandé), Business
+// 5 tiers: Découverte, Essentiel (recommandé), Premium, Entreprise, Notitia Hub
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -22,7 +22,7 @@ class _PlanFeature {
 // Main widget
 // =============================================================================
 class NotitiaPricingCards extends StatefulWidget {
-  /// If true, show CTA buttons under Essential & Business
+  /// If true, show CTA buttons
   final bool showCTAs;
 
   /// Compact mode for profile page embedding
@@ -65,81 +65,156 @@ class _NotitiaPricingCardsState extends State<NotitiaPricingCards>
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildFreePlan(),
+        _buildDecouvertePlan(),
         const SizedBox(height: 16),
-        _buildEssentialPlan(),
+        _buildEssentielPlan(),
         const SizedBox(height: 16),
-        _buildBusinessPlan(),
+        _buildPremiumPlan(),
+        const SizedBox(height: 16),
+        _buildEntreprisePlan(),
+        const SizedBox(height: 16),
+        _buildHubPlan(),
       ],
     );
   }
 
   // ---------------------------------------------------------------------------
-  // FREE
+  // DÉCOUVERTE (Free)
   // ---------------------------------------------------------------------------
-  Widget _buildFreePlan() {
+  Widget _buildDecouvertePlan() {
     const features = [
-      _PlanFeature(Icons.mic_outlined, 'Transcription Standard'),
-      _PlanFeature(Icons.account_tree_outlined, 'Mindmap Découverte'),
-      _PlanFeature(Icons.timer_outlined, 'Stockage Éphémère (7 jours)'),
+      _PlanFeature(
+        Icons.mic_outlined,
+        'Enregistrement & Transcription Illimités',
+      ),
+      _PlanFeature(Icons.account_tree_outlined, 'Création Limitée (5/mois)'),
+      _PlanFeature(Icons.search_rounded, 'Recherche Sémantique'),
+      _PlanFeature(Icons.timer_outlined, 'Stockage éphémère (30 jours)'),
     ];
 
     return _buildCard(
-      title: 'Free',
+      title: 'Découverte',
       price: '0 €',
-      subtitle: 'Idéal pour tester l\'outil occasionnellement',
+      priceSuffix: '/ mois',
+      subtitle: 'L\'offre d\'entrée',
       accentColor: NotitiaTheme.grey,
       features: features,
       isRecommended: false,
-      ctaLabel: null,
+      ctaLabel: widget.showCTAs ? 'Essayer Gratuitement' : null,
     );
   }
 
   // ---------------------------------------------------------------------------
-  // ESSENTIAL (recommended)
+  // ESSENTIEL (recommended)
   // ---------------------------------------------------------------------------
-  Widget _buildEssentialPlan() {
+  Widget _buildEssentielPlan() {
     const features = [
-      _PlanFeature(Icons.auto_awesome, 'Intelligence Supérieure (Claude)'),
       _PlanFeature(
-        Icons.dashboard_customize_rounded,
-        'Styles Illimités (3 formes de mindmap)',
+        Icons.all_inclusive_rounded,
+        'Tout illimité (Mindmap, Résumés)',
       ),
-      _PlanFeature(Icons.all_inclusive_rounded, 'Mémoire Infinie'),
+      _PlanFeature(Icons.cloud_done_outlined, 'Stockage Cloud illimité'),
+      _PlanFeature(
+        Icons.saved_search_rounded,
+        'Recherche Sémantique Avancée (Historique)',
+      ),
+      _PlanFeature(Icons.block, 'Sans Publicité'),
     ];
 
     return _buildCard(
-      title: 'Essential',
+      title: 'Essentiel',
       price: '9,99 €',
       priceSuffix: '/ mois',
-      subtitle: '',
+      subtitle: 'Le choix recommandé',
       accentColor: NotitiaTheme.neonCyan,
       features: features,
       isRecommended: true,
-      ctaLabel: widget.showCTAs ? 'Passer à l\'Essentiel' : null,
+      badgeLabel: 'Populaire',
+      ctaLabel: widget.showCTAs ? 'Essayer Gratuitement' : null,
     );
   }
 
   // ---------------------------------------------------------------------------
-  // BUSINESS
+  // PREMIUM
   // ---------------------------------------------------------------------------
-  Widget _buildBusinessPlan() {
+  Widget _buildPremiumPlan() {
     const features = [
-      _PlanFeature(Icons.check_circle_outline, 'Tout Essential inclus'),
-      _PlanFeature(Icons.qr_code_2_rounded, 'Mode Réunion (QR Sync)'),
-      _PlanFeature(Icons.groups_rounded, 'Dashboard d\'Équipe'),
-      _PlanFeature(Icons.saved_search_rounded, 'Recherche Sémantique Avancée'),
+      _PlanFeature(Icons.hearing_rounded, 'IA écoute Active (Temps réel)'),
+      _PlanFeature(
+        Icons.integration_instructions_outlined,
+        'Intégrations (Notion, Slack, etc.)',
+      ),
+      _PlanFeature(
+        Icons.sync_rounded,
+        'Synchronisation Notitia (Hardware personnel)',
+      ),
     ];
 
     return _buildCard(
-      title: 'Business',
+      title: 'Premium',
       price: '19,99 €',
-      priceSuffix: '/ utilisateur / mois',
-      subtitle: '',
+      priceSuffix: '/ mois',
+      subtitle: 'Pour les power users',
       accentColor: const Color(0xFF7C4DFF),
       features: features,
       isRecommended: false,
-      ctaLabel: widget.showCTAs ? 'Optimiser mon équipe' : null,
+      ctaLabel: widget.showCTAs ? 'Passer Premium' : null,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // ENTREPRISE
+  // ---------------------------------------------------------------------------
+  Widget _buildEntreprisePlan() {
+    const features = [
+      _PlanFeature(
+        Icons.admin_panel_settings_outlined,
+        '1 compte admin Premium + 20 invités',
+      ),
+      _PlanFeature(
+        Icons.router_outlined,
+        'Notitia Hub Inclus (Boîtier réunion)',
+      ),
+      _PlanFeature(
+        Icons.saved_search_rounded,
+        'Recherche Sémantique Avancée (Historique)',
+      ),
+      _PlanFeature(Icons.block, 'Sans Publicité'),
+    ];
+
+    return _buildCard(
+      title: 'Entreprise',
+      price: '49,99 €',
+      priceSuffix: '/ mois',
+      subtitle: 'Le choix des équipes',
+      accentColor: const Color(0xFFFF6D00),
+      features: features,
+      isRecommended: false,
+      ctaLabel: widget.showCTAs ? 'Contacter les Ventes' : null,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // NOTITIA HUB (one-time purchase)
+  // ---------------------------------------------------------------------------
+  Widget _buildHubPlan() {
+    const features = [
+      _PlanFeature(Icons.qr_code_2_rounded, 'Boîtier intelligent avec QR Code'),
+      _PlanFeature(
+        Icons.sync_alt_rounded,
+        'Synchronisation instantanée des réunions',
+      ),
+    ];
+
+    return _buildCard(
+      title: 'Notitia Hub',
+      price: '149,99 €',
+      priceSuffix: '(achat unique)',
+      subtitle: 'Formule entreprise : 2 mois offerts',
+      accentColor: NotitiaTheme.neonPink,
+      features: features,
+      isRecommended: false,
+      ctaLabel: widget.showCTAs ? 'Commander le Hub' : null,
     );
   }
 
@@ -154,6 +229,7 @@ class _NotitiaPricingCardsState extends State<NotitiaPricingCards>
     required Color accentColor,
     required List<_PlanFeature> features,
     required bool isRecommended,
+    String badgeLabel = 'Recommandé',
     String? ctaLabel,
   }) {
     final cardContent = Container(
@@ -175,17 +251,20 @@ class _NotitiaPricingCardsState extends State<NotitiaPricingCards>
           // Header row: title + badge
           Row(
             children: [
-              Text(
-                title.toUpperCase(),
-                style: GoogleFonts.orbitron(
-                  fontSize: widget.compact ? 14 : 16,
-                  fontWeight: FontWeight.bold,
-                  color: accentColor,
-                  letterSpacing: 2,
+              Flexible(
+                child: Text(
+                  title.toUpperCase(),
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.orbitron(
+                    fontSize: widget.compact ? 14 : 16,
+                    fontWeight: FontWeight.bold,
+                    color: accentColor,
+                    letterSpacing: 2,
+                  ),
                 ),
               ),
-              const Spacer(),
-              if (isRecommended)
+              if (isRecommended) ...[
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -208,7 +287,7 @@ class _NotitiaPricingCardsState extends State<NotitiaPricingCards>
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        'Recommandé',
+                        badgeLabel,
                         style: GoogleFonts.poppins(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
@@ -218,6 +297,7 @@ class _NotitiaPricingCardsState extends State<NotitiaPricingCards>
                     ],
                   ),
                 ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -324,7 +404,7 @@ class _NotitiaPricingCardsState extends State<NotitiaPricingCards>
 
     if (!isRecommended) return cardContent;
 
-    // Wrap Essential in animated glow
+    // Wrap recommended card in animated glow
     return AnimatedBuilder(
       animation: _glowAnimation,
       builder: (context, child) {

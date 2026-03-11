@@ -711,7 +711,7 @@ class _ProfilePageState extends State<ProfilePage>
         _SettingsTile(
           icon: Icons.diamond_outlined,
           title: 'Mon Abonnement',
-          subtitle: 'Free — Gérer mon plan',
+          subtitle: 'Découverte — Gérer mon plan',
           iconColor: NotitiaTheme.neonCyan,
           onTap: () => Navigator.of(context).pushNamed('/subscription'),
         ),

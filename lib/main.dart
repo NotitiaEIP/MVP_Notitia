@@ -86,15 +86,45 @@ class NotitiaApp extends StatelessWidget {
         textTheme: GoogleFonts.orbitronTextTheme(ThemeData.dark().textTheme),
       ),
       home: const SplashScreen(),
-      routes: {
-        '/main': (context) => const WithForegroundTask(child: MainNavigation()),
-        '/auth': (context) => const AuthChoicePage(),
-        '/login': (context) => const LoginPage(),
-        '/register': (context) => const RegisterPage(),
-        '/email-otp': (context) => const EmailOtpPage(),
-        '/profile': (context) => const ProfilePage(),
-        '/onboarding': (context) => const OnboardingPage(),
-        '/subscription': (context) => const SubscriptionPage(),
+      onGenerateRoute: (settings) {
+        final routes = <String, WidgetBuilder>{
+          '/main': (context) =>
+              const WithForegroundTask(child: MainNavigation()),
+          '/auth': (context) => const AuthChoicePage(),
+          '/login': (context) => const LoginPage(),
+          '/register': (context) => const RegisterPage(),
+          '/email-otp': (context) => const EmailOtpPage(),
+          '/profile': (context) => const ProfilePage(),
+          '/onboarding': (context) => const OnboardingPage(),
+          '/subscription': (context) => const SubscriptionPage(),
+        };
+
+        final builder = routes[settings.name];
+        if (builder == null) return null;
+
+        // Smooth fade transition when arriving from onboarding
+        final args = settings.arguments;
+        if (settings.name == '/main' &&
+            args is Map &&
+            args['fromOnboarding'] == true) {
+          return PageRouteBuilder(
+            settings: settings,
+            pageBuilder: (context, _, __) => builder(context),
+            transitionDuration: const Duration(milliseconds: 600),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionsBuilder: (context, animation, _, child) {
+              return FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOut,
+                ),
+                child: child,
+              );
+            },
+          );
+        }
+
+        return MaterialPageRoute(settings: settings, builder: builder);
       },
     );
   }
