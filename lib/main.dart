@@ -21,7 +21,6 @@ import 'pages/onboarding_page.dart';
 import 'pages/subscription_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/register_page.dart';
-import 'pages/search_page.dart';
 import 'pages/splash_screen.dart';
 import 'services/auth_service.dart';
 import 'services/foreground_service.dart';
@@ -142,7 +141,7 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation>
     with WidgetsBindingObserver {
-  int _currentIndex = 0;
+  int _currentIndex = 2; // Capture au centre
   final _authService = AuthService();
   final _languageService = LanguageService();
   UserProfile? _profile;
@@ -202,7 +201,7 @@ class _MainNavigationState extends State<MainNavigation>
   void _navigateToHistoryMeetings() {
     setState(() {
       _filterHistoryMeetings = true;
-      _currentIndex = 1; // Index de l'onglet Historique
+      _currentIndex = 0; // Index de l'onglet Historique
     });
   }
 
@@ -270,7 +269,7 @@ class _MainNavigationState extends State<MainNavigation>
     setState(() {
       _currentIndex = index;
       // Réinitialiser le filtre réunion si on quitte manuellement l'historique
-      if (index != 1) _filterHistoryMeetings = false;
+      if (index != 0) _filterHistoryMeetings = false;
     });
   }
 
@@ -291,6 +290,20 @@ class _MainNavigationState extends State<MainNavigation>
           IndexedStack(
             index: _currentIndex,
             children: [
+              // 0 — Historique
+              HistoryPage(
+                refreshNotifier: _refreshNotifier,
+                profile: _profile,
+                onProfileTap: _openProfile,
+                filterMeetingsOnly: _filterHistoryMeetings,
+              ),
+              // 1 — Réunion
+              MeetingPage(
+                refreshNotifier: _refreshNotifier,
+                onMeduzaStateChanged: _setMeduzaState,
+                onNavigateToHistory: _navigateToHistoryMeetings,
+              ),
+              // 2 — Capture (centre)
               CapturePage(
                 onTranscriptionSaved: _onTranscriptionSaved,
                 onMeduzaStateChanged: _setMeduzaState,
@@ -298,28 +311,14 @@ class _MainNavigationState extends State<MainNavigation>
                 onProfileTap: _openProfile,
                 fromOnboarding: _fromOnboarding,
               ),
-              HistoryPage(
-                refreshNotifier: _refreshNotifier,
-                profile: _profile,
-                onProfileTap: _openProfile,
-                filterMeetingsOnly: _filterHistoryMeetings,
-              ),
-              MeetingPage(
-                refreshNotifier: _refreshNotifier,
-                onMeduzaStateChanged: _setMeduzaState,
-                onNavigateToHistory: _navigateToHistoryMeetings,
-              ),
+              // 3 — MindMap
               MindMapPage(
                 refreshNotifier: _refreshNotifier,
                 onMeduzaStateChanged: _setMeduzaState,
                 profile: _profile,
                 onProfileTap: _openProfile,
               ),
-              SearchPage(
-                refreshNotifier: _refreshNotifier,
-                profile: _profile,
-                onProfileTap: _openProfile,
-              ),
+              // 4 — Assistant
               AssistantPage(
                 refreshNotifier: _refreshNotifier,
                 onMeduzaStateChanged: _setMeduzaState,
@@ -339,52 +338,215 @@ class _MainNavigationState extends State<MainNavigation>
             ),
         ],
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: _buildPremiumNav(),
     );
   }
 
-  Widget _buildBottomNav() {
+  // ===========================================================================
+  // PREMIUM NAVIGATION BAR
+  // ===========================================================================
+
+  /// Données des onglets (ordre visuel : Historique, Réunion, [Capture], MindMap, Assistant)
+  static const _navIcons = [
+    Icons.history_rounded,
+    Icons.groups_rounded,
+    Icons.mic_rounded, // centre
+    Icons.account_tree_rounded,
+    Icons.auto_awesome,
+  ];
+
+  List<String> get _navLabels => [
+    _languageService.translate('history_title'),
+    'RÉUNION',
+    _languageService.translate('capture').toUpperCase(),
+    _languageService.translate('mindmap').toUpperCase(),
+    _languageService.translate('assistant').toUpperCase(),
+  ];
+
+  Widget _buildPremiumNav() {
+    const int centerIndex = 2;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Container(
       decoration: BoxDecoration(
         color: NotitiaTheme.darkBlue,
-        border: Border(
-          top: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: NotitiaTheme.neonPink.withValues(alpha: 0.12),
+            blurRadius: 24,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 68 + bottomPadding * 0.1,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // ── Trait néon supérieur ──
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 1,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.transparent,
+                        NotitiaTheme.neonPink.withValues(alpha: 0.5),
+                        NotitiaTheme.neonCyan.withValues(alpha: 0.5),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Onglets latéraux ──
+              Row(
+                children: List.generate(5, (i) {
+                  if (i == centerIndex) {
+                    // Espace réservé pour le bouton central
+                    return const SizedBox(width: 72);
+                  }
+                  return Expanded(child: _buildNavItem(i));
+                }),
+              ),
+
+              // ── Bouton central flottant (Capture) ──
+              Positioned(
+                top: -22,
+                left: 0,
+                right: 0,
+                child: Center(child: _buildCenterButton(centerIndex)),
+              ),
+            ],
+          ),
         ),
       ),
-      child: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: _onTabChanged,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        selectedItemColor: NotitiaTheme.neonPink,
-        unselectedItemColor: NotitiaTheme.grey,
-        selectedLabelStyle: GoogleFonts.orbitron(fontSize: 10),
-        unselectedLabelStyle: GoogleFonts.orbitron(fontSize: 10),
-        type: BottomNavigationBarType.fixed,
-        items: [
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.mic_rounded),
-            label: _languageService.translate('capture').toUpperCase(),
+    );
+  }
+
+  Widget _buildNavItem(int index) {
+    final isSelected = _currentIndex == index;
+    final color = isSelected ? NotitiaTheme.neonPink : NotitiaTheme.grey;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _onTabChanged(index),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Glow indicator
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+              height: 3,
+              width: isSelected ? 24 : 0,
+              margin: const EdgeInsets.only(bottom: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(2),
+                color: NotitiaTheme.neonPink,
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: NotitiaTheme.neonPink.withValues(alpha: 0.6),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : [],
+              ),
+            ),
+            Icon(_navIcons[index], size: 22, color: color),
+            const SizedBox(height: 4),
+            Text(
+              _navLabels[index],
+              style: GoogleFonts.orbitron(
+                fontSize: 9,
+                color: color,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                letterSpacing: 0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCenterButton(int index) {
+    final isSelected = _currentIndex == index;
+
+    return GestureDetector(
+      onTap: () => _onTabChanged(index),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Bouton circulaire élevé
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: isSelected
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [NotitiaTheme.neonPink, Color(0xFFAA0055)],
+                    )
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [NotitiaTheme.darkBlue, NotitiaTheme.deepBlue],
+                    ),
+              border: Border.all(
+                color: isSelected
+                    ? NotitiaTheme.neonPink
+                    : NotitiaTheme.grey.withValues(alpha: 0.4),
+                width: isSelected ? 2 : 1.5,
+              ),
+              boxShadow: [
+                if (isSelected) ...[
+                  BoxShadow(
+                    color: NotitiaTheme.neonPink.withValues(alpha: 0.5),
+                    blurRadius: 18,
+                    spreadRadius: 2,
+                  ),
+                  BoxShadow(
+                    color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
+                    blurRadius: 40,
+                    spreadRadius: 8,
+                  ),
+                ] else
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+              ],
+            ),
+            child: Icon(
+              Icons.mic_rounded,
+              size: 28,
+              color: isSelected ? NotitiaTheme.white : NotitiaTheme.grey,
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.history_rounded),
-            label: _languageService.translate('history_title'),
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.groups_rounded),
-            label: 'RÉUNION',
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.account_tree_rounded),
-            label: _languageService.translate('mindmap').toUpperCase(),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.search_rounded),
-            label: _languageService.translate('search_title'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.auto_awesome),
-            label: _languageService.translate('assistant').toUpperCase(),
+          const SizedBox(height: 4),
+          Text(
+            _navLabels[index],
+            style: GoogleFonts.orbitron(
+              fontSize: 9,
+              color: isSelected ? NotitiaTheme.neonPink : NotitiaTheme.grey,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+              letterSpacing: 0.5,
+            ),
           ),
         ],
       ),
