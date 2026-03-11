@@ -184,7 +184,10 @@ class _MindMapPageState extends State<MindMapPage>
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(_languageService.translate('delete'), style: const TextStyle(color: Colors.red)),
+            child: Text(
+              _languageService.translate('delete'),
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -258,6 +261,11 @@ class _MindMapPageState extends State<MindMapPage>
         _errorMessage = result.error;
       }
     });
+
+    // Auto-save après génération réussie
+    if (result.success && _currentMindMap != null) {
+      await _saveCurrentMindMap();
+    }
 
     // Meduza - resultat
     if (result.success) {

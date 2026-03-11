@@ -7,7 +7,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../models/email_otp_args.dart';
 import '../services/auth_service.dart';
 import '../services/language_service.dart';
 import '../theme.dart';
@@ -102,10 +101,9 @@ class _RegisterPageState extends State<RegisterPage>
       if (!mounted) return;
 
       // Rediriger vers la page OTP pour confirmer l'email
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/onboarding',
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil('/onboarding', (route) => false);
       //   arguments: EmailOtpRouteArgs(
       //     email: _emailController.text.trim(),
       //     username: _usernameController.text.trim(),
@@ -370,7 +368,10 @@ class _RegisterPageState extends State<RegisterPage>
           const SizedBox(height: 24),
 
           // Bouton inscription
-          _buildSubmitButton(_languageService.translate('sign_up').toUpperCase(), _signUpWithEmailAndPassword),
+          _buildSubmitButton(
+            _languageService.translate('sign_up').toUpperCase(),
+            _signUpWithEmailAndPassword,
+          ),
         ],
       ),
     );

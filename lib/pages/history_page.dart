@@ -174,6 +174,7 @@ class _HistoryPageState extends State<HistoryPage> {
             title: headerTitle,
             profile: widget.profile,
             onProfileTap: widget.onProfileTap,
+            actions: [NfcReceiveButton(onReceived: _loadData)],
           ),
           const SizedBox(height: 6),
           Divider(
