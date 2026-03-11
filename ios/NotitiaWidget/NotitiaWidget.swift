@@ -442,7 +442,6 @@ struct NotitiaWidgetEntryView: View {
 // MARK: - Widget Declaration
 // ═══════════════════════════════════════════════════════════════════════════════
 
-@main
 struct NotitiaWidget: Widget {
     let kind = "NotitiaWidget"
 

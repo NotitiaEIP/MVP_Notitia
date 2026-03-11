@@ -5,9 +5,15 @@
 		<!-- ============================================== -->
 		<!-- PERMISSIONS NOTITIA - Microphone + Bluetooth  -->
 		<!-- ============================================== -->
+		<!-- Permission Caméra - Scanner QR code réunion -->
+		<key>NSCameraUsageDescription</key>
+		<string>Notitia utilise la caméra pour scanner les QR codes et rejoindre des réunions.</string>
 		<!-- Permission Microphone - Enregistrement audio -->
 		<key>NSMicrophoneUsageDescription</key>
 		<string>Notitia a besoin d'accéder au microphone pour enregistrer vos notes vocales et mémos audio.</string>
+		<!-- Permission Réseau local - Réunions en local -->
+		<key>NSLocalNetworkUsageDescription</key>
+		<string>Notitia utilise le réseau local pour héberger et rejoindre des réunions entre appareils sur le même Wi-Fi.</string>
 		<!-- Permission Bluetooth - Scan et connexion BLE -->
 		<key>NSBluetoothAlwaysUsageDescription</key>
 		<string>Notitia utilise le Bluetooth pour se connecter au Notitia Node et synchroniser vos données.</string>
@@ -73,6 +79,12 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<!-- Autoriser les connexions HTTP locales (serveur réunion) -->
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSAllowsLocalNetworking</key>
+			<true/>
+		</dict>
 		<!-- Deep link pour OAuth Supabase -->
 		<key>CFBundleURLTypes</key>
 		<array>
