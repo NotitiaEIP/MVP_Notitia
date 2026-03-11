@@ -21,6 +21,7 @@ class MindMapPage extends StatefulWidget {
   final ValueNotifier<int>? refreshNotifier;
   final void Function(MeduzaState state, {String? message, BubbleStyle style})?
   onMeduzaStateChanged;
+  final ValueChanged<bool>? onViewingMindMapChanged;
   final UserProfile? profile;
   final VoidCallback? onProfileTap;
 
@@ -29,6 +30,7 @@ class MindMapPage extends StatefulWidget {
     this.transcription,
     this.refreshNotifier,
     this.onMeduzaStateChanged,
+    this.onViewingMindMapChanged,
     this.profile,
     this.onProfileTap,
   });
@@ -49,7 +51,6 @@ class _MindMapPageState extends State<MindMapPage>
   bool _isLoading = false;
   MindMap? _currentMindMap;
   String? _errorMessage;
-  MindMapEngine? _selectedEngine;
   MindMapViewMode _viewMode = MindMapViewMode.radial;
 
   List<Transcription> _transcriptions = [];
@@ -88,6 +89,7 @@ class _MindMapPageState extends State<MindMapPage>
 
   @override
   void dispose() {
+    widget.onViewingMindMapChanged?.call(false);
     widget.refreshNotifier?.removeListener(_loadTranscriptions);
     WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
@@ -116,6 +118,13 @@ class _MindMapPageState extends State<MindMapPage>
       });
     }
     debugPrint('📋 MindMap: ${mindMaps.length} mind maps sauvegardées');
+  }
+
+  void _closeCurrentMindMap() {
+    setState(() {
+      _currentMindMap = null;
+    });
+    widget.onViewingMindMapChanged?.call(false);
   }
 
   /// Sauvegarde la mind map courante
@@ -151,13 +160,10 @@ class _MindMapPageState extends State<MindMapPage>
 
   /// Charge une mind map sauvegardée
   void _openSavedMindMap(MindMap mindMap) {
-    final engine = mindMap.metadata['engine'] as String?;
     setState(() {
       _currentMindMap = mindMap;
-      _selectedEngine = engine == 'gemini'
-          ? MindMapEngine.gemini
-          : MindMapEngine.claude;
     });
+    widget.onViewingMindMapChanged?.call(true);
   }
 
   /// Supprime une mind map sauvegardée
@@ -230,7 +236,6 @@ class _MindMapPageState extends State<MindMapPage>
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      _selectedEngine = engine;
     });
 
     // Meduza - generation en cours
@@ -270,6 +275,10 @@ class _MindMapPageState extends State<MindMapPage>
         _errorMessage = result.error;
       }
     });
+
+    if (result.success && _currentMindMap != null) {
+      widget.onViewingMindMapChanged?.call(true);
+    }
 
     // Auto-save après génération réussie
     if (result.success && _currentMindMap != null) {
@@ -768,36 +777,15 @@ class _MindMapPageState extends State<MindMapPage>
         child: Column(
           children: [
             const SizedBox(height: 24),
-            NotitiaPageHeader(
-              icon: Icons.account_tree_rounded,
-              title: 'MIND MAP',
-              profile: widget.profile,
-              onProfileTap: widget.onProfileTap,
-              actions: [
-                if (_currentMindMap != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _languageService
-                          .translate('mindmap_nodes_label')
-                          .replaceAll(
-                            '{count}',
-                            _currentMindMap!.totalNodes.toString(),
-                          ),
-                      style: const TextStyle(
-                        color: NotitiaTheme.neonPink,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                if (_currentMindMap == null)
+            if (_currentMindMap != null)
+              _buildMindMapHeader()
+            else
+              NotitiaPageHeader(
+                icon: Icons.account_tree_rounded,
+                title: 'MIND MAP',
+                profile: widget.profile,
+                onProfileTap: widget.onProfileTap,
+                actions: [
                   IconButton(
                     icon: Icon(Icons.refresh, color: NotitiaTheme.neonCyan),
                     tooltip: _languageService.translate(
@@ -805,18 +793,8 @@ class _MindMapPageState extends State<MindMapPage>
                     ),
                     onPressed: _loadTranscriptions,
                   ),
-                if (_currentMindMap != null)
-                  IconButton(
-                    icon: Icon(Icons.refresh, color: NotitiaTheme.grey),
-                    tooltip: _languageService.translate('new_mindmap_tooltip'),
-                    onPressed: () {
-                      setState(() {
-                        _currentMindMap = null;
-                      });
-                    },
-                  ),
-              ],
-            ),
+                ],
+              ),
             const SizedBox(height: 8),
             Expanded(
               child: _currentMindMap != null
@@ -827,6 +805,94 @@ class _MindMapPageState extends State<MindMapPage>
         ),
       ),
       floatingActionButton: _buildFAB(),
+    );
+  }
+
+  Widget _buildMindMapHeader() {
+    final nodesLabel = _languageService
+        .translate('mindmap_nodes_label')
+        .replaceAll('{count}', _currentMindMap!.totalNodes.toString());
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: NotitiaTheme.white,
+            ),
+            onPressed: _closeCurrentMindMap,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _currentMindMap!.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: NotitiaTheme.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  nodesLabel,
+                  style: const TextStyle(
+                    color: NotitiaTheme.grey,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewModeSwitcher() {
+    return Container(
+      decoration: BoxDecoration(
+        color: NotitiaTheme.darkBlue.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: NotitiaTheme.neonCyan.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: MindMapViewMode.values.map((mode) {
+          final isActive = _viewMode == mode;
+          return Tooltip(
+            message: _viewModeLabel(mode),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                if (_viewMode != mode) {
+                  setState(() => _viewMode = mode);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? NotitiaTheme.neonCyan.withValues(alpha: 0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _viewModeIcon(mode),
+                  color: isActive ? NotitiaTheme.neonCyan : NotitiaTheme.grey,
+                  size: 20,
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -1397,161 +1463,14 @@ class _MindMapPageState extends State<MindMapPage>
   }
 
   Widget _buildMindMapView() {
-    final isSaved = _savedMindMaps.any((m) => m.id == _currentMindMap!.id);
-
     return Stack(
       children: [
-        // Mind Map
         MindMapWidget(
           mindMap: _currentMindMap!,
           onNodeTap: _showNodeDetails,
           viewMode: _viewMode,
         ),
-
-        // Info overlay
-        Positioned(
-          top: 16,
-          left: 16,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: NotitiaTheme.darkBlue.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: NotitiaTheme.neonCyan.withValues(alpha: 0.5),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _currentMindMap!.title,
-                  style: const TextStyle(
-                    color: NotitiaTheme.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Profondeur: ${_currentMindMap!.maxDepth} • Nœuds: ${_currentMindMap!.totalNodes}',
-                      style: const TextStyle(
-                        color: NotitiaTheme.grey,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _selectedEngine == MindMapEngine.claude
-                            ? NotitiaTheme.neonPink.withValues(alpha: 0.2)
-                            : Colors.green.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        _selectedEngine == MindMapEngine.claude
-                            ? _languageService.translate('engine_claude_badge')
-                            : _languageService.translate('engine_gemini_badge'),
-                        style: TextStyle(
-                          color: _selectedEngine == MindMapEngine.claude
-                              ? NotitiaTheme.neonPink
-                              : Colors.greenAccent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_currentMindMap!.sourceTranscriptionIds.length > 1) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_currentMindMap!.sourceTranscriptionIds.length} sources',
-                    style: TextStyle(
-                      color: NotitiaTheme.neonCyan.withValues(alpha: 0.8),
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-
-        // Save button
-        Positioned(
-          bottom: 16,
-          right: 16,
-          child: FloatingActionButton.small(
-            heroTag: 'save_mindmap',
-            onPressed: isSaved ? null : _saveCurrentMindMap,
-            backgroundColor: isSaved
-                ? NotitiaTheme.grey.withValues(alpha: 0.3)
-                : NotitiaTheme.neonPink,
-            child: Icon(
-              isSaved ? Icons.bookmark : Icons.bookmark_border,
-              color: isSaved ? NotitiaTheme.grey : NotitiaTheme.white,
-            ),
-          ),
-        ),
-
-        // View mode switcher
-        Positioned(
-          top: 16,
-          right: 16,
-          child: Container(
-            decoration: BoxDecoration(
-              color: NotitiaTheme.darkBlue.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: NotitiaTheme.neonCyan.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: MindMapViewMode.values.map((mode) {
-                final isActive = _viewMode == mode;
-                return Tooltip(
-                  message: _viewModeLabel(mode),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () {
-                      if (_viewMode != mode) {
-                        setState(() {
-                          _viewMode = mode;
-                        });
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? NotitiaTheme.neonCyan.withValues(alpha: 0.2)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        _viewModeIcon(mode),
-                        color: isActive
-                            ? NotitiaTheme.neonCyan
-                            : NotitiaTheme.grey,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ),
+        Positioned(top: 12, right: 12, child: _buildViewModeSwitcher()),
       ],
     );
   }

@@ -144,10 +144,10 @@ class _MindMapWidgetState extends State<MindMapWidget>
     double minY = double.infinity, maxY = double.negativeInfinity;
 
     for (final node in _nodes) {
-      minX = math.min(minX, node.x - 50);
-      maxX = math.max(maxX, node.x + 50);
-      minY = math.min(minY, node.y - 50);
-      maxY = math.max(maxY, node.y + 50);
+      minX = math.min(minX, node.x - 60);
+      maxX = math.max(maxX, node.x + 60);
+      minY = math.min(minY, node.y - 60);
+      maxY = math.max(maxY, node.y + 60);
     }
 
     final contentWidth = maxX - minX;
@@ -156,12 +156,19 @@ class _MindMapWidgetState extends State<MindMapWidget>
     // Sécurité : éviter division par zéro → matrice singulière → crash
     if (contentWidth < 1 || contentHeight < 1) return;
 
-    final viewSize = MediaQuery.of(context).size;
-    if (viewSize.width < 1 || viewSize.height < 1) return;
+    // Utiliser la taille réelle du widget plutôt que la taille écran
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final viewWidth =
+        renderBox?.size.width ?? MediaQuery.of(context).size.width;
+    final viewHeight =
+        renderBox?.size.height ?? MediaQuery.of(context).size.height;
+    if (viewWidth < 1 || viewHeight < 1) return;
 
-    final scaleX = (viewSize.width - 40) / contentWidth;
-    final scaleY = (viewSize.height - 200) / contentHeight;
-    final scale = math.min(scaleX, scaleY).clamp(0.15, 1.5);
+    // Padding intérieur pour ne pas coller aux bords
+    const padding = 24.0;
+    final scaleX = (viewWidth - padding * 2) / contentWidth;
+    final scaleY = (viewHeight - padding * 2) / contentHeight;
+    final scale = math.min(scaleX, scaleY).clamp(0.1, 1.2);
 
     // Vérifier que le scale est valide (pas NaN/Inf)
     if (scale.isNaN || scale.isInfinite || scale <= 0) return;
@@ -170,7 +177,7 @@ class _MindMapWidgetState extends State<MindMapWidget>
     final contentCenterY = (minY + maxY) / 2;
 
     final matrix = Matrix4.identity()
-      ..translateByDouble(viewSize.width / 2, viewSize.height / 2, 0, 0)
+      ..translateByDouble(viewWidth / 2, viewHeight / 2, 0, 0)
       ..scaleByDouble(scale, scale, 1, 1)
       ..translateByDouble(-contentCenterX, -contentCenterY, 0, 0);
 

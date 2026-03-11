@@ -147,6 +147,7 @@ class _MainNavigationState extends State<MainNavigation>
   final _authService = AuthService();
   UserProfile? _profile;
   bool _fromOnboarding = false;
+  bool _isViewingMindMap = false;
 
   // --- Meduza state management (event-driven) ---
   MeduzaState _meduzaState = MeduzaState.idle;
@@ -203,6 +204,13 @@ class _MainNavigationState extends State<MainNavigation>
     setState(() {
       _filterHistoryMeetings = true;
       _currentIndex = 0; // Index de l'onglet Historique
+    });
+  }
+
+  void _onMindMapViewingChanged(bool isViewing) {
+    if (_isViewingMindMap == isViewing) return;
+    setState(() {
+      _isViewingMindMap = isViewing;
     });
   }
 
@@ -288,12 +296,13 @@ class _MainNavigationState extends State<MainNavigation>
 
   @override
   Widget build(BuildContext context) {
+    final hideDock = _currentIndex == 3 && _isViewingMindMap;
     final bottomSafe = MediaQuery.of(context).padding.bottom;
     // Inflate bottom padding so all child SafeArea / MediaQuery consumers
     // automatically clear the floating dock.
     final mq = MediaQuery.of(context);
     final inflatedPadding = mq.padding.copyWith(
-      bottom: mq.padding.bottom + _dockExtraBottom,
+      bottom: mq.padding.bottom + (hideDock ? 0 : _dockExtraBottom),
     );
 
     return Scaffold(
@@ -331,6 +340,7 @@ class _MainNavigationState extends State<MainNavigation>
                 MindMapPage(
                   refreshNotifier: _refreshNotifier,
                   onMeduzaStateChanged: _setMeduzaState,
+                  onViewingMindMapChanged: _onMindMapViewingChanged,
                   profile: _profile,
                   onProfileTap: _openProfile,
                 ),
@@ -354,12 +364,13 @@ class _MainNavigationState extends State<MainNavigation>
               onDismiss: _dismissMeduza,
             ),
           // ── Floating Glass Dock ──
-          Positioned(
-            left: 20,
-            right: 20,
-            bottom: 10 + bottomSafe,
-            child: _buildFloatingDock(),
-          ),
+          if (!hideDock)
+            Positioned(
+              left: 20,
+              right: 20,
+              bottom: 10 + bottomSafe,
+              child: _buildFloatingDock(),
+            ),
         ],
       ),
     );

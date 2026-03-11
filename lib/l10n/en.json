@@ -128,7 +128,7 @@
   "mindmap_delete_confirm": "will be permanently deleted",
   "new_mindmap": "New Mindmap",
   "no_saved_mindmaps": "No saved mindmaps",
-  "generate_and_save_mindmap": "Generate a mindmap then save it",
+  "generate_and_save_mindmap": "Generate a mindmap, it will be saved automatically",
   "paste_or_type_text_hint": "Paste or type your text here...\n\nThe system will analyze the content and generate a structured mindmap with main themes, ideas, actions, and identified questions.",
   "generating_mindmap": "Generating mindmap...",
   "mindmap_generated_success": "Mindmap generated successfully.",
