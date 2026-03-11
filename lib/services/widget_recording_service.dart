@@ -13,6 +13,8 @@
 //
 // Appelé automatiquement quand l'app Flutter est ouverte/reprise.
 // =============================================================================
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 
@@ -68,7 +70,7 @@ class WidgetRecordingService {
         }
       }
 
-      // Créer la transcription avec titre automatique
+      // Créer la transcription avec titre temporaire
       final now = dateStr != null
           ? DateTime.tryParse(dateStr) ?? DateTime.now()
           : DateTime.now();
@@ -86,6 +88,9 @@ class WidgetRecordingService {
 
       // Sauvegarder
       await StorageService.save(transcription);
+
+      // Générer un titre IA en arrière-plan
+      unawaited(MistralService.updateTitleInBackground(transcription));
 
       // Indexation RAG
       RAGService.instance.indexSingleTranscription(transcription);

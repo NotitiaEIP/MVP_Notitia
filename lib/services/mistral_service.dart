@@ -9,6 +9,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/transcription.dart';
+import 'storage_service.dart';
+
 /// Service Mistral AI pour améliorer les transcriptions
 class MistralService {
   static MistralService? _instance;
@@ -169,6 +172,98 @@ INDICES COURANTS D'ERREURS DE TRANSCRIPTION:
   /// finales au fur et à mesure)
   Future<String> correctSegment(String segment) async {
     return correctTranscription(segment, level: CorrectionLevel.medium);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Génération de titre automatique
+  // ---------------------------------------------------------------------------
+
+  static const String _titleSystemPrompt =
+      '''Tu génères un titre court (5 mots max) pour une transcription audio.
+RÈGLES:
+- Réponds UNIQUEMENT avec le titre, sans guillemets ni ponctuation finale
+- Le titre doit résumer le sujet principal
+- Reste concis et descriptif
+- Langue: identique au texte fourni''';
+
+  /// Génère un titre court à partir du contenu d'une transcription.
+  /// Retourne null en cas d'erreur (pour utiliser un titre par défaut).
+  Future<String?> generateTitle(String content) async {
+    if (content.trim().isEmpty) return null;
+
+    // Prendre les 500 premiers caractères pour être rapide
+    final excerpt = content.length > 500 ? content.substring(0, 500) : content;
+
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(_apiUrl),
+            headers: {
+              'Authorization': 'Bearer $_apiKey',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: json.encode({
+              'model': _model,
+              'messages': [
+                {'role': 'system', 'content': _titleSystemPrompt},
+                {
+                  'role': 'user',
+                  'content':
+                      'Génère un titre pour cette transcription:\n\n$excerpt',
+                },
+              ],
+              'temperature': 0.3,
+              'max_tokens': 30,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final choices = data['choices'] as List<dynamic>?;
+        if (choices != null && choices.isNotEmpty) {
+          final message = choices[0]['message'] as Map<String, dynamic>?;
+          final title = message?['content'] as String?;
+          if (title != null && title.trim().isNotEmpty) {
+            debugPrint('[Mistral] Titre généré: ${title.trim()}');
+            return title.trim();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[Mistral] Erreur génération titre: $e');
+    }
+
+    return null;
+  }
+
+  /// Génère un titre IA et met à jour la transcription en arrière-plan.
+  /// Relit depuis le disque pour éviter les conflits de cache.
+  static Future<void> updateTitleInBackground(
+    Transcription transcription,
+  ) async {
+    try {
+      final aiTitle = await instance.generateTitle(transcription.content);
+      if (aiTitle != null && aiTitle.isNotEmpty) {
+        // Relire les données fraîches depuis le disque
+        StorageService.invalidateCache();
+        final all = await StorageService.loadAll();
+        final index = all.indexWhere((t) => t.id == transcription.id);
+        if (index >= 0) {
+          final fresh = all[index];
+          final updated = fresh.copyWith(
+            title: aiTitle,
+            updatedAt: DateTime.now(),
+          );
+          await StorageService.save(updated);
+          StorageService.invalidateCache();
+          debugPrint('[Mistral] Titre mis à jour en arrière-plan: $aiTitle');
+        }
+      }
+    } catch (e) {
+      debugPrint('[Mistral] Erreur mise à jour titre: $e');
+    }
   }
 
   void dispose() {

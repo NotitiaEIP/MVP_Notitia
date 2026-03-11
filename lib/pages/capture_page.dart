@@ -528,6 +528,15 @@ class _CapturePageState extends State<CapturePage>
 
     final titleController = TextEditingController(text: defaultTitle);
 
+    // Génération IA du titre en parallèle (ne bloque pas l'affichage)
+    MistralService.instance.generateTitle(_fullTranscript.trim()).then((
+      aiTitle,
+    ) {
+      if (aiTitle != null && aiTitle.isNotEmpty) {
+        titleController.text = aiTitle;
+      }
+    });
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

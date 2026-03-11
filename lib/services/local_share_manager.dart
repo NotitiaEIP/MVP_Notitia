@@ -19,6 +19,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/transcription.dart';
+import 'mistral_service.dart';
 import 'nfc_share_service.dart';
 import 'notitia_file_service.dart';
 import 'storage_service.dart';
@@ -237,13 +238,17 @@ class LocalShareManager extends ChangeNotifier {
         // Sauvegarder automatiquement avec un nouvel ID
         final imported = Transcription(
           id: now.millisecondsSinceEpoch.toString(),
-          title: 'Importation NFC — ${importResult.transcription!.title}',
+          title:
+              'NFC ${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
           content: importResult.transcription!.content,
           tag: TranscriptionTag.nfc,
           createdAt: importResult.transcription!.createdAt,
           updatedAt: now,
         );
         await StorageService.save(imported);
+
+        // Générer un titre IA en arrière-plan
+        unawaited(MistralService.updateTitleInBackground(imported));
 
         debugPrint('[LocalShareManager] NFC import: ${imported.title}');
 

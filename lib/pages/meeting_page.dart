@@ -261,17 +261,9 @@ class _MeetingPageState extends State<MeetingPage> {
     }
 
     // Créer la transcription
-    final participantNames = _hostService.participants
-        .map((p) => p.name)
-        .join(', ');
-    final hostName = await _getUserName();
-    final title = _languageService
-        .translate('meeting_title_template')
-        .replaceAll('{hostname}', hostName)
-        .replaceAll(
-          '{participants}',
-          participantNames.isNotEmpty ? ' + $participantNames' : '',
-        );
+    final now = DateTime.now();
+    final title =
+        'Réunion ${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
     final transcription = Transcription.create(
       content: finalContent.isEmpty
@@ -283,6 +275,9 @@ class _MeetingPageState extends State<MeetingPage> {
 
     // Sauvegarder localement (host)
     await StorageService.save(transcription);
+
+    // Générer un titre IA en arrière-plan
+    MistralService.updateTitleInBackground(transcription);
 
     // Rendre la transcription disponible aux participants via le serveur
     _hostService.endMeeting(transcription);
