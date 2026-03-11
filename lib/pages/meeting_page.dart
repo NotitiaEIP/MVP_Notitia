@@ -21,6 +21,7 @@ import '../services/language_service.dart';
 import '../theme.dart';
 import '../widgets/meduza_widget.dart';
 import '../widgets/meduza_speech_bubble.dart';
+import '../widgets/page_header.dart';
 
 class MeetingPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
@@ -528,26 +529,16 @@ class _MeetingPageState extends State<MeetingPage> {
           children: [
             const SizedBox(height: 24),
             // Header
-            Row(
-              children: [
-                const Icon(
-                  Icons.groups_rounded,
-                  color: NotitiaTheme.neonPink,
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  _languageService.translate('meeting_section_title'),
-                  style: GoogleFonts.orbitron(
-                    fontSize: 18,
-                    color: NotitiaTheme.white,
-                    letterSpacing: 4,
-                  ),
-                ),
-              ],
+            NotitiaPageHeader(
+              icon: Icons.groups_rounded,
+              title: _languageService.translate('meeting_section_title'),
             ),
             const SizedBox(height: 6),
-            Divider(color: NotitiaTheme.neonPink.withValues(alpha: 0.3)),
+            Divider(
+              color: NotitiaTheme.neonPink.withValues(alpha: 0.3),
+              indent: 20,
+              endIndent: 20,
+            ),
             const SizedBox(height: 32),
 
             // Description
