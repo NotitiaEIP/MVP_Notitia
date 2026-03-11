@@ -52,6 +52,8 @@ class MeetingPage extends StatefulWidget {
 }
 
 class _MeetingPageState extends State<MeetingPage> {
+  static const double _floatingDockClearance = 84;
+
   // ---------------------------------------------------------------------------
   // État
   // ---------------------------------------------------------------------------
@@ -901,7 +903,14 @@ class _MeetingPageState extends State<MeetingPage> {
 
               // Bouton LANCER ou STOPPER
               Padding(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  20,
+                  20,
+                  20 +
+                      MediaQuery.of(context).padding.bottom +
+                      _floatingDockClearance,
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   height: 56,

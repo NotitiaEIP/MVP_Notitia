@@ -41,6 +41,8 @@ class MindMapPage extends StatefulWidget {
 
 class _MindMapPageState extends State<MindMapPage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  static const double _floatingDockClearance = 84;
+
   final MindMapService _mindMapService = MindMapService();
   final LanguageService _languageService = LanguageService();
 
@@ -1142,7 +1144,12 @@ class _MindMapPageState extends State<MindMapPage>
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            16 + MediaQuery.of(context).padding.bottom + _floatingDockClearance,
+          ),
           child: SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -1341,7 +1348,12 @@ class _MindMapPageState extends State<MindMapPage>
     final canGenerate = _textController.text.isNotEmpty;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        100 + MediaQuery.of(context).padding.bottom + _floatingDockClearance,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

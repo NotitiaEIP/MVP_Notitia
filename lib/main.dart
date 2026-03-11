@@ -290,69 +290,56 @@ class _MainNavigationState extends State<MainNavigation>
     }
   }
 
-  /// Extra bottom space for the floating dock so all child pages see it
-  /// via MediaQuery.padding.bottom / SafeArea automatically.
-  static const double _dockExtraBottom = 80;
-
   @override
   Widget build(BuildContext context) {
     final hideDock = _currentIndex == 3 && _isViewingMindMap;
     final bottomSafe = MediaQuery.of(context).padding.bottom;
-    // Inflate bottom padding so all child SafeArea / MediaQuery consumers
-    // automatically clear the floating dock.
-    final mq = MediaQuery.of(context);
-    final inflatedPadding = mq.padding.copyWith(
-      bottom: mq.padding.bottom + (hideDock ? 0 : _dockExtraBottom),
-    );
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // Contenu principal — inflated bottom padding for dock clearance
-          MediaQuery(
-            data: mq.copyWith(padding: inflatedPadding),
-            child: IndexedStack(
-              index: _currentIndex,
-              children: [
-                // 0 — Historique
-                HistoryPage(
-                  refreshNotifier: _refreshNotifier,
-                  profile: _profile,
-                  onProfileTap: _openProfile,
-                  filterMeetingsOnly: _filterHistoryMeetings,
-                ),
-                // 1 — Réunion
-                MeetingPage(
-                  refreshNotifier: _refreshNotifier,
-                  onMeduzaStateChanged: _setMeduzaState,
-                  onNavigateToHistory: _navigateToHistoryMeetings,
-                ),
-                // 2 — Capture (centre)
-                CapturePage(
-                  onTranscriptionSaved: _onTranscriptionSaved,
-                  onMeduzaStateChanged: _setMeduzaState,
-                  profile: _profile,
-                  onProfileTap: _openProfile,
-                  fromOnboarding: _fromOnboarding,
-                ),
-                // 3 — MindMap
-                MindMapPage(
-                  refreshNotifier: _refreshNotifier,
-                  onMeduzaStateChanged: _setMeduzaState,
-                  onViewingMindMapChanged: _onMindMapViewingChanged,
-                  profile: _profile,
-                  onProfileTap: _openProfile,
-                ),
-                // 4 — Assistant
-                AssistantPage(
-                  refreshNotifier: _refreshNotifier,
-                  onMeduzaStateChanged: _setMeduzaState,
-                  profile: _profile,
-                  onProfileTap: _openProfile,
-                ),
-              ],
-            ),
+          // Contenu principal — scroll sous la dock flottante
+          IndexedStack(
+            index: _currentIndex,
+            children: [
+              // 0 — Historique
+              HistoryPage(
+                refreshNotifier: _refreshNotifier,
+                profile: _profile,
+                onProfileTap: _openProfile,
+                filterMeetingsOnly: _filterHistoryMeetings,
+              ),
+              // 1 — Réunion
+              MeetingPage(
+                refreshNotifier: _refreshNotifier,
+                onMeduzaStateChanged: _setMeduzaState,
+                onNavigateToHistory: _navigateToHistoryMeetings,
+              ),
+              // 2 — Capture (centre)
+              CapturePage(
+                onTranscriptionSaved: _onTranscriptionSaved,
+                onMeduzaStateChanged: _setMeduzaState,
+                profile: _profile,
+                onProfileTap: _openProfile,
+                fromOnboarding: _fromOnboarding,
+              ),
+              // 3 — MindMap
+              MindMapPage(
+                refreshNotifier: _refreshNotifier,
+                onMeduzaStateChanged: _setMeduzaState,
+                onViewingMindMapChanged: _onMindMapViewingChanged,
+                profile: _profile,
+                onProfileTap: _openProfile,
+              ),
+              // 4 — Assistant
+              AssistantPage(
+                refreshNotifier: _refreshNotifier,
+                onMeduzaStateChanged: _setMeduzaState,
+                profile: _profile,
+                onProfileTap: _openProfile,
+              ),
+            ],
           ),
           // Meduza floating overlay (event-driven)
           if (_showMeduza)
