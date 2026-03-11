@@ -205,6 +205,15 @@ class _MindMapPageState extends State<MindMapPage>
         .toList();
   }
 
+  String _selectedTranscriptionsLabel(int count) {
+    if (_languageService.isFrench) {
+      final plural = count > 1;
+      return '$count transcription${plural ? 's' : ''} sélectionnée${plural ? 's' : ''}';
+    }
+
+    return '$count transcription${count > 1 ? 's' : ''} selected';
+  }
+
   /// Affiche le choix du moteur puis lance la génération
   Future<void> _showEnginePickerAndGenerate() async {
     final engine = await showModalBottomSheet<MindMapEngine>(
@@ -832,10 +841,19 @@ class _MindMapPageState extends State<MindMapPage>
             indicatorColor: NotitiaTheme.neonCyan,
             labelColor: NotitiaTheme.neonCyan,
             unselectedLabelColor: NotitiaTheme.grey,
-            tabs: const [
-              Tab(icon: Icon(Icons.history), text: 'Transcriptions'),
-              Tab(icon: Icon(Icons.edit), text: 'Texte libre'),
-              Tab(icon: Icon(Icons.bookmark), text: 'Sauvegardées'),
+            tabs: [
+              Tab(
+                icon: const Icon(Icons.history),
+                text: _languageService.translate('transcriptions_tab'),
+              ),
+              Tab(
+                icon: const Icon(Icons.edit),
+                text: _languageService.translate('free_text_tab'),
+              ),
+              Tab(
+                icon: const Icon(Icons.bookmark),
+                text: _languageService.translate('saved_tab'),
+              ),
             ],
           ),
         ),
@@ -923,12 +941,9 @@ class _MindMapPageState extends State<MindMapPage>
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _languageService
-                      .translate('transcription_selected_count')
-                      .replaceAll(
-                        '{count}',
-                        _selectedTranscriptionIds.length.toString(),
-                      ),
+                  _selectedTranscriptionsLabel(
+                    _selectedTranscriptionIds.length,
+                  ),
                   style: const TextStyle(
                     color: NotitiaTheme.neonCyan,
                     fontWeight: FontWeight.w600,
@@ -1058,6 +1073,49 @@ class _MindMapPageState extends State<MindMapPage>
                 ),
               );
             },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isLoading || _selectedTranscriptionIds.isEmpty
+                  ? null
+                  : _showEnginePickerAndGenerate,
+              style: FilledButton.styleFrom(
+                backgroundColor: NotitiaTheme.neonCyan,
+                disabledBackgroundColor: NotitiaTheme.grey.withValues(
+                  alpha: 0.5,
+                ),
+                foregroundColor: NotitiaTheme.deepBlue,
+                disabledForegroundColor: NotitiaTheme.deepBlue.withValues(
+                  alpha: 0.7,
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: NotitiaTheme.deepBlue,
+                      ),
+                    )
+                  : const Icon(Icons.auto_awesome),
+              label: Text(
+                _isLoading
+                    ? _languageService.translate('generating_label')
+                    : _languageService.translate(
+                        'generate_mindmap_button_label',
+                      ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
           ),
         ),
       ],
@@ -1522,35 +1580,9 @@ class _MindMapPageState extends State<MindMapPage>
 
   Widget _buildFAB() {
     if (_currentMindMap != null) return const SizedBox.shrink();
-    // Onglet Sauvegardées ou Texte libre : pas de FAB (bouton intégré dans la page)
+    // Tous les onglets utilisent désormais des boutons intégrés dans le contenu.
     if (_tabController.index != 0) return const SizedBox.shrink();
 
-    final canGenerate = _selectedTranscriptionIds.isNotEmpty;
-
-    return FloatingActionButton.extended(
-      onPressed: _isLoading ? null : _showEnginePickerAndGenerate,
-      backgroundColor: canGenerate
-          ? NotitiaTheme.neonCyan
-          : NotitiaTheme.grey.withValues(alpha: 0.5),
-      icon: _isLoading
-          ? SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: NotitiaTheme.deepBlue,
-              ),
-            )
-          : Icon(Icons.auto_awesome, color: NotitiaTheme.deepBlue),
-      label: Text(
-        _isLoading
-            ? _languageService.translate('generating_label')
-            : _languageService.translate('generate_mindmap_button_label'),
-        style: TextStyle(
-          color: NotitiaTheme.deepBlue,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }
