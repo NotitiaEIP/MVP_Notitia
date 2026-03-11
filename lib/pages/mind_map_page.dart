@@ -624,7 +624,6 @@ class _MindMapPageState extends State<MindMapPage>
 
   /// Construit la section « Source Text » avec highlight contextuel
   Widget _buildSourceTextSection(String sourceText) {
-    // Chercher le passage dans toutes les transcriptions sélectionnées pour du contexte
     final allContent = _selectedTranscriptions
         .map((t) => t.content)
         .join('\n\n');
@@ -757,6 +756,7 @@ class _MindMapPageState extends State<MindMapPage>
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             const SizedBox(height: 24),
@@ -777,7 +777,12 @@ class _MindMapPageState extends State<MindMapPage>
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      _languageService.translate('mindmap_nodes_label').replaceAll('{count}', _currentMindMap!.totalNodes.toString()),
+                      _languageService
+                          .translate('mindmap_nodes_label')
+                          .replaceAll(
+                            '{count}',
+                            _currentMindMap!.totalNodes.toString(),
+                          ),
                       style: const TextStyle(
                         color: NotitiaTheme.neonPink,
                         fontSize: 12,
@@ -787,7 +792,9 @@ class _MindMapPageState extends State<MindMapPage>
                 if (_currentMindMap == null)
                   IconButton(
                     icon: Icon(Icons.refresh, color: NotitiaTheme.neonCyan),
-                    tooltip: _languageService.translate('refresh_transcriptions_tooltip'),
+                    tooltip: _languageService.translate(
+                      'refresh_transcriptions_tooltip',
+                    ),
                     onPressed: _loadTranscriptions,
                   ),
                 if (_currentMindMap != null)
@@ -917,7 +924,12 @@ class _MindMapPageState extends State<MindMapPage>
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _languageService.translate('transcription_selected_count').replaceAll('{count}', _selectedTranscriptionIds.length.toString()),
+                  _languageService
+                      .translate('transcription_selected_count')
+                      .replaceAll(
+                        '{count}',
+                        _selectedTranscriptionIds.length.toString(),
+                      ),
                   style: const TextStyle(
                     color: NotitiaTheme.neonCyan,
                     fontWeight: FontWeight.w600,
@@ -942,7 +954,12 @@ class _MindMapPageState extends State<MindMapPage>
           ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: 100,
+            ),
             itemCount: _transcriptions.length,
             itemBuilder: (context, index) {
               final transcription = _transcriptions[index];
@@ -1075,7 +1092,7 @@ class _MindMapPageState extends State<MindMapPage>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
       itemCount: _savedMindMaps.length,
       itemBuilder: (context, index) {
         final mindMap = _savedMindMaps[index];
@@ -1198,8 +1215,10 @@ class _MindMapPageState extends State<MindMapPage>
   }
 
   Widget _buildTextInput() {
+    final dockPadding = MediaQuery.of(context).padding.bottom + 86;
+
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, dockPadding),
       child: Column(
         children: [
           Expanded(
@@ -1458,26 +1477,33 @@ class _MindMapPageState extends State<MindMapPage>
         (_tabController.index == 0 && _selectedTranscriptionIds.isNotEmpty) ||
         (_tabController.index == 1 && _textController.text.isNotEmpty);
 
-    return FloatingActionButton.extended(
-      onPressed: _isLoading ? null : _showEnginePickerAndGenerate,
-      backgroundColor: canGenerate
-          ? NotitiaTheme.neonCyan
-          : NotitiaTheme.grey.withValues(alpha: 0.5),
-      icon: _isLoading
-          ? SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: NotitiaTheme.deepBlue,
-              ),
-            )
-          : Icon(Icons.auto_awesome, color: NotitiaTheme.deepBlue),
-      label: Text(
-        _isLoading ? _languageService.translate('generating_label') : _languageService.translate('generate_mindmap_button_label'),
-        style: TextStyle(
-          color: NotitiaTheme.deepBlue,
-          fontWeight: FontWeight.bold,
+    final dockPadding = MediaQuery.of(context).padding.bottom + 76;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: dockPadding),
+      child: FloatingActionButton.extended(
+        onPressed: _isLoading ? null : _showEnginePickerAndGenerate,
+        backgroundColor: canGenerate
+            ? NotitiaTheme.neonCyan
+            : NotitiaTheme.grey.withValues(alpha: 0.5),
+        icon: _isLoading
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: NotitiaTheme.deepBlue,
+                ),
+              )
+            : Icon(Icons.auto_awesome, color: NotitiaTheme.deepBlue),
+        label: Text(
+          _isLoading
+              ? _languageService.translate('generating_label')
+              : _languageService.translate('generate_mindmap_button_label'),
+          style: TextStyle(
+            color: NotitiaTheme.deepBlue,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );

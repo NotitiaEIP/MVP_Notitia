@@ -126,7 +126,9 @@ class _AssistantPageState extends State<AssistantPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _languageService.translate('reindex_completed').replaceAll('{count}', status.totalChunks.toString()),
+              _languageService
+                  .translate('reindex_completed')
+                  .replaceAll('{count}', status.totalChunks.toString()),
               style: GoogleFonts.poppins(),
             ),
             backgroundColor: NotitiaTheme.neonCyan,
@@ -139,7 +141,9 @@ class _AssistantPageState extends State<AssistantPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _languageService.translate('reindex_error').replaceAll('{error}', e.toString()),
+              _languageService
+                  .translate('reindex_error')
+                  .replaceAll('{error}', e.toString()),
               style: GoogleFonts.poppins(),
             ),
             backgroundColor: Colors.red,
@@ -249,6 +253,7 @@ class _AssistantPageState extends State<AssistantPage>
     final messages = _rag.conversationHistory;
 
     return SafeArea(
+      bottom: false,
       child: Column(
         children: [
           const SizedBox(height: 24),
@@ -274,6 +279,7 @@ class _AssistantPageState extends State<AssistantPage>
           if (_isLoading) _buildTypingIndicator(),
           // ── Barre de saisie ──
           _buildInputBar(),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 86),
         ],
       ),
     );
@@ -367,9 +373,20 @@ class _AssistantPageState extends State<AssistantPage>
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       child: Row(
         children: [
-          _buildStatChip(Icons.memory, _languageService.translate('fragments_label').replaceAll('{count}', chunks.toString())),
+          _buildStatChip(
+            Icons.memory,
+            _languageService
+                .translate('fragments_label')
+                .replaceAll('{count}', chunks.toString()),
+          ),
           const SizedBox(width: 8),
-          _buildStatChip(Icons.check_circle_outline, _languageService.translate('indexed_label').replaceAll('{indexed}', indexed.toString()).replaceAll('{total}', total.toString())),
+          _buildStatChip(
+            Icons.check_circle_outline,
+            _languageService
+                .translate('indexed_label')
+                .replaceAll('{indexed}', indexed.toString())
+                .replaceAll('{total}', total.toString()),
+          ),
         ],
       ),
     );
@@ -613,13 +630,8 @@ class _AssistantPageState extends State<AssistantPage>
   // ---------------------------------------------------------------------------
   Widget _buildInputBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      decoration: BoxDecoration(
-        color: NotitiaTheme.darkBlue,
-        border: Border(
-          top: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.2)),
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      decoration: const BoxDecoration(color: Colors.transparent),
       child: Row(
         children: [
           Expanded(

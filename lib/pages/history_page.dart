@@ -159,12 +159,15 @@ class _HistoryPageState extends State<HistoryPage> {
   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    final headerTitle = widget.filterMeetingsOnly ? _languageService.translate('meetings_title') : _languageService.translate('history_title');
+    final headerTitle = widget.filterMeetingsOnly
+        ? _languageService.translate('meetings_title')
+        : _languageService.translate('history_title');
     final headerIcon = widget.filterMeetingsOnly
         ? Icons.groups_rounded
         : Icons.history_rounded;
 
     return SafeArea(
+      bottom: false,
       child: Column(
         children: [
           const SizedBox(height: 24),
@@ -197,7 +200,11 @@ class _HistoryPageState extends State<HistoryPage> {
                     onRefresh: _loadData,
                     color: NotitiaTheme.neonPink,
                     child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                        bottom: 100,
+                      ),
                       itemCount: _transcriptions.length,
                       itemBuilder: (context, index) =>
                           _buildCard(_transcriptions[index]),
