@@ -1215,69 +1215,121 @@ class _MindMapPageState extends State<MindMapPage>
   }
 
   Widget _buildTextInput() {
-    final dockPadding = MediaQuery.of(context).padding.bottom + 86;
+    final canGenerate = _textController.text.isNotEmpty;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, dockPadding),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              maxLines: null,
-              expands: true,
-              style: const TextStyle(color: NotitiaTheme.white),
-              decoration: InputDecoration(
-                hintText: _languageService.translate('paste_or_type_text_hint'),
-                hintStyle: TextStyle(
-                  color: NotitiaTheme.grey.withValues(alpha: 0.5),
-                ),
-                filled: true,
-                fillColor: NotitiaTheme.darkBlue,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: NotitiaTheme.grey.withValues(alpha: 0.3),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: NotitiaTheme.grey.withValues(alpha: 0.3),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: NotitiaTheme.neonCyan),
+          // Zone de texte — grandit avec le contenu
+          TextField(
+            controller: _textController,
+            maxLines: null,
+            minLines: 4,
+            style: const TextStyle(color: NotitiaTheme.white),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: _languageService.translate('paste_or_type_text_hint'),
+              hintStyle: TextStyle(
+                color: NotitiaTheme.grey.withValues(alpha: 0.5),
+              ),
+              filled: true,
+              fillColor: NotitiaTheme.darkBlue,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: NotitiaTheme.grey.withValues(alpha: 0.3),
                 ),
               ),
-              textAlignVertical: TextAlignVertical.top,
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: NotitiaTheme.grey.withValues(alpha: 0.3),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: NotitiaTheme.neonCyan),
+              ),
             ),
+            textAlignVertical: TextAlignVertical.top,
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          // Barre d'actions + bouton Générer
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 4,
+            runSpacing: 8,
             children: [
               TextButton.icon(
                 onPressed: () async {
                   final data = await Clipboard.getData(Clipboard.kTextPlain);
                   if (data?.text != null) {
-                    _textController.text = data!.text!;
+                    setState(() => _textController.text = data!.text!);
                   }
                 },
-                icon: const Icon(Icons.paste, color: NotitiaTheme.grey),
+                icon: const Icon(
+                  Icons.paste,
+                  color: NotitiaTheme.grey,
+                  size: 18,
+                ),
                 label: const Text(
                   'Coller',
-                  style: TextStyle(color: NotitiaTheme.grey),
+                  style: TextStyle(color: NotitiaTheme.grey, fontSize: 13),
                 ),
               ),
-              const SizedBox(width: 8),
               TextButton.icon(
-                onPressed: () => _textController.clear(),
-                icon: const Icon(Icons.clear, color: NotitiaTheme.grey),
+                onPressed: () => setState(() => _textController.clear()),
+                icon: const Icon(
+                  Icons.clear,
+                  color: NotitiaTheme.grey,
+                  size: 18,
+                ),
                 label: const Text(
                   'Effacer',
-                  style: TextStyle(color: NotitiaTheme.grey),
+                  style: TextStyle(color: NotitiaTheme.grey, fontSize: 13),
+                ),
+              ),
+              AnimatedOpacity(
+                opacity: canGenerate ? 1.0 : 0.45,
+                duration: const Duration(milliseconds: 200),
+                child: FilledButton.icon(
+                  onPressed: _isLoading || !canGenerate
+                      ? null
+                      : _showEnginePickerAndGenerate,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: NotitiaTheme.neonCyan,
+                    foregroundColor: NotitiaTheme.deepBlue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                  ),
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: NotitiaTheme.deepBlue,
+                          ),
+                        )
+                      : const Icon(Icons.auto_awesome, size: 18),
+                  label: Text(
+                    _isLoading
+                        ? _languageService.translate('generating_label')
+                        : _languageService.translate(
+                            'generate_mindmap_button_label',
+                          ),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1471,11 +1523,10 @@ class _MindMapPageState extends State<MindMapPage>
 
   Widget _buildFAB() {
     if (_currentMindMap != null) return const SizedBox.shrink();
-    if (_tabController.index == 2) return const SizedBox.shrink(); // Saved tab
+    // Onglet Sauvegardées ou Texte libre : pas de FAB (bouton intégré dans la page)
+    if (_tabController.index != 0) return const SizedBox.shrink();
 
-    final canGenerate =
-        (_tabController.index == 0 && _selectedTranscriptionIds.isNotEmpty) ||
-        (_tabController.index == 1 && _textController.text.isNotEmpty);
+    final canGenerate = _selectedTranscriptionIds.isNotEmpty;
 
     final dockPadding = MediaQuery.of(context).padding.bottom + 76;
 

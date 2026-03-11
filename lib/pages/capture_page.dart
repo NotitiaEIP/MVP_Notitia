@@ -68,7 +68,6 @@ class _CapturePageState extends State<CapturePage>
   // Deepgram Nova-3
   // ---------------------------------------------------------------------------
   late DeepgramService _deepgram;
-  bool _deepgramConnected = false;
 
   // ---------------------------------------------------------------------------
   // État commun
@@ -186,12 +185,10 @@ class _CapturePageState extends State<CapturePage>
     };
 
     _deepgram.onConnected = () {
-      if (mounted) setState(() => _deepgramConnected = true);
       debugPrint('✅ Deepgram connecté');
     };
 
     _deepgram.onDisconnected = () {
-      if (mounted) setState(() => _deepgramConnected = false);
       debugPrint('🔌 Deepgram déconnecté');
     };
   }

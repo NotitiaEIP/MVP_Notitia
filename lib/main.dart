@@ -287,6 +287,7 @@ class _MainNavigationState extends State<MainNavigation>
     final bottomSafe = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           // Contenu principal

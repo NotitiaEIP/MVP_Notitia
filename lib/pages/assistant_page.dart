@@ -279,7 +279,17 @@ class _AssistantPageState extends State<AssistantPage>
           if (_isLoading) _buildTypingIndicator(),
           // ── Barre de saisie ──
           _buildInputBar(),
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 86),
+          // Dock clearance: snap above keyboard when open, above dock otherwise
+          Builder(
+            builder: (ctx) {
+              final mq = MediaQuery.of(ctx);
+              final keyboardHeight = mq.viewInsets.bottom;
+              final spacing = keyboardHeight > 0
+                  ? keyboardHeight + 8
+                  : mq.padding.bottom + 86;
+              return SizedBox(height: spacing);
+            },
+          ),
         ],
       ),
     );
