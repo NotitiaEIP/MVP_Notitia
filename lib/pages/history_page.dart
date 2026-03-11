@@ -167,7 +167,6 @@ class _HistoryPageState extends State<HistoryPage> {
         : Icons.history_rounded;
 
     return SafeArea(
-      bottom: false,
       child: Column(
         children: [
           const SizedBox(height: 24),
@@ -203,7 +202,7 @@ class _HistoryPageState extends State<HistoryPage> {
                       padding: const EdgeInsets.only(
                         left: 16,
                         right: 16,
-                        bottom: 100,
+                        bottom: 16,
                       ),
                       itemCount: _transcriptions.length,
                       itemBuilder: (context, index) =>

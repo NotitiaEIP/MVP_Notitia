@@ -641,9 +641,8 @@ class _CapturePageState extends State<CapturePage>
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      bottom: false,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 100),
+        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 16),
         child: Column(
           children: [
             const SizedBox(height: 24),

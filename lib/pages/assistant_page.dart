@@ -286,7 +286,7 @@ class _AssistantPageState extends State<AssistantPage>
               final keyboardHeight = mq.viewInsets.bottom;
               final spacing = keyboardHeight > 0
                   ? keyboardHeight + 8
-                  : mq.padding.bottom + 86;
+                  : mq.padding.bottom;
               return SizedBox(height: spacing);
             },
           ),

@@ -520,13 +520,12 @@ class _MeetingPageState extends State<MeetingPage> {
   // ===== PAGE D'ACCUEIL RÉUNION =====
   Widget _buildHomePage() {
     return SafeArea(
-      bottom: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(
           left: 20,
           right: 20,
           top: 20,
-          bottom: 100,
+          bottom: 16,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -859,7 +858,7 @@ class _MeetingPageState extends State<MeetingPage> {
                   padding: const EdgeInsets.only(
                     left: 20,
                     right: 20,
-                    bottom: 100,
+                    bottom: 16,
                   ),
                   children: [
                     _buildParticipantTile(
@@ -1096,7 +1095,6 @@ class _MeetingPageState extends State<MeetingPage> {
     }
 
     return SafeArea(
-      bottom: false,
       child: Column(
         children: [
           const SizedBox(height: 24),
@@ -1223,7 +1221,7 @@ class _MeetingPageState extends State<MeetingPage> {
           const SizedBox(height: 8),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 100),
+              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 16),
               children: _clientService.participants
                   .map((p) => _buildParticipantTile(name: p.name))
                   .toList(),

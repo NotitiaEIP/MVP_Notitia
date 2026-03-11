@@ -756,7 +756,6 @@ class _MindMapPageState extends State<MindMapPage>
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
-        bottom: false,
         child: Column(
           children: [
             const SizedBox(height: 24),
@@ -958,7 +957,7 @@ class _MindMapPageState extends State<MindMapPage>
               left: 16,
               right: 16,
               top: 16,
-              bottom: 100,
+              bottom: 16,
             ),
             itemCount: _transcriptions.length,
             itemBuilder: (context, index) {
@@ -1092,7 +1091,7 @@ class _MindMapPageState extends State<MindMapPage>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 16),
       itemCount: _savedMindMaps.length,
       itemBuilder: (context, index) {
         final mindMap = _savedMindMaps[index];
@@ -1528,33 +1527,28 @@ class _MindMapPageState extends State<MindMapPage>
 
     final canGenerate = _selectedTranscriptionIds.isNotEmpty;
 
-    final dockPadding = MediaQuery.of(context).padding.bottom + 76;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: dockPadding),
-      child: FloatingActionButton.extended(
-        onPressed: _isLoading ? null : _showEnginePickerAndGenerate,
-        backgroundColor: canGenerate
-            ? NotitiaTheme.neonCyan
-            : NotitiaTheme.grey.withValues(alpha: 0.5),
-        icon: _isLoading
-            ? SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: NotitiaTheme.deepBlue,
-                ),
-              )
-            : Icon(Icons.auto_awesome, color: NotitiaTheme.deepBlue),
-        label: Text(
-          _isLoading
-              ? _languageService.translate('generating_label')
-              : _languageService.translate('generate_mindmap_button_label'),
-          style: TextStyle(
-            color: NotitiaTheme.deepBlue,
-            fontWeight: FontWeight.bold,
-          ),
+    return FloatingActionButton.extended(
+      onPressed: _isLoading ? null : _showEnginePickerAndGenerate,
+      backgroundColor: canGenerate
+          ? NotitiaTheme.neonCyan
+          : NotitiaTheme.grey.withValues(alpha: 0.5),
+      icon: _isLoading
+          ? SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: NotitiaTheme.deepBlue,
+              ),
+            )
+          : Icon(Icons.auto_awesome, color: NotitiaTheme.deepBlue),
+      label: Text(
+        _isLoading
+            ? _languageService.translate('generating_label')
+            : _languageService.translate('generate_mindmap_button_label'),
+        style: TextStyle(
+          color: NotitiaTheme.deepBlue,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
