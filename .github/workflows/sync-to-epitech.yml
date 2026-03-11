@@ -1,0 +1,23 @@
+name: Sync to Epitech Repository
+
+on:
+  push:  # Triggered on ALL branches
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Clone full history for clean mirroring
+
+      - name: Push all branches and tags to Epitech repository
+        env:
+          EPITECH_PAT: ${{ secrets.EPITECH_PAT }}
+        run: |
+          git remote add epitech https://x-access-token:${EPITECH_PAT}@github.com/EpitechPGE3-2025/G-EIP-600-NCE-6-1-eip-5.git
+          git push epitech --all --force  # Force push required for mirror synchronisation
+          git push epitech --tags --force  # Force push required for mirror synchronisation
