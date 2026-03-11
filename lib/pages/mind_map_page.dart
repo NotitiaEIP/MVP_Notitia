@@ -624,7 +624,6 @@ class _MindMapPageState extends State<MindMapPage>
 
   /// Construit la section « Source Text » avec highlight contextuel
   Widget _buildSourceTextSection(String sourceText) {
-    // Chercher le passage dans toutes les transcriptions sélectionnées pour du contexte
     final allContent = _selectedTranscriptions
         .map((t) => t.content)
         .join('\n\n');
@@ -757,6 +756,7 @@ class _MindMapPageState extends State<MindMapPage>
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             const SizedBox(height: 24),
@@ -777,7 +777,12 @@ class _MindMapPageState extends State<MindMapPage>
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      _languageService.translate('mindmap_nodes_label').replaceAll('{count}', _currentMindMap!.totalNodes.toString()),
+                      _languageService
+                          .translate('mindmap_nodes_label')
+                          .replaceAll(
+                            '{count}',
+                            _currentMindMap!.totalNodes.toString(),
+                          ),
                       style: const TextStyle(
                         color: NotitiaTheme.neonPink,
                         fontSize: 12,
@@ -787,7 +792,9 @@ class _MindMapPageState extends State<MindMapPage>
                 if (_currentMindMap == null)
                   IconButton(
                     icon: Icon(Icons.refresh, color: NotitiaTheme.neonCyan),
-                    tooltip: _languageService.translate('refresh_transcriptions_tooltip'),
+                    tooltip: _languageService.translate(
+                      'refresh_transcriptions_tooltip',
+                    ),
                     onPressed: _loadTranscriptions,
                   ),
                 if (_currentMindMap != null)
@@ -917,7 +924,12 @@ class _MindMapPageState extends State<MindMapPage>
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _languageService.translate('transcription_selected_count').replaceAll('{count}', _selectedTranscriptionIds.length.toString()),
+                  _languageService
+                      .translate('transcription_selected_count')
+                      .replaceAll(
+                        '{count}',
+                        _selectedTranscriptionIds.length.toString(),
+                      ),
                   style: const TextStyle(
                     color: NotitiaTheme.neonCyan,
                     fontWeight: FontWeight.w600,
@@ -942,7 +954,12 @@ class _MindMapPageState extends State<MindMapPage>
           ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: 100,
+            ),
             itemCount: _transcriptions.length,
             itemBuilder: (context, index) {
               final transcription = _transcriptions[index];
@@ -1075,7 +1092,7 @@ class _MindMapPageState extends State<MindMapPage>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
       itemCount: _savedMindMaps.length,
       itemBuilder: (context, index) {
         final mindMap = _savedMindMaps[index];
@@ -1198,67 +1215,121 @@ class _MindMapPageState extends State<MindMapPage>
   }
 
   Widget _buildTextInput() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    final canGenerate = _textController.text.isNotEmpty;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              maxLines: null,
-              expands: true,
-              style: const TextStyle(color: NotitiaTheme.white),
-              decoration: InputDecoration(
-                hintText: _languageService.translate('paste_or_type_text_hint'),
-                hintStyle: TextStyle(
-                  color: NotitiaTheme.grey.withValues(alpha: 0.5),
-                ),
-                filled: true,
-                fillColor: NotitiaTheme.darkBlue,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: NotitiaTheme.grey.withValues(alpha: 0.3),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: NotitiaTheme.grey.withValues(alpha: 0.3),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: NotitiaTheme.neonCyan),
+          // Zone de texte — grandit avec le contenu
+          TextField(
+            controller: _textController,
+            maxLines: null,
+            minLines: 4,
+            style: const TextStyle(color: NotitiaTheme.white),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: _languageService.translate('paste_or_type_text_hint'),
+              hintStyle: TextStyle(
+                color: NotitiaTheme.grey.withValues(alpha: 0.5),
+              ),
+              filled: true,
+              fillColor: NotitiaTheme.darkBlue,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: NotitiaTheme.grey.withValues(alpha: 0.3),
                 ),
               ),
-              textAlignVertical: TextAlignVertical.top,
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: NotitiaTheme.grey.withValues(alpha: 0.3),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: NotitiaTheme.neonCyan),
+              ),
             ),
+            textAlignVertical: TextAlignVertical.top,
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          // Barre d'actions + bouton Générer
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 4,
+            runSpacing: 8,
             children: [
               TextButton.icon(
                 onPressed: () async {
                   final data = await Clipboard.getData(Clipboard.kTextPlain);
                   if (data?.text != null) {
-                    _textController.text = data!.text!;
+                    setState(() => _textController.text = data!.text!);
                   }
                 },
-                icon: const Icon(Icons.paste, color: NotitiaTheme.grey),
+                icon: const Icon(
+                  Icons.paste,
+                  color: NotitiaTheme.grey,
+                  size: 18,
+                ),
                 label: const Text(
                   'Coller',
-                  style: TextStyle(color: NotitiaTheme.grey),
+                  style: TextStyle(color: NotitiaTheme.grey, fontSize: 13),
                 ),
               ),
-              const SizedBox(width: 8),
               TextButton.icon(
-                onPressed: () => _textController.clear(),
-                icon: const Icon(Icons.clear, color: NotitiaTheme.grey),
+                onPressed: () => setState(() => _textController.clear()),
+                icon: const Icon(
+                  Icons.clear,
+                  color: NotitiaTheme.grey,
+                  size: 18,
+                ),
                 label: const Text(
                   'Effacer',
-                  style: TextStyle(color: NotitiaTheme.grey),
+                  style: TextStyle(color: NotitiaTheme.grey, fontSize: 13),
+                ),
+              ),
+              AnimatedOpacity(
+                opacity: canGenerate ? 1.0 : 0.45,
+                duration: const Duration(milliseconds: 200),
+                child: FilledButton.icon(
+                  onPressed: _isLoading || !canGenerate
+                      ? null
+                      : _showEnginePickerAndGenerate,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: NotitiaTheme.neonCyan,
+                    foregroundColor: NotitiaTheme.deepBlue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                  ),
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: NotitiaTheme.deepBlue,
+                          ),
+                        )
+                      : const Icon(Icons.auto_awesome, size: 18),
+                  label: Text(
+                    _isLoading
+                        ? _languageService.translate('generating_label')
+                        : _languageService.translate(
+                            'generate_mindmap_button_label',
+                          ),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1452,32 +1523,38 @@ class _MindMapPageState extends State<MindMapPage>
 
   Widget _buildFAB() {
     if (_currentMindMap != null) return const SizedBox.shrink();
-    if (_tabController.index == 2) return const SizedBox.shrink(); // Saved tab
+    // Onglet Sauvegardées ou Texte libre : pas de FAB (bouton intégré dans la page)
+    if (_tabController.index != 0) return const SizedBox.shrink();
 
-    final canGenerate =
-        (_tabController.index == 0 && _selectedTranscriptionIds.isNotEmpty) ||
-        (_tabController.index == 1 && _textController.text.isNotEmpty);
+    final canGenerate = _selectedTranscriptionIds.isNotEmpty;
 
-    return FloatingActionButton.extended(
-      onPressed: _isLoading ? null : _showEnginePickerAndGenerate,
-      backgroundColor: canGenerate
-          ? NotitiaTheme.neonCyan
-          : NotitiaTheme.grey.withValues(alpha: 0.5),
-      icon: _isLoading
-          ? SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: NotitiaTheme.deepBlue,
-              ),
-            )
-          : Icon(Icons.auto_awesome, color: NotitiaTheme.deepBlue),
-      label: Text(
-        _isLoading ? _languageService.translate('generating_label') : _languageService.translate('generate_mindmap_button_label'),
-        style: TextStyle(
-          color: NotitiaTheme.deepBlue,
-          fontWeight: FontWeight.bold,
+    final dockPadding = MediaQuery.of(context).padding.bottom + 76;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: dockPadding),
+      child: FloatingActionButton.extended(
+        onPressed: _isLoading ? null : _showEnginePickerAndGenerate,
+        backgroundColor: canGenerate
+            ? NotitiaTheme.neonCyan
+            : NotitiaTheme.grey.withValues(alpha: 0.5),
+        icon: _isLoading
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: NotitiaTheme.deepBlue,
+                ),
+              )
+            : Icon(Icons.auto_awesome, color: NotitiaTheme.deepBlue),
+        label: Text(
+          _isLoading
+              ? _languageService.translate('generating_label')
+              : _languageService.translate('generate_mindmap_button_label'),
+          style: TextStyle(
+            color: NotitiaTheme.deepBlue,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );

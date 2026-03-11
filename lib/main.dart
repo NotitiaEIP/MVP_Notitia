@@ -5,6 +5,8 @@
 //                   Recherche sémantique
 // =============================================================================
 
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -143,7 +145,6 @@ class _MainNavigationState extends State<MainNavigation>
     with WidgetsBindingObserver {
   int _currentIndex = 2; // Capture au centre
   final _authService = AuthService();
-  final _languageService = LanguageService();
   UserProfile? _profile;
   bool _fromOnboarding = false;
 
@@ -283,7 +284,10 @@ class _MainNavigationState extends State<MainNavigation>
 
   @override
   Widget build(BuildContext context) {
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
+
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           // Contenu principal
@@ -336,17 +340,22 @@ class _MainNavigationState extends State<MainNavigation>
               visible: _showMeduza,
               onDismiss: _dismissMeduza,
             ),
+          // ── Floating Glass Dock ──
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 10 + bottomSafe,
+            child: _buildFloatingDock(),
+          ),
         ],
       ),
-      bottomNavigationBar: _buildPremiumNav(),
     );
   }
 
   // ===========================================================================
-  // PREMIUM NAVIGATION BAR
+  // FLOATING GLASS DOCK (iPadOS / Dynamic Island style)
   // ===========================================================================
 
-  /// Données des onglets (ordre visuel : Historique, Réunion, [Capture], MindMap, Assistant)
   static const _navIcons = [
     Icons.history_rounded,
     Icons.groups_rounded,
@@ -355,200 +364,149 @@ class _MainNavigationState extends State<MainNavigation>
     Icons.auto_awesome,
   ];
 
-  List<String> get _navLabels => [
-    _languageService.translate('history_title'),
-    'RÉUNION',
-    _languageService.translate('capture').toUpperCase(),
-    _languageService.translate('mindmap').toUpperCase(),
-    _languageService.translate('assistant').toUpperCase(),
-  ];
-
-  Widget _buildPremiumNav() {
+  Widget _buildFloatingDock() {
+    const double dockHeight = 56;
+    const double borderWidth = 1.5;
+    const double dockTotalHeight = dockHeight + borderWidth * 2;
+    const double centerBtnSize = 64;
+    const double dockRadius = 32;
     const int centerIndex = 2;
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: NotitiaTheme.darkBlue,
-        boxShadow: [
-          BoxShadow(
-            color: NotitiaTheme.neonPink.withValues(alpha: 0.12),
-            blurRadius: 24,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 68 + bottomPadding * 0.1,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // ── Trait néon supérieur ──
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
+    return SizedBox(
+      height: centerBtnSize + 4,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          // ── Glass dock body with gradient border ──
+          Container(
+            height: dockTotalHeight,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(dockRadius),
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  NotitiaTheme.neonPink.withValues(alpha: 0.6),
+                  NotitiaTheme.neonPink.withValues(alpha: 0.15),
+                  NotitiaTheme.neonCyan.withValues(alpha: 0.15),
+                  NotitiaTheme.neonCyan.withValues(alpha: 0.6),
+                ],
+              ),
+            ),
+            padding: const EdgeInsets.all(borderWidth),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(dockRadius - borderWidth),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
                 child: Container(
-                  height: 1,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.transparent,
-                        NotitiaTheme.neonPink.withValues(alpha: 0.5),
-                        NotitiaTheme.neonCyan.withValues(alpha: 0.5),
-                        Colors.transparent,
-                      ],
-                    ),
+                    color: NotitiaTheme.darkBlue.withValues(alpha: 0.55),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildDockIcon(0),
+                      _buildDockIcon(1),
+                      SizedBox(width: centerBtnSize + 8),
+                      _buildDockIcon(3),
+                      _buildDockIcon(4),
+                    ],
                   ),
                 ),
               ),
-
-              // ── Onglets latéraux ──
-              Row(
-                children: List.generate(5, (i) {
-                  if (i == centerIndex) {
-                    // Espace réservé pour le bouton central
-                    return const SizedBox(width: 72);
-                  }
-                  return Expanded(child: _buildNavItem(i));
-                }),
-              ),
-
-              // ── Bouton central flottant (Capture) ──
-              Positioned(
-                top: -22,
-                left: 0,
-                right: 0,
-                child: Center(child: _buildCenterButton(centerIndex)),
-              ),
-            ],
+            ),
           ),
-        ),
+          // ── Center floating button (protrudes above & below) ──
+          _buildDockCenterButton(centerIndex),
+        ],
       ),
     );
   }
 
-  Widget _buildNavItem(int index) {
+  Widget _buildDockIcon(int index) {
     final isSelected = _currentIndex == index;
     final color = isSelected ? NotitiaTheme.neonPink : NotitiaTheme.grey;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _onTabChanged(index),
-      child: Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Glow indicator
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOut,
-              height: 3,
-              width: isSelected ? 24 : 0,
-              margin: const EdgeInsets.only(bottom: 6),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(2),
-                color: NotitiaTheme.neonPink,
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: NotitiaTheme.neonPink.withValues(alpha: 0.6),
-                          blurRadius: 8,
-                        ),
-                      ]
-                    : [],
-              ),
+      child: SizedBox(
+        width: 50,
+        height: 50,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? NotitiaTheme.neonPink.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
             ),
-            Icon(_navIcons[index], size: 22, color: color),
-            const SizedBox(height: 4),
-            Text(
-              _navLabels[index],
-              style: GoogleFonts.orbitron(
-                fontSize: 9,
-                color: color,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                letterSpacing: 0.5,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+            child: Icon(_navIcons[index], size: 26, color: color),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCenterButton(int index) {
+  Widget _buildDockCenterButton(int index) {
     final isSelected = _currentIndex == index;
+    const double size = 64;
 
     return GestureDetector(
       onTap: () => _onTabChanged(index),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Bouton circulaire élevé
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: isSelected
-                  ? const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [NotitiaTheme.neonPink, Color(0xFFAA0055)],
-                    )
-                  : LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [NotitiaTheme.darkBlue, NotitiaTheme.deepBlue],
-                    ),
-              border: Border.all(
-                color: isSelected
-                    ? NotitiaTheme.neonPink
-                    : NotitiaTheme.grey.withValues(alpha: 0.4),
-                width: isSelected ? 2 : 1.5,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: isSelected
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [NotitiaTheme.neonPink, Color(0xFFAA0055)],
+                )
+              : LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    NotitiaTheme.darkBlue.withValues(alpha: 0.9),
+                    NotitiaTheme.deepBlue,
+                  ],
+                ),
+          border: Border.all(
+            color: isSelected
+                ? NotitiaTheme.neonPink
+                : NotitiaTheme.grey.withValues(alpha: 0.4),
+            width: isSelected ? 2 : 1.5,
+          ),
+          boxShadow: [
+            if (isSelected) ...[
+              BoxShadow(
+                color: NotitiaTheme.neonPink.withValues(alpha: 0.5),
+                blurRadius: 18,
+                spreadRadius: 2,
               ),
-              boxShadow: [
-                if (isSelected) ...[
-                  BoxShadow(
-                    color: NotitiaTheme.neonPink.withValues(alpha: 0.5),
-                    blurRadius: 18,
-                    spreadRadius: 2,
-                  ),
-                  BoxShadow(
-                    color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
-                    blurRadius: 40,
-                    spreadRadius: 8,
-                  ),
-                ] else
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-              ],
-            ),
-            child: Icon(
-              Icons.mic_rounded,
-              size: 28,
-              color: isSelected ? NotitiaTheme.white : NotitiaTheme.grey,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _navLabels[index],
-            style: GoogleFonts.orbitron(
-              fontSize: 9,
-              color: isSelected ? NotitiaTheme.neonPink : NotitiaTheme.grey,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
+              BoxShadow(
+                color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
+                blurRadius: 40,
+                spreadRadius: 8,
+              ),
+            ] else
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+          ],
+        ),
+        child: Icon(
+          Icons.mic_rounded,
+          size: 30,
+          color: isSelected ? NotitiaTheme.white : NotitiaTheme.grey,
+        ),
       ),
     );
   }

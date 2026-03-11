@@ -25,7 +25,8 @@ import '../widgets/meduza_speech_bubble.dart';
 class MeetingPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
   final void Function(MeduzaState state, {String? message, BubbleStyle style})?
-      onMeduzaStateChanged;
+  onMeduzaStateChanged;
+
   /// Callback pour naviguer vers l'onglet historique filtré sur les réunions.
   final VoidCallback? onNavigateToHistory;
 
@@ -208,7 +209,10 @@ class _MeetingPageState extends State<MeetingPage> {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               _languageService.translate('cancel'),
-              style: GoogleFonts.orbitron(fontSize: 11, color: NotitiaTheme.grey),
+              style: GoogleFonts.orbitron(
+                fontSize: 11,
+                color: NotitiaTheme.grey,
+              ),
             ),
           ),
           ElevatedButton(
@@ -221,7 +225,10 @@ class _MeetingPageState extends State<MeetingPage> {
             ),
             child: Text(
               _languageService.translate('confirm'),
-              style: GoogleFonts.orbitron(fontSize: 11, color: NotitiaTheme.white),
+              style: GoogleFonts.orbitron(
+                fontSize: 11,
+                color: NotitiaTheme.white,
+              ),
             ),
           ),
         ],
@@ -245,18 +252,26 @@ class _MeetingPageState extends State<MeetingPage> {
     String finalContent = _fullTranscript;
     if (finalContent.isNotEmpty) {
       try {
-        finalContent = await MistralService.instance.correctTranscription(finalContent);
+        finalContent = await MistralService.instance.correctTranscription(
+          finalContent,
+        );
       } catch (e) {
         debugPrint('Erreur Mistral: $e');
       }
     }
 
     // Créer la transcription
-    final participantNames = _hostService.participants.map((p) => p.name).join(', ');
+    final participantNames = _hostService.participants
+        .map((p) => p.name)
+        .join(', ');
     final hostName = await _getUserName();
-    final title = _languageService.translate('meeting_title_template')
+    final title = _languageService
+        .translate('meeting_title_template')
         .replaceAll('{hostname}', hostName)
-        .replaceAll('{participants}', participantNames.isNotEmpty ? ' + $participantNames' : '');
+        .replaceAll(
+          '{participants}',
+          participantNames.isNotEmpty ? ' + $participantNames' : '',
+        );
 
     final transcription = Transcription.create(
       content: finalContent.isEmpty
@@ -282,7 +297,9 @@ class _MeetingPageState extends State<MeetingPage> {
 
     widget.onMeduzaStateChanged?.call(
       MeduzaState.happy,
-      message: _languageService.translate('meeting_ended_success_message').replaceAll('{count}', _hostService.participants.length.toString()),
+      message: _languageService
+          .translate('meeting_ended_success_message')
+          .replaceAll('{count}', _hostService.participants.length.toString()),
       style: BubbleStyle.success,
     );
 
@@ -343,7 +360,9 @@ class _MeetingPageState extends State<MeetingPage> {
 
       // Sauvegarder les métadonnées de la réunion côté participant
       final meeting = Meeting(
-        id: _clientService.meetingId ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        id:
+            _clientService.meetingId ??
+            DateTime.now().millisecondsSinceEpoch.toString(),
         hostName: _clientService.hostName ?? 'Hôte',
         startedAt: DateTime.now().subtract(const Duration(minutes: 1)),
         endedAt: DateTime.now(),
@@ -440,8 +459,11 @@ class _MeetingPageState extends State<MeetingPage> {
                     color: NotitiaTheme.neonPink.withValues(alpha: 0.3),
                   ),
                 ),
-                child: const Icon(Icons.lock_outline_rounded,
-                    color: NotitiaTheme.neonPink, size: 34),
+                child: const Icon(
+                  Icons.lock_outline_rounded,
+                  color: NotitiaTheme.neonPink,
+                  size: 34,
+                ),
               ),
               const SizedBox(height: 24),
               Text(
@@ -498,8 +520,14 @@ class _MeetingPageState extends State<MeetingPage> {
   // ===== PAGE D'ACCUEIL RÉUNION =====
   Widget _buildHomePage() {
     return SafeArea(
+      bottom: false,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: 100,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -524,9 +552,7 @@ class _MeetingPageState extends State<MeetingPage> {
               ],
             ),
             const SizedBox(height: 6),
-            Divider(
-              color: NotitiaTheme.neonPink.withValues(alpha: 0.3),
-            ),
+            Divider(color: NotitiaTheme.neonPink.withValues(alpha: 0.3)),
             const SizedBox(height: 32),
 
             // Description
@@ -583,8 +609,11 @@ class _MeetingPageState extends State<MeetingPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded,
-                        color: NotitiaTheme.redRecording, size: 20),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: NotitiaTheme.redRecording,
+                      size: 20,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -665,7 +694,10 @@ class _MeetingPageState extends State<MeetingPage> {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.5)),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: color.withValues(alpha: 0.5),
+            ),
           ],
         ),
       ),
@@ -696,8 +728,11 @@ class _MeetingPageState extends State<MeetingPage> {
                             });
                           }
                         },
-                        child: const Icon(Icons.arrow_back_ios_rounded,
-                            color: NotitiaTheme.white, size: 20),
+                        child: const Icon(
+                          Icons.arrow_back_ios_rounded,
+                          color: NotitiaTheme.white,
+                          size: 20,
+                        ),
                       ),
                     if (_isRecording)
                       Container(
@@ -708,7 +743,9 @@ class _MeetingPageState extends State<MeetingPage> {
                           color: NotitiaTheme.redRecording,
                           boxShadow: [
                             BoxShadow(
-                              color: NotitiaTheme.redRecording.withValues(alpha: 0.5),
+                              color: NotitiaTheme.redRecording.withValues(
+                                alpha: 0.5,
+                              ),
                               blurRadius: 8,
                             ),
                           ],
@@ -717,7 +754,9 @@ class _MeetingPageState extends State<MeetingPage> {
                     const SizedBox(width: 10),
                     Text(
                       _isRecording
-                          ? _languageService.translate('meeting_in_progress_label')
+                          ? _languageService.translate(
+                              'meeting_in_progress_label',
+                            )
                           : _languageService.translate('waiting_room_label'),
                       style: GoogleFonts.orbitron(
                         fontSize: 16,
@@ -742,10 +781,11 @@ class _MeetingPageState extends State<MeetingPage> {
               ),
               const SizedBox(height: 6),
               Divider(
-                color: (_isRecording
-                        ? NotitiaTheme.redRecording
-                        : NotitiaTheme.neonCyan)
-                    .withValues(alpha: 0.3),
+                color:
+                    (_isRecording
+                            ? NotitiaTheme.redRecording
+                            : NotitiaTheme.neonCyan)
+                        .withValues(alpha: 0.3),
                 indent: 20,
                 endIndent: 20,
               ),
@@ -755,7 +795,8 @@ class _MeetingPageState extends State<MeetingPage> {
               if (_qrData != null) ...[
                 Container(
                   margin: EdgeInsets.symmetric(
-                      horizontal: _isRecording ? 60 : 40),
+                    horizontal: _isRecording ? 60 : 40,
+                  ),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -790,11 +831,19 @@ class _MeetingPageState extends State<MeetingPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    const Icon(Icons.people_outline,
-                        color: NotitiaTheme.neonCyan, size: 18),
+                    const Icon(
+                      Icons.people_outline,
+                      color: NotitiaTheme.neonCyan,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Text(
-                      _languageService.translate('participants_label').replaceAll('{count}', (_hostService.participants.length + 1).toString()),
+                      _languageService
+                          .translate('participants_label')
+                          .replaceAll(
+                            '{count}',
+                            (_hostService.participants.length + 1).toString(),
+                          ),
                       style: GoogleFonts.orbitron(
                         fontSize: 12,
                         color: NotitiaTheme.neonCyan,
@@ -807,7 +856,11 @@ class _MeetingPageState extends State<MeetingPage> {
               const SizedBox(height: 8),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    bottom: 100,
+                  ),
                   children: [
                     _buildParticipantTile(
                       name: _languageService.translate('you_host_label'),
@@ -823,8 +876,8 @@ class _MeetingPageState extends State<MeetingPage> {
                             _liveText.isNotEmpty)) ...[
                       const SizedBox(height: 20),
                       Divider(
-                          color:
-                              NotitiaTheme.neonPink.withValues(alpha: 0.2)),
+                        color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         _languageService.translate('live_transcription_label'),
@@ -841,16 +894,16 @@ class _MeetingPageState extends State<MeetingPage> {
                           color: NotitiaTheme.darkBlue,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color:
-                                NotitiaTheme.neonPink.withValues(alpha: 0.15),
+                            color: NotitiaTheme.neonPink.withValues(
+                              alpha: 0.15,
+                            ),
                           ),
                         ),
                         child: Text(
                           '$_fullTranscript${_liveText.isNotEmpty ? ' $_liveText' : ''}',
                           style: GoogleFonts.poppins(
                             fontSize: 13,
-                            color:
-                                NotitiaTheme.white.withValues(alpha: 0.85),
+                            color: NotitiaTheme.white.withValues(alpha: 0.85),
                             height: 1.5,
                           ),
                         ),
@@ -885,15 +938,18 @@ class _MeetingPageState extends State<MeetingPage> {
                               borderRadius: BorderRadius.circular(14),
                             ),
                             elevation: 4,
-                            shadowColor: NotitiaTheme.redRecording
-                                .withValues(alpha: 0.4),
+                            shadowColor: NotitiaTheme.redRecording.withValues(
+                              alpha: 0.4,
+                            ),
                           ),
                         )
                       : ElevatedButton.icon(
                           onPressed: _launchRecording,
                           icon: const Icon(Icons.mic_rounded, size: 26),
                           label: Text(
-                            _languageService.translate('start_recording_button'),
+                            _languageService.translate(
+                              'start_recording_button',
+                            ),
                             style: GoogleFonts.orbitron(
                               fontSize: 12,
                               letterSpacing: 2,
@@ -907,8 +963,9 @@ class _MeetingPageState extends State<MeetingPage> {
                               borderRadius: BorderRadius.circular(14),
                             ),
                             elevation: 4,
-                            shadowColor:
-                                NotitiaTheme.neonPink.withValues(alpha: 0.4),
+                            shadowColor: NotitiaTheme.neonPink.withValues(
+                              alpha: 0.4,
+                            ),
                           ),
                         ),
                 ),
@@ -990,7 +1047,9 @@ class _MeetingPageState extends State<MeetingPage> {
                   name.isNotEmpty ? name[0].toUpperCase() : '?',
                   style: GoogleFonts.orbitron(
                     fontSize: 14,
-                    color: isHost ? NotitiaTheme.neonPink : NotitiaTheme.neonCyan,
+                    color: isHost
+                        ? NotitiaTheme.neonPink
+                        : NotitiaTheme.neonCyan,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1037,6 +1096,7 @@ class _MeetingPageState extends State<MeetingPage> {
     }
 
     return SafeArea(
+      bottom: false,
       child: Column(
         children: [
           const SizedBox(height: 24),
@@ -1067,8 +1127,10 @@ class _MeetingPageState extends State<MeetingPage> {
                   _clientService.status == MeetingStatus.waiting
                       ? _languageService.translate('status_waiting')
                       : _clientService.status == MeetingStatus.ended
-                          ? _languageService.translate('status_meeting_ended')
-                          : _languageService.translate('status_meeting_in_progress'),
+                      ? _languageService.translate('status_meeting_ended')
+                      : _languageService.translate(
+                          'status_meeting_in_progress',
+                        ),
                   style: GoogleFonts.orbitron(
                     fontSize: 16,
                     color: _clientService.status == MeetingStatus.ended
@@ -1104,7 +1166,12 @@ class _MeetingPageState extends State<MeetingPage> {
               child: Column(
                 children: [
                   Text(
-                    _languageService.translate('host_info_label').replaceAll('{hostname}', _clientService.hostName ?? '…'),
+                    _languageService
+                        .translate('host_info_label')
+                        .replaceAll(
+                          '{hostname}',
+                          _clientService.hostName ?? '…',
+                        ),
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       color: NotitiaTheme.white,
@@ -1131,10 +1198,19 @@ class _MeetingPageState extends State<MeetingPage> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
-                const Icon(Icons.people_outline, color: NotitiaTheme.neonCyan, size: 18),
+                const Icon(
+                  Icons.people_outline,
+                  color: NotitiaTheme.neonCyan,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  _languageService.translate('participants_label').replaceAll('{count}', _clientService.participants.length.toString()),
+                  _languageService
+                      .translate('participants_label')
+                      .replaceAll(
+                        '{count}',
+                        _clientService.participants.length.toString(),
+                      ),
                   style: GoogleFonts.orbitron(
                     fontSize: 12,
                     color: NotitiaTheme.neonCyan,
@@ -1147,10 +1223,10 @@ class _MeetingPageState extends State<MeetingPage> {
           const SizedBox(height: 8),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              children: _clientService.participants.map(
-                (p) => _buildParticipantTile(name: p.name),
-              ).toList(),
+              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 100),
+              children: _clientService.participants
+                  .map((p) => _buildParticipantTile(name: p.name))
+                  .toList(),
             ),
           ),
 
@@ -1185,8 +1261,10 @@ class _MeetingPageState extends State<MeetingPage> {
                       _clientService.status == MeetingStatus.waiting
                           ? _languageService.translate('waiting_host_launch')
                           : _clientService.status == MeetingStatus.ended
-                              ? _languageService.translate('receiving_transcription')
-                              : _languageService.translate('waiting_meeting_end'),
+                          ? _languageService.translate(
+                              'receiving_transcription',
+                            )
+                          : _languageService.translate('waiting_meeting_end'),
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: _clientService.status == MeetingStatus.ended
@@ -1391,7 +1469,10 @@ class _QrScannerPageState extends State<_QrScannerPage>
               // Barre du haut
               SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       GestureDetector(
@@ -1406,8 +1487,11 @@ class _QrScannerPageState extends State<_QrScannerPage>
                               color: NotitiaTheme.white.withValues(alpha: 0.15),
                             ),
                           ),
-                          child: const Icon(Icons.close_rounded,
-                              color: Colors.white, size: 22),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                       ),
                       const Spacer(),
@@ -1433,8 +1517,10 @@ class _QrScannerPageState extends State<_QrScannerPage>
                 right: 30,
                 child: Center(
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: NotitiaTheme.deepBlue.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(14),
@@ -1445,9 +1531,11 @@ class _QrScannerPageState extends State<_QrScannerPage>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.qr_code_scanner_rounded,
-                            color: NotitiaTheme.neonCyan.withValues(alpha: 0.7),
-                            size: 20),
+                        Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: NotitiaTheme.neonCyan.withValues(alpha: 0.7),
+                          size: 20,
+                        ),
                         const SizedBox(width: 10),
                         Text(
                           _languageService.translate('scanner_instruction'),
@@ -1518,7 +1606,8 @@ class _ViewfinderCornersPainter extends CustomPainter {
     const cornerLen = 35.0;
     const radius = 16.0;
     final paint = Paint()
-      ..color = const Color(0xFFFF0178) // Neon Pink
+      ..color =
+          const Color(0xFFFF0178) // Neon Pink
       ..strokeWidth = 3.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -1544,7 +1633,11 @@ class _ViewfinderCornersPainter extends CustomPainter {
       ..moveTo(rect.left, rect.bottom - cornerLen)
       ..lineTo(rect.left, rect.bottom - radius)
       ..quadraticBezierTo(
-          rect.left, rect.bottom, rect.left + radius, rect.bottom)
+        rect.left,
+        rect.bottom,
+        rect.left + radius,
+        rect.bottom,
+      )
       ..lineTo(rect.left + cornerLen, rect.bottom);
     canvas.drawPath(blPath, paint);
 
@@ -1553,7 +1646,11 @@ class _ViewfinderCornersPainter extends CustomPainter {
       ..moveTo(rect.right - cornerLen, rect.bottom)
       ..lineTo(rect.right - radius, rect.bottom)
       ..quadraticBezierTo(
-          rect.right, rect.bottom, rect.right, rect.bottom - radius)
+        rect.right,
+        rect.bottom,
+        rect.right,
+        rect.bottom - radius,
+      )
       ..lineTo(rect.right, rect.bottom - cornerLen);
     canvas.drawPath(brPath, paint);
   }

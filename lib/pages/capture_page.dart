@@ -68,7 +68,6 @@ class _CapturePageState extends State<CapturePage>
   // Deepgram Nova-3
   // ---------------------------------------------------------------------------
   late DeepgramService _deepgram;
-  bool _deepgramConnected = false;
 
   // ---------------------------------------------------------------------------
   // État commun
@@ -186,12 +185,10 @@ class _CapturePageState extends State<CapturePage>
     };
 
     _deepgram.onConnected = () {
-      if (mounted) setState(() => _deepgramConnected = true);
       debugPrint('✅ Deepgram connecté');
     };
 
     _deepgram.onDisconnected = () {
-      if (mounted) setState(() => _deepgramConnected = false);
       debugPrint('🔌 Deepgram déconnecté');
     };
   }
@@ -292,9 +289,7 @@ class _CapturePageState extends State<CapturePage>
 
     // Vérifier la disponibilité selon le moteur
     if (_sttEngine == STTEngine.native && !_speechEnabled) {
-      _showSnackBar(
-        _languageService.translate('native_service_unavailable'),
-      );
+      _showSnackBar(_languageService.translate('native_service_unavailable'));
       // Tenter de réinitialiser
       await _initSpeech();
       if (!_speechEnabled) return;
@@ -327,7 +322,9 @@ class _CapturePageState extends State<CapturePage>
         // Mettre à jour la notification avec la durée
         if (_isActiveMode && ActiveListeningService.isRunning) {
           ActiveListeningService.updateNotification(
-            _languageService.translate('transcription_in_progress').replaceAll('{duration}', _formatDuration(_listenDuration)),
+            _languageService
+                .translate('transcription_in_progress')
+                .replaceAll('{duration}', _formatDuration(_listenDuration)),
           );
         }
       }
@@ -644,8 +641,9 @@ class _CapturePageState extends State<CapturePage>
   @override
   Widget build(BuildContext context) {
     return SafeArea(
+      bottom: false,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 100),
         child: Column(
           children: [
             const SizedBox(height: 24),
@@ -782,7 +780,9 @@ class _CapturePageState extends State<CapturePage>
                       ),
                     ),
                     Text(
-                      Platform.isAndroid ? _languageService.translate('native_google') : _languageService.translate('native_apple'),
+                      Platform.isAndroid
+                          ? _languageService.translate('native_google')
+                          : _languageService.translate('native_apple'),
                       style: GoogleFonts.poppins(
                         fontSize: 9,
                         color: NotitiaTheme.grey.withValues(alpha: 0.7),
@@ -1032,7 +1032,9 @@ class _CapturePageState extends State<CapturePage>
               ),
               const SizedBox(width: 10),
               Text(
-                _languageService.translate('listening_duration').replaceAll('{duration}', _formatDuration(_listenDuration)),
+                _languageService
+                    .translate('listening_duration')
+                    .replaceAll('{duration}', _formatDuration(_listenDuration)),
                 style: GoogleFonts.orbitron(
                   fontSize: 18,
                   color: NotitiaTheme.redRecording,
@@ -1132,7 +1134,9 @@ class _CapturePageState extends State<CapturePage>
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  _isListening ? _languageService.translate('live_transcription') : _languageService.translate('transcription'),
+                  _isListening
+                      ? _languageService.translate('live_transcription')
+                      : _languageService.translate('transcription'),
                   style: GoogleFonts.orbitron(
                     fontSize: 10,
                     color: accentColor,
@@ -1219,7 +1223,9 @@ class _CapturePageState extends State<CapturePage>
                   isEmpty
                       ? (_isListening
                             ? _languageService.translate('waiting_for_speech')
-                            : _languageService.translate('transcribed_text_here'))
+                            : _languageService.translate(
+                                'transcribed_text_here',
+                              ))
                       : displayText,
                   style: GoogleFonts.poppins(
                     fontSize: 16,
