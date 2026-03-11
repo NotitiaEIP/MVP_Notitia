@@ -434,9 +434,15 @@ class _AssistantPageState extends State<AssistantPage>
                 runSpacing: 8,
                 alignment: WrapAlignment.center,
                 children: [
-                  _buildSuggestionChip(_languageService.translate('recent_discussions')),
-                  _buildSuggestionChip(_languageService.translate('summarize_conversations')),
-                  _buildSuggestionChip(_languageService.translate('budget_discussion')),
+                  _buildSuggestionChip(
+                    _languageService.translate('recent_discussions'),
+                  ),
+                  _buildSuggestionChip(
+                    _languageService.translate('summarize_conversations'),
+                  ),
+                  _buildSuggestionChip(
+                    _languageService.translate('budget_discussion'),
+                  ),
                 ],
               ),
             ],

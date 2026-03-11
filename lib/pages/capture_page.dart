@@ -645,7 +645,7 @@ class _CapturePageState extends State<CapturePage>
   Widget build(BuildContext context) {
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 100),
         child: Column(
           children: [
             const SizedBox(height: 24),
@@ -1132,7 +1132,9 @@ class _CapturePageState extends State<CapturePage>
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  _isListening ? _languageService.translate('live_transcription') : _languageService.translate('transcription'),
+                  _isListening
+                      ? _languageService.translate('live_transcription')
+                      : _languageService.translate('transcription'),
                   style: GoogleFonts.orbitron(
                     fontSize: 10,
                     color: accentColor,
@@ -1219,7 +1221,9 @@ class _CapturePageState extends State<CapturePage>
                   isEmpty
                       ? (_isListening
                             ? _languageService.translate('waiting_for_speech')
-                            : _languageService.translate('transcribed_text_here'))
+                            : _languageService.translate(
+                                'transcribed_text_here',
+                              ))
                       : displayText,
                   style: GoogleFonts.poppins(
                     fontSize: 16,
