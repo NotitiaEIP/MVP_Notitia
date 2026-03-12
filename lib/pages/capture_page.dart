@@ -111,10 +111,13 @@ class _CapturePageState extends State<CapturePage>
     _initDeepgram();
 
     // Live Activity: arrêter la transcription si demandé depuis Dynamic Island
-    LiveActivityService.instance.onStopRequested = () {
+    LiveActivityService.instance.onStopRequested = () async {
       if (_isListening && mounted) {
         debugPrint('[Capture] Stop demandé depuis Live Activity');
-        _stopListening();
+        await _stopListening();
+        if (mounted && _fullTranscript.trim().isNotEmpty) {
+          await _autoSaveTranscription();
+        }
       }
     };
 
@@ -539,6 +542,51 @@ class _CapturePageState extends State<CapturePage>
   String _formatDuration(Duration d) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(d.inMinutes.remainder(60))}:${two(d.inSeconds.remainder(60))}';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sauvegarde automatique (depuis Live Activity, sans dialogue)
+  // ---------------------------------------------------------------------------
+  Future<void> _autoSaveTranscription() async {
+    if (_fullTranscript.trim().isEmpty) return;
+
+    final now = DateTime.now();
+    final defaultTitle =
+        'Transcription ${now.day.toString().padLeft(2, '0')}/'
+        '${now.month.toString().padLeft(2, '0')}/${now.year} '
+        '${now.hour.toString().padLeft(2, '0')}:'
+        '${now.minute.toString().padLeft(2, '0')}';
+
+    // Tenter de générer un titre IA
+    String title = defaultTitle;
+    try {
+      final aiTitle = await MistralService.instance.generateTitle(
+        _fullTranscript.trim(),
+      );
+      if (aiTitle != null && aiTitle.isNotEmpty) {
+        title = aiTitle;
+      }
+    } catch (e) {
+      debugPrint('[Capture] Erreur génération titre IA: $e');
+    }
+
+    final transcription = Transcription.create(
+      content: _fullTranscript.trim(),
+      title: title,
+      tag: TranscriptionTag.transcription,
+    );
+    await StorageService.save(transcription);
+
+    // Indexation RAG automatique (en arrière-plan)
+    RAGService.instance.indexSingleTranscription(transcription);
+
+    setState(() {
+      _fullTranscript = '';
+      _liveText = '';
+    });
+
+    _showSnackBar('Transcription sauvegardée automatiquement ✓');
+    widget.onTranscriptionSaved?.call();
   }
 
   // ---------------------------------------------------------------------------
