@@ -15,6 +15,7 @@ import '../services/deepgram_service.dart';
 import '../services/foreground_service.dart';
 import '../services/mistral_service.dart';
 import '../services/rag_service.dart';
+import '../services/live_activity_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../widgets/pulsing_dot.dart';
@@ -93,6 +94,15 @@ class _CapturePageState extends State<CapturePage>
     WidgetsBinding.instance.addObserver(this);
     _initSpeech();
     _initDeepgram();
+
+    // Live Activity: arrêter la transcription si demandé depuis Dynamic Island
+    LiveActivityService.instance.onStopRequested = () {
+      if (_isListening && mounted) {
+        debugPrint('[Capture] Stop demandé depuis Live Activity');
+        _stopListening();
+      }
+    };
+
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -190,6 +200,8 @@ class _CapturePageState extends State<CapturePage>
     _pulseController.dispose();
     _speechToText.stop();
     _deepgram.dispose();
+    LiveActivityService.instance.onStopRequested = null;
+    LiveActivityService.instance.stop();
     if (_isActiveMode) ActiveListeningService.stop();
     super.dispose();
   }
@@ -268,6 +280,14 @@ class _CapturePageState extends State<CapturePage>
 
     _pulseController.forward();
 
+    // Démarrer la Live Activity (Dynamic Island / Lock Screen)
+    try {
+      await LiveActivityService.instance.start('Transcription en cours');
+      debugPrint('[Capture] ✓ LiveActivity démarrée');
+    } catch (e) {
+      debugPrint('[Capture] ✗ LiveActivity erreur: $e');
+    }
+
     // Démarrer le foreground service si écoute active
     if (_isActiveMode && !kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       await ActiveListeningService.start();
@@ -276,6 +296,10 @@ class _CapturePageState extends State<CapturePage>
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
         setState(() => _listenDuration += const Duration(seconds: 1));
+        // Mettre à jour la Live Activity avec la durée
+        final m = _listenDuration.inMinutes.remainder(60).toString().padLeft(2, '0');
+        final s = _listenDuration.inSeconds.remainder(60).toString().padLeft(2, '0');
+        LiveActivityService.instance.updateDuration('$m:$s');
         // Mettre à jour la notification avec la durée
         if (_isActiveMode && ActiveListeningService.isRunning) {
           ActiveListeningService.updateNotification(
@@ -366,6 +390,10 @@ class _CapturePageState extends State<CapturePage>
     _durationTimer?.cancel();
     _pulseController.stop();
     _pulseController.reset();
+
+    // Arrêter la Live Activity
+    await LiveActivityService.instance.stop();
+    debugPrint('[Capture] ✓ LiveActivity arrêtée');
 
     // Arrêter le foreground service
     if (_isActiveMode && ActiveListeningService.isRunning) {
