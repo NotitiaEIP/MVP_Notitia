@@ -396,5 +396,11 @@
   "nfc_receive_tooltip": "Receive via NFC",
   "filter_all": "All",
   "no_transcriptions_for_tag": "No transcriptions",
-  "no_results_tag_prefix": "No results for filter"
+  "no_results_tag_prefix": "No results for filter",
+  "delete_account_confirm_message": "This action is permanent and irreversible. All your data will be deleted. Are you sure?",
+  "delete_account_permanent_title": "PERMANENT DELETION",
+  "delete_account_permanent_message": "This is your final warning. This action cannot be undone. Your account and all data will be lost forever.",
+  "delete_permanently": "DELETE PERMANENTLY",
+  "account_deleted_success": "Account deleted successfully",
+  "delete_account_error": "Error deleting account"
 }
