@@ -17,6 +17,7 @@ import '../services/meeting_service.dart';
 import '../services/mistral_service.dart';
 import '../services/storage_service.dart';
 import '../services/auth_service.dart';
+import '../services/live_activity_service.dart';
 import '../services/language_service.dart';
 import '../theme.dart';
 import '../widgets/meduza_widget.dart';
@@ -26,8 +27,7 @@ import '../widgets/page_header.dart';
 class MeetingPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
   final void Function(MeduzaState state, {String? message, BubbleStyle style})?
-  onMeduzaStateChanged;
-
+      onMeduzaStateChanged;
   /// Callback pour naviguer vers l'onglet historique filtré sur les réunions.
   final VoidCallback? onNavigateToHistory;
 
@@ -90,6 +90,11 @@ class _MeetingPageState extends State<MeetingPage> {
     _deepgram = DeepgramService();
     _deepgram.onTranscript = _onDeepgramTranscript;
     _deepgram.onError = (err) => debugPrint('Deepgram erreur: $err');
+
+    // Live Activity : si l'utilisateur appuie Stop depuis Dynamic Island
+    LiveActivityService.instance.onStopRequested = () {
+      if (_isRecording && mounted) _stopMeetingFromLiveActivity();
+    };
   }
 
   @override
@@ -98,6 +103,8 @@ class _MeetingPageState extends State<MeetingPage> {
     _hostService.stopServer();
     _clientService.disconnect();
     _deepgram.stopListening();
+    LiveActivityService.instance.onStopRequested = null;
+    LiveActivityService.instance.stop();
     super.dispose();
   }
 
@@ -160,6 +167,19 @@ class _MeetingPageState extends State<MeetingPage> {
   Future<void> _launchRecording() async {
     _fullTranscript = '';
     _liveText = '';
+
+    // Démarrer la Live Activity AVANT Deepgram (pour s'assurer qu'elle se lance)
+    try {
+      final hostName = await _getUserName();
+      final participantNames = _hostService.participants.map((p) => p.name).join(', ');
+      final laTitle = 'Réunion — $hostName${participantNames.isNotEmpty ? ' + $participantNames' : ''}';
+      debugPrint('[Meeting] Démarrage Live Activity: $laTitle');
+      await LiveActivityService.instance.start(laTitle);
+      debugPrint('[Meeting] ✓ LiveActivity démarrée');
+    } catch (e, st) {
+      debugPrint('[Meeting] ✗ LiveActivity erreur: $e\n$st');
+    }
+
     await _deepgram.startListening();
 
     _hostService.startRecording();
@@ -171,6 +191,10 @@ class _MeetingPageState extends State<MeetingPage> {
         setState(() {
           _meetingDuration = DateTime.now().difference(_meetingStartedAt!);
         });
+        // Mettre à jour la durée sur la Live Activity
+        final m = _meetingDuration.inMinutes.remainder(60).toString().padLeft(2, '0');
+        final s = _meetingDuration.inSeconds.remainder(60).toString().padLeft(2, '0');
+        LiveActivityService.instance.updateDuration('$m:$s');
       }
     });
 
@@ -250,14 +274,13 @@ class _MeetingPageState extends State<MeetingPage> {
 
     _durationTimer?.cancel();
     await _deepgram.stopListening();
+    await LiveActivityService.instance.stop();
 
     // Correction Mistral du transcript
     String finalContent = _fullTranscript;
     if (finalContent.isNotEmpty) {
       try {
-        finalContent = await MistralService.instance.correctTranscription(
-          finalContent,
-        );
+        finalContent = await MistralService.instance.correctTranscription(finalContent);
       } catch (e) {
         debugPrint('Erreur Mistral: $e');
       }
@@ -303,6 +326,76 @@ class _MeetingPageState extends State<MeetingPage> {
     );
 
     // Laisser le temps aux WebSockets de livrer la transcription
+    await Future.delayed(const Duration(seconds: 3));
+    await _hostService.stopServer();
+
+    if (mounted) {
+      setState(() {
+        _currentView = _MeetingView.home;
+        _qrData = null;
+        _fullTranscript = '';
+        _liveText = '';
+        _isRecording = false;
+        _isStopping = false;
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // STOP DEPUIS LA LIVE ACTIVITY (pas de dialogue de confirmation)
+  // ---------------------------------------------------------------------------
+  Future<void> _stopMeetingFromLiveActivity() async {
+    if (_isStopping) return;
+
+    setState(() => _isStopping = true);
+
+    widget.onMeduzaStateChanged?.call(
+      MeduzaState.processing,
+      message: 'Arrêt depuis la Live Activity…',
+      style: BubbleStyle.normal,
+    );
+
+    _durationTimer?.cancel();
+    await _deepgram.stopListening();
+    await LiveActivityService.instance.stop();
+
+    String finalContent = _fullTranscript;
+    if (finalContent.isNotEmpty) {
+      try {
+        finalContent = await MistralService.instance.correctTranscription(finalContent);
+      } catch (e) {
+        debugPrint('Erreur Mistral: $e');
+      }
+    }
+
+    final participantNames = _hostService.participants.map((p) => p.name).join(', ');
+    final hostName = await _getUserName();
+    final title = 'Réunion — $hostName${participantNames.isNotEmpty ? ' + $participantNames' : ''}';
+
+    final transcription = Transcription.create(
+      content: finalContent.isEmpty
+          ? '(Aucune transcription enregistrée)'
+          : finalContent,
+      title: title,
+    );
+
+    await StorageService.save(transcription);
+    _hostService.endMeeting(transcription);
+
+    final meeting = _hostService.buildMeetingRecord(
+      startedAt: _meetingStartedAt!,
+      transcriptionId: transcription.id,
+    );
+    await _saveMeetingRecord(meeting);
+
+    widget.refreshNotifier.value++;
+
+    widget.onMeduzaStateChanged?.call(
+      MeduzaState.happy,
+      message: 'Réunion terminée depuis la Live Activity !',
+      style: BubbleStyle.success,
+    );
+
     await Future.delayed(const Duration(seconds: 3));
     await _hostService.stopServer();
 

@@ -12,5 +12,8 @@ import SwiftUI
 struct NotitiaWidgetBundle: WidgetBundle {
     var body: some Widget {
         NotitiaWidget()
+        if #available(iOSApplicationExtension 16.1, *) {
+            NotitiaWidgetLiveActivity()
+        }
     }
 }

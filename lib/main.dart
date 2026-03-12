@@ -43,6 +43,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 // =============================================================================
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint('[Notitia] ===== BUILD 2026-03-11 v2 =====');
 
   // Initialisation de Supabase
   await AuthService.initialize();
