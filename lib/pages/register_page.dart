@@ -7,8 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../models/email_otp_args.dart';
 import '../services/auth_service.dart';
+import '../services/language_service.dart';
 import '../theme.dart';
 import 'onboarding_page.dart';
 
@@ -27,6 +27,7 @@ class _RegisterPageState extends State<RegisterPage>
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
+  final _languageService = LanguageService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -49,11 +50,10 @@ class _RegisterPageState extends State<RegisterPage>
     );
     _animationController.forward();
 
-    // Gère OAuth/OTP: quand l'auth aboutit, on va à l'onboarding si pas encore fait.
+    // Gère OAuth/OTP: après création, on lance l'onboarding si nécessaire.
     _authSub = _authService.authStateChanges.listen((state) async {
       if (!mounted) return;
       if (state.event == AuthChangeEvent.signedIn) {
-        // Pas d'attente ici: on évite l'usage de context après un gap async.
         _authService.markAuthSeen();
         final alreadyOnboarded = await OnboardingService.isOnboarded();
         if (!mounted) return;
@@ -101,10 +101,9 @@ class _RegisterPageState extends State<RegisterPage>
       if (!mounted) return;
 
       // Rediriger vers la page OTP pour confirmer l'email
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/onboarding',
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil('/onboarding', (route) => false);
       //   arguments: EmailOtpRouteArgs(
       //     email: _emailController.text.trim(),
       //     username: _usernameController.text.trim(),
@@ -119,7 +118,7 @@ class _RegisterPageState extends State<RegisterPage>
     } catch (e) {
       setState(() {
         _errorMessage =
-            'Erreur: ${e.toString().replaceFirst('Exception: ', '').trim()}';
+            _languageService.translate('error') + ': ${e.toString().replaceFirst('Exception: ', '').trim()}';
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -137,7 +136,7 @@ class _RegisterPageState extends State<RegisterPage>
       await _authService.markAuthSeen();
     } catch (e) {
       setState(() {
-        _errorMessage = 'Erreur de connexion avec Google';
+        _errorMessage = _languageService.translate('google_signin_error');
       });
     } finally {
       if (mounted) {
@@ -157,7 +156,7 @@ class _RegisterPageState extends State<RegisterPage>
       await _authService.markAuthSeen();
     } catch (e) {
       setState(() {
-        _errorMessage = 'Erreur de connexion avec GitHub';
+        _errorMessage = _languageService.translate('github_signin_error');
       });
     } finally {
       if (mounted) {
@@ -168,17 +167,17 @@ class _RegisterPageState extends State<RegisterPage>
 
   String _getErrorMessage(String message) {
     if (message.contains('User already registered')) {
-      return 'Cet email est déjà utilisé';
+      return _languageService.translate('register_email_already_used');
     }
     if (message.contains('Password should be')) {
-      return 'Le mot de passe doit contenir au moins 6 caractères';
+      return _languageService.translate('register_password_min_length_error');
     }
     if (message.contains('Error sending confirmation email') ||
         message.contains('unexpected_failure')) {
-      return 'Impossible d\'envoyer l\'email de confirmation. Veuillez vérifier la configuration email dans Supabase ou désactiver temporairement la confirmation d\'email.';
+      return _languageService.translate('register_supabase_email_error');
     }
     if (message.contains('Invalid email')) {
-      return 'Adresse email invalide';
+      return _languageService.translate('invalid_email');
     }
     return message;
   }
@@ -233,7 +232,7 @@ class _RegisterPageState extends State<RegisterPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Créer un compte',
+          _languageService.translate('create_account_title'),
           style: GoogleFonts.orbitron(
             fontSize: 26,
             fontWeight: FontWeight.bold,
@@ -242,7 +241,7 @@ class _RegisterPageState extends State<RegisterPage>
         ),
         const SizedBox(height: 8),
         Text(
-          'Rejoignez Notitia pour synchroniser vos notes',
+          _languageService.translate('join_notitia_sync'),
           style: GoogleFonts.rajdhani(fontSize: 16, color: NotitiaTheme.grey),
         ),
       ],
@@ -257,15 +256,15 @@ class _RegisterPageState extends State<RegisterPage>
           // Username
           _CyberpunkTextField(
             controller: _usernameController,
-            label: 'Nom d\'utilisateur',
-            hint: 'votre_pseudo',
+            label: _languageService.translate('register_username_label'),
+            hint: _languageService.translate('register_username_hint'),
             icon: Icons.person_outline,
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Entrez un nom d\'utilisateur';
+                return _languageService.translate('enter_username');
               }
               if (value.length < 3) {
-                return 'Minimum 3 caractères';
+                return _languageService.translate('min_3_chars');
               }
               return null;
             },
@@ -275,18 +274,18 @@ class _RegisterPageState extends State<RegisterPage>
           // Email
           _CyberpunkTextField(
             controller: _emailController,
-            label: 'Email',
-            hint: 'votre@email.com',
+            label: _languageService.translate('register_email_label'),
+            hint: _languageService.translate('register_email_hint'),
             icon: Icons.email_outlined,
             keyboardType: TextInputType.emailAddress,
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Entrez votre email';
+                return _languageService.translate('register_email_error_empty');
               }
               if (!RegExp(
                 r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
               ).hasMatch(value)) {
-                return 'Email invalide';
+                return _languageService.translate('register_email_error_invalid');
               }
               return null;
             },
@@ -296,8 +295,8 @@ class _RegisterPageState extends State<RegisterPage>
           // Mot de passe
           _CyberpunkTextField(
             controller: _passwordController,
-            label: 'Mot de passe',
-            hint: '••••••••',
+            label: _languageService.translate('register_password_label'),
+            hint: _languageService.translate('register_password_placeholder'),
             icon: Icons.lock_outlined,
             obscureText: _obscurePassword,
             suffixIcon: IconButton(
@@ -311,10 +310,10 @@ class _RegisterPageState extends State<RegisterPage>
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Entrez un mot de passe';
+                return _languageService.translate('register_password_error_empty');
               }
               if (value.length < 6) {
-                return 'Minimum 6 caractères';
+                return _languageService.translate('register_password_error_short');
               }
               return null;
             },
@@ -324,8 +323,8 @@ class _RegisterPageState extends State<RegisterPage>
           // Confirmer mot de passe
           _CyberpunkTextField(
             controller: _confirmPasswordController,
-            label: 'Confirmer le mot de passe',
-            hint: '••••••••',
+            label: _languageService.translate('register_confirm_password_label'),
+            hint: _languageService.translate('register_password_placeholder'),
             icon: Icons.lock_outlined,
             obscureText: _obscureConfirmPassword,
             suffixIcon: IconButton(
@@ -342,7 +341,7 @@ class _RegisterPageState extends State<RegisterPage>
             ),
             validator: (value) {
               if (value != _passwordController.text) {
-                return 'Les mots de passe ne correspondent pas';
+                return _languageService.translate('passwords_not_match');
               }
               return null;
             },
@@ -352,7 +351,7 @@ class _RegisterPageState extends State<RegisterPage>
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Un code à 8 chiffres sera envoyé à votre email pour confirmation.',
+              _languageService.translate('register_confirmation_code_info'),
               style: GoogleFonts.rajdhani(
                 fontSize: 14,
                 color: NotitiaTheme.grey,
@@ -369,7 +368,10 @@ class _RegisterPageState extends State<RegisterPage>
           const SizedBox(height: 24),
 
           // Bouton inscription
-          _buildSubmitButton('S\'INSCRIRE', _signUpWithEmailAndPassword),
+          _buildSubmitButton(
+            _languageService.translate('sign_up').toUpperCase(),
+            _signUpWithEmailAndPassword,
+          ),
         ],
       ),
     );
@@ -460,7 +462,7 @@ class _RegisterPageState extends State<RegisterPage>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                'ou inscrivez-vous avec',
+                _languageService.translate('or_sign_up_with'),
                 style: GoogleFonts.rajdhani(
                   color: NotitiaTheme.grey,
                   fontSize: 14,
@@ -518,7 +520,7 @@ class _RegisterPageState extends State<RegisterPage>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          'Déjà un compte?',
+          _languageService.translate('register_already_have_account'),
           style: GoogleFonts.rajdhani(color: NotitiaTheme.grey, fontSize: 14),
         ),
         TextButton(
@@ -526,7 +528,7 @@ class _RegisterPageState extends State<RegisterPage>
             Navigator.of(context).pushReplacementNamed('/login');
           },
           child: Text(
-            'Connectez-vous',
+            _languageService.translate('register_sign_in_here'),
             style: GoogleFonts.rajdhani(
               color: NotitiaTheme.neonPink,
               fontSize: 14,
@@ -548,7 +550,7 @@ class _CyberpunkTextField extends StatelessWidget {
   final String hint;
   final IconData icon;
   final bool obscureText;
-  final bool enabled;
+  final bool enabled = true;
   final TextInputType keyboardType;
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
@@ -559,7 +561,6 @@ class _CyberpunkTextField extends StatelessWidget {
     required this.hint,
     required this.icon,
     this.obscureText = false,
-    this.enabled = true,
     this.keyboardType = TextInputType.text,
     this.suffixIcon,
     this.validator,

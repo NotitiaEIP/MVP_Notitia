@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/auth_service.dart';
+import '../services/language_service.dart';
 import '../theme.dart';
 
 class AuthChoicePage extends StatefulWidget {
@@ -17,6 +18,7 @@ class AuthChoicePage extends StatefulWidget {
 
 class _AuthChoicePageState extends State<AuthChoicePage>
     with SingleTickerProviderStateMixin {
+  final _languageService = LanguageService();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -141,7 +143,7 @@ class _AuthChoicePageState extends State<AuthChoicePage>
         
         // Titre
         Text(
-          'NOTITIA',
+          _languageService.translate('app_title'),
           style: GoogleFonts.orbitron(
             fontSize: 36,
             fontWeight: FontWeight.bold,
@@ -153,7 +155,7 @@ class _AuthChoicePageState extends State<AuthChoicePage>
         
         // Sous-titre
         Text(
-          'Votre assistant mémoire IA',
+          _languageService.translate('your_ai_memory_assistant'),
           style: GoogleFonts.rajdhani(
             fontSize: 18,
             color: NotitiaTheme.grey,
@@ -172,7 +174,7 @@ class _AuthChoicePageState extends State<AuthChoicePage>
         // Bouton Inscription
         _CyberpunkButton(
           onPressed: _navigateToRegister,
-          label: 'CRÉER UN COMPTE',
+          label: _languageService.translate('create_account'),
           isPrimary: true,
           icon: Icons.person_add_outlined,
         ),
@@ -181,7 +183,7 @@ class _AuthChoicePageState extends State<AuthChoicePage>
         // Bouton Connexion
         _CyberpunkButton(
           onPressed: _navigateToLogin,
-          label: 'SE CONNECTER',
+          label: _languageService.translate('sign_in'),
           isPrimary: false,
           icon: Icons.login_outlined,
         ),
@@ -202,7 +204,7 @@ class _AuthChoicePageState extends State<AuthChoicePage>
           ),
           const SizedBox(width: 8),
           Text(
-            'Continuer sans compte',
+            _languageService.translate('continue_without_account'),
             style: GoogleFonts.rajdhani(
               fontSize: 16,
               color: NotitiaTheme.grey,

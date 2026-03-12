@@ -1,10 +1,22 @@
 // =============================================================================
 // NOTITIA — Modèle Transcription
 // =============================================================================
+
+/// Tags possibles pour catégoriser les transcriptions.
+class TranscriptionTag {
+  static const String transcription = 'Transcription';
+  static const String reunion = 'Réunion';
+  static const String nfc = 'NFC';
+  static const String widget = 'Widget';
+
+  static const List<String> all = [transcription, reunion, nfc, widget];
+}
+
 class Transcription {
   final String id;
   String title;
   String content;
+  final String tag;
   final DateTime createdAt;
   DateTime updatedAt;
 
@@ -12,17 +24,23 @@ class Transcription {
     required this.id,
     required this.title,
     required this.content,
+    this.tag = TranscriptionTag.transcription,
     required this.createdAt,
     required this.updatedAt,
   });
 
   /// Crée une nouvelle transcription avec un ID basé sur le timestamp.
-  factory Transcription.create({required String content, String? title}) {
+  factory Transcription.create({
+    required String content,
+    String? title,
+    String tag = TranscriptionTag.transcription,
+  }) {
     final now = DateTime.now();
     return Transcription(
       id: now.millisecondsSinceEpoch.toString(),
       title: title ?? 'Transcription ${_formatDate(now)}',
       content: content,
+      tag: tag,
       createdAt: now,
       updatedAt: now,
     );
@@ -31,12 +49,14 @@ class Transcription {
   Transcription copyWith({
     String? title,
     String? content,
+    String? tag,
     DateTime? updatedAt,
   }) {
     return Transcription(
       id: id,
       title: title ?? this.title,
       content: content ?? this.content,
+      tag: tag ?? this.tag,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -46,6 +66,7 @@ class Transcription {
     'id': id,
     'title': title,
     'content': content,
+    'tag': tag,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
@@ -54,6 +75,7 @@ class Transcription {
     id: json['id'] as String,
     title: json['title'] as String,
     content: json['content'] as String,
+    tag: json['tag'] as String? ?? TranscriptionTag.transcription,
     createdAt: DateTime.parse(json['createdAt'] as String),
     updatedAt: DateTime.parse(json['updatedAt'] as String),
   );

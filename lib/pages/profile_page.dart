@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/auth_service.dart';
+import '../services/language_service.dart';
 import '../theme.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -20,12 +21,14 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage>
     with SingleTickerProviderStateMixin {
   final _authService = AuthService();
+  final _languageService = LanguageService();
   UserProfile? _profile;
   bool _isLoading = true;
   bool _isUpdating = false;
 
   final _usernameController = TextEditingController();
   bool _isEditingUsername = false;
+  late String _selectedLanguage;
 
   // Thèmes disponibles
   int _selectedTheme = 0;
@@ -51,6 +54,7 @@ class _ProfilePageState extends State<ProfilePage>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _animationController.forward();
+    _selectedLanguage = _languageService.currentLanguage;
     _loadProfile();
   }
 
@@ -63,7 +67,7 @@ class _ProfilePageState extends State<ProfilePage>
 
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final profile = await _authService.getProfile();
       if (mounted) {
@@ -86,15 +90,17 @@ class _ProfilePageState extends State<ProfilePage>
     setState(() => _isUpdating = true);
 
     try {
-      await _authService.updateProfile(username: _usernameController.text.trim());
+      await _authService.updateProfile(
+        username: _usernameController.text.trim(),
+      );
       await _loadProfile();
       setState(() => _isEditingUsername = false);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Nom d\'utilisateur mis à jour',
+              _languageService.translate('profile_updated'),
               style: GoogleFonts.rajdhani(),
             ),
             backgroundColor: NotitiaTheme.neonPink,
@@ -106,7 +112,7 @@ class _ProfilePageState extends State<ProfilePage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Erreur lors de la mise à jour',
+              _languageService.translate('error'),
               style: GoogleFonts.rajdhani(),
             ),
             backgroundColor: Colors.red,
@@ -136,15 +142,15 @@ class _ProfilePageState extends State<ProfilePage>
     try {
       final bytes = await File(image.path).readAsBytes();
       final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      
+
       await _authService.uploadAvatar(bytes, fileName);
       await _loadProfile();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Photo de profil mise à jour',
+              _languageService.translate('profile_updated'),
               style: GoogleFonts.rajdhani(),
             ),
             backgroundColor: NotitiaTheme.neonPink,
@@ -156,7 +162,7 @@ class _ProfilePageState extends State<ProfilePage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Erreur lors de l\'upload',
+              _languageService.translate('error'),
               style: GoogleFonts.rajdhani(),
             ),
             backgroundColor: Colors.red,
@@ -180,31 +186,25 @@ class _ProfilePageState extends State<ProfilePage>
           side: BorderSide(color: NotitiaTheme.neonPink.withOpacity(0.5)),
         ),
         title: Text(
-          'Déconnexion',
-          style: GoogleFonts.orbitron(
-            color: NotitiaTheme.white,
-            fontSize: 18,
-          ),
+          _languageService.translate('sign_out'),
+          style: GoogleFonts.orbitron(color: NotitiaTheme.white, fontSize: 18),
         ),
         content: Text(
-          'Êtes-vous sûr de vouloir vous déconnecter ?',
-          style: GoogleFonts.rajdhani(
-            color: NotitiaTheme.grey,
-            fontSize: 16,
-          ),
+          _languageService.translate('confirm_logout'),
+          style: GoogleFonts.rajdhani(color: NotitiaTheme.grey, fontSize: 16),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(
-              'Annuler',
+              _languageService.translate('cancel'),
               style: GoogleFonts.rajdhani(color: NotitiaTheme.grey),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(
-              'Déconnecter',
+              _languageService.translate('sign_out'),
               style: GoogleFonts.rajdhani(color: NotitiaTheme.neonPink),
             ),
           ),
@@ -215,9 +215,240 @@ class _ProfilePageState extends State<ProfilePage>
     if (confirm == true) {
       await _authService.signOut();
       if (mounted) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/auth', (route) => false);
       }
     }
+  }
+
+  Future<void> _deleteAccount() async {
+    // Dialog de confirmation - première étape
+    final confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: NotitiaTheme.darkBlue,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.red.withOpacity(0.5)),
+        ),
+        title: Text(
+          _languageService.translate('delete_account_title'),
+          style: GoogleFonts.orbitron(color: Colors.red, fontSize: 18),
+        ),
+        content: Text(
+          _languageService.translate('delete_account_confirm_message'),
+          style: GoogleFonts.rajdhani(color: NotitiaTheme.grey, fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              _languageService.translate('cancel'),
+              style: GoogleFonts.rajdhani(color: NotitiaTheme.grey),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              _languageService.translate('delete_account_title'),
+              style: GoogleFonts.rajdhani(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmDelete != true) return;
+
+    // Dialog d'avertissement ultime - deuxième étape
+    final finalConfirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: NotitiaTheme.darkBlue,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.red.withOpacity(0.5)),
+        ),
+        title: Text(
+          _languageService.translate('delete_account_permanent_title'),
+          style: GoogleFonts.orbitron(color: Colors.red, fontSize: 18),
+        ),
+        content: Text(
+          _languageService.translate('delete_account_permanent_message'),
+          style: GoogleFonts.rajdhani(color: NotitiaTheme.grey, fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              _languageService.translate('cancel'),
+              style: GoogleFonts.rajdhani(color: NotitiaTheme.grey),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              _languageService.translate('delete_permanently'),
+              style: GoogleFonts.rajdhani(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (finalConfirm != true) return;
+
+    // Procéder à la suppression
+    setState(() => _isUpdating = true);
+
+    try {
+      await _authService.deleteAccount();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _languageService.translate('account_deleted_success'),
+              style: GoogleFonts.rajdhani(),
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Rediriger vers la page de login
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/auth', (route) => false);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _languageService.translate('delete_account_error'),
+              style: GoogleFonts.rajdhani(),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUpdating = false);
+      }
+    }
+  }
+
+  Future<void> _showLanguageDialog() async {
+    final selectedLanguage = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: NotitiaTheme.darkBlue,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: NotitiaTheme.neonPink.withOpacity(0.5)),
+        ),
+        title: Text(
+          _languageService.translate('select_language'),
+          style: GoogleFonts.orbitron(color: NotitiaTheme.white, fontSize: 18),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildLanguageOption('en', _languageService.getLanguageLabel('en'), _selectedLanguage == 'en'),
+            const SizedBox(height: 12),
+            _buildLanguageOption('fr', _languageService.getLanguageLabel('fr'), _selectedLanguage == 'fr'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              _languageService.translate('cancel'),
+              style: GoogleFonts.rajdhani(color: NotitiaTheme.grey),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedLanguage != null && selectedLanguage != _selectedLanguage) {
+      await _languageService.changeLanguage(selectedLanguage);
+      if (mounted) {
+        setState(() {
+          _selectedLanguage = selectedLanguage;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _languageService.translate('language_changed'),
+              style: GoogleFonts.rajdhani(),
+            ),
+            backgroundColor: NotitiaTheme.neonPink,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildLanguageOption(
+    String languageCode,
+    String languageName,
+    bool isSelected,
+  ) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(languageCode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? NotitiaTheme.neonPink
+                : NotitiaTheme.neonPink.withOpacity(0.3),
+            width: isSelected ? 2 : 1,
+          ),
+          color: isSelected
+              ? NotitiaTheme.neonPink.withOpacity(0.1)
+              : Colors.transparent,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: NotitiaTheme.neonPink, width: 2),
+              ),
+              child: isSelected
+                  ? Center(
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: NotitiaTheme.neonPink,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              languageName,
+              style: GoogleFonts.rajdhani(
+                color: NotitiaTheme.white,
+                fontSize: 16,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -246,6 +477,8 @@ class _ProfilePageState extends State<ProfilePage>
                       const SizedBox(height: 24),
                       _buildThemeSection(),
                       const SizedBox(height: 24),
+                      _buildPlanSection(),
+                      const SizedBox(height: 24),
                       _buildSettingsSection(),
                       const SizedBox(height: 24),
                       _buildDangerZone(),
@@ -266,9 +499,7 @@ class _ProfilePageState extends State<ProfilePage>
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              border: Border.all(
-                color: NotitiaTheme.neonPink.withOpacity(0.5),
-              ),
+              border: Border.all(color: NotitiaTheme.neonPink.withOpacity(0.5)),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -280,7 +511,7 @@ class _ProfilePageState extends State<ProfilePage>
         ),
         const SizedBox(width: 16),
         Text(
-          'Mon Profil',
+          _languageService.translate('profile'),
           style: GoogleFonts.orbitron(
             fontSize: 22,
             fontWeight: FontWeight.bold,
@@ -328,25 +559,26 @@ class _ProfilePageState extends State<ProfilePage>
                         ),
                       )
                     : _profile?.avatarUrl != null
-                        ? ClipOval(
-                            child: CachedNetworkImage(
-                              imageUrl: _profile!.avatarUrl!,
-                              fit: BoxFit.cover,
-                              width: 120,
-                              height: 120,
-                              placeholder: (context, url) => const Center(
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                              errorWidget: (context, url, error) => _buildDefaultAvatar(),
+                    ? ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: _profile!.avatarUrl!,
+                          fit: BoxFit.cover,
+                          width: 120,
+                          height: 120,
+                          placeholder: (context, url) => const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
                             ),
-                          )
-                        : _buildDefaultAvatar(),
+                          ),
+                          errorWidget: (context, url, error) =>
+                              _buildDefaultAvatar(),
+                        ),
+                      )
+                    : _buildDefaultAvatar(),
               ),
             ),
-            
+
             // Bouton d'édition
             Positioned(
               bottom: 0,
@@ -357,10 +589,7 @@ class _ProfilePageState extends State<ProfilePage>
                 decoration: BoxDecoration(
                   color: NotitiaTheme.darkBlue,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: NotitiaTheme.neonPink,
-                    width: 2,
-                  ),
+                  border: Border.all(color: NotitiaTheme.neonPink, width: 2),
                 ),
                 child: IconButton(
                   padding: EdgeInsets.zero,
@@ -376,7 +605,7 @@ class _ProfilePageState extends State<ProfilePage>
           ],
         ),
         const SizedBox(height: 16),
-        
+
         // Nom d'utilisateur
         if (_isEditingUsername)
           _buildUsernameEditor()
@@ -387,7 +616,7 @@ class _ProfilePageState extends State<ProfilePage>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  _profile?.username ?? 'Utilisateur',
+                  _profile?.username ?? _languageService.translate('user'),
                   style: GoogleFonts.orbitron(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -395,31 +624,25 @@ class _ProfilePageState extends State<ProfilePage>
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.edit,
-                  color: NotitiaTheme.grey,
-                  size: 18,
-                ),
+                Icon(Icons.edit, color: NotitiaTheme.grey, size: 18),
               ],
             ),
           ),
-        
+
         const SizedBox(height: 8),
-        
+
         // Email
         Text(
           _profile?.email ?? _authService.currentUser?.email ?? '',
-          style: GoogleFonts.rajdhani(
-            fontSize: 14,
-            color: NotitiaTheme.grey,
-          ),
+          style: GoogleFonts.rajdhani(fontSize: 14, color: NotitiaTheme.grey),
         ),
       ],
     );
   }
 
   Widget _buildDefaultAvatar() {
-    final initial = (_profile?.username ?? _profile?.email ?? 'U')[0].toUpperCase();
+    final initial = (_profile?.username ?? _profile?.email ?? 'U')[0]
+        .toUpperCase();
     return Center(
       child: Text(
         initial,
@@ -489,21 +712,21 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildAccountSection() {
     return _buildSection(
-      title: 'Compte',
+      title: _languageService.translate('profile_account_section'),
       icon: Icons.person_outline,
       children: [
         _SettingsTile(
           icon: Icons.email_outlined,
-          title: 'Email',
-          subtitle: _profile?.email ?? 'Non défini',
+          title: _languageService.translate('profile_email_label'),
+          subtitle: _profile?.email ?? _languageService.translate('profile_undefined'),
           onTap: null, // Email non modifiable directement
         ),
         _SettingsTile(
           icon: Icons.calendar_today_outlined,
-          title: 'Membre depuis',
+          title: _languageService.translate('member_since'),
           subtitle: _profile != null
               ? _formatDate(_profile!.createdAt)
-              : 'Inconnu',
+              : _languageService.translate('profile_unknown'),
           onTap: null,
         ),
       ],
@@ -512,7 +735,7 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildThemeSection() {
     return _buildSection(
-      title: 'Thème',
+      title: _languageService.translate('theme'),
       icon: Icons.palette_outlined,
       children: [
         Padding(
@@ -522,11 +745,11 @@ class _ProfilePageState extends State<ProfilePage>
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _themes.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final theme = _themes[index];
                 final isSelected = _selectedTheme == index;
-                
+
                 return GestureDetector(
                   onTap: () => setState(() => _selectedTheme = index),
                   child: AnimatedContainer(
@@ -587,7 +810,7 @@ class _ProfilePageState extends State<ProfilePage>
         ),
         const SizedBox(height: 8),
         Text(
-          'Les thèmes personnalisés arrivent bientôt !',
+          _languageService.translate('custom_themes_coming_soon'),
           style: GoogleFonts.rajdhani(
             fontSize: 12,
             color: NotitiaTheme.grey,
@@ -598,44 +821,59 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
+  Widget _buildPlanSection() {
+    return _buildSection(
+      title: _languageService.translate('profile_subscription_section'),
+      icon: Icons.workspace_premium_rounded,
+      accentColor: NotitiaTheme.neonCyan,
+      children: [
+        _SettingsTile(
+          icon: Icons.diamond_outlined,
+          title: _languageService.translate('profile_my_subscription'),
+          subtitle: _languageService.translate('profile_subscription_description'),
+          iconColor: NotitiaTheme.neonCyan,
+          onTap: () => Navigator.of(context).pushNamed('/subscription'),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSettingsSection() {
     return _buildSection(
-      title: 'Paramètres',
+      title: _languageService.translate('settings'),
       icon: Icons.settings_outlined,
       children: [
         _SettingsTile(
           icon: Icons.notifications_outlined,
-          title: 'Notifications',
-          subtitle: 'Gérer les notifications',
+          title: _languageService.translate('notifications'),
+          subtitle: _languageService.translate('manage_notifications'),
           onTap: () {
             // TODO: Implémenter les paramètres de notifications
           },
           trailing: Switch(
             value: true,
             onChanged: (value) {},
-            activeColor: NotitiaTheme.neonPink,
+            activeThumbColor: NotitiaTheme.neonPink,
           ),
         ),
         _SettingsTile(
           icon: Icons.language_outlined,
-          title: 'Langue',
-          subtitle: 'Français',
-          onTap: () {
-            // TODO: Implémenter le changement de langue
-          },
+          title: _languageService.translate('language'),
+          subtitle: _languageService.getLanguageLabel(_selectedLanguage),
+          onTap: _showLanguageDialog,
         ),
         _SettingsTile(
           icon: Icons.storage_outlined,
-          title: 'Stockage',
-          subtitle: 'Gérer les données locales',
+          title: _languageService.translate('storage'),
+          subtitle: _languageService.translate('manage_local_data'),
           onTap: () {
             // TODO: Implémenter la gestion du stockage
           },
         ),
         _SettingsTile(
           icon: Icons.security_outlined,
-          title: 'Sécurité',
-          subtitle: 'Mot de passe et connexion',
+          title: _languageService.translate('security'),
+          subtitle: _languageService.translate('password_and_login'),
           onTap: () {
             // TODO: Implémenter les paramètres de sécurité
           },
@@ -646,34 +884,23 @@ class _ProfilePageState extends State<ProfilePage>
 
   Widget _buildDangerZone() {
     return _buildSection(
-      title: 'Zone danger',
+      title: _languageService.translate('danger_zone'),
       icon: Icons.warning_amber_outlined,
       accentColor: Colors.red,
       children: [
         _SettingsTile(
           icon: Icons.logout,
-          title: 'Se déconnecter',
-          subtitle: 'Déconnexion de votre compte',
+          title: _languageService.translate('sign_out_title'),
+          subtitle: _languageService.translate('sign_out_subtitle'),
           iconColor: Colors.orange,
           onTap: _signOut,
         ),
         _SettingsTile(
           icon: Icons.delete_forever_outlined,
-          title: 'Supprimer le compte',
-          subtitle: 'Suppression définitive',
+          title: _languageService.translate('delete_account_title'),
+          subtitle: _languageService.translate('delete_account_subtitle'),
           iconColor: Colors.red,
-          onTap: () {
-            // TODO: Implémenter la suppression de compte
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Fonctionnalité bientôt disponible',
-                  style: GoogleFonts.rajdhani(),
-                ),
-                backgroundColor: NotitiaTheme.grey,
-              ),
-            );
-          },
+          onTap: _deleteAccount,
         ),
       ],
     );
@@ -686,13 +913,11 @@ class _ProfilePageState extends State<ProfilePage>
     Color? accentColor,
   }) {
     final color = accentColor ?? NotitiaTheme.neonPink;
-    
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(
-          color: color.withOpacity(0.3),
-        ),
+        border: Border.all(color: color.withOpacity(0.3)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -716,10 +941,7 @@ class _ProfilePageState extends State<ProfilePage>
               ],
             ),
           ),
-          Divider(
-            height: 1,
-            color: color.withOpacity(0.2),
-          ),
+          Divider(height: 1, color: color.withOpacity(0.2)),
           ...children,
         ],
       ),
@@ -728,8 +950,18 @@ class _ProfilePageState extends State<ProfilePage>
 
   String _formatDate(DateTime date) {
     final months = [
-      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
-      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+      _languageService.translate('month_january'),
+      _languageService.translate('month_february'),
+      _languageService.translate('month_march'),
+      _languageService.translate('month_april'),
+      _languageService.translate('month_may'),
+      _languageService.translate('month_june'),
+      _languageService.translate('month_july'),
+      _languageService.translate('month_august'),
+      _languageService.translate('month_september'),
+      _languageService.translate('month_october'),
+      _languageService.translate('month_november'),
+      _languageService.translate('month_december'),
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
@@ -811,11 +1043,7 @@ class _SettingsTile extends StatelessWidget {
             if (trailing != null)
               trailing!
             else if (onTap != null)
-              Icon(
-                Icons.chevron_right,
-                color: NotitiaTheme.grey,
-                size: 20,
-              ),
+              Icon(Icons.chevron_right, color: NotitiaTheme.grey, size: 20),
           ],
         ),
       ),

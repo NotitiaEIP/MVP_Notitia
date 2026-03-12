@@ -19,6 +19,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/transcription.dart';
+import 'mistral_service.dart';
 import 'nfc_share_service.dart';
 import 'notitia_file_service.dart';
 import 'storage_service.dart';
@@ -34,14 +35,12 @@ class ShareSession {
   String? errorMessage;
   Transcription? receivedTranscription;
 
-  ShareSession({
-    required this.mode,
-  })  : startedAt = DateTime.now(),
-        state = NfcShareState.idle;
+  ShareSession({required this.mode})
+    : startedAt = DateTime.now(),
+      state = NfcShareState.idle;
 
   bool get isActive =>
-      state == NfcShareState.writing ||
-      state == NfcShareState.reading;
+      state == NfcShareState.writing || state == NfcShareState.reading;
 
   Duration get elapsed => DateTime.now().difference(startedAt);
 }
@@ -100,8 +99,9 @@ class LocalShareManager extends ChangeNotifier {
 
     try {
       // 1. Créer le fichier .notitia en mémoire
-      final notitiaFile =
-          NotitiaFileService.createFromTranscription(transcription);
+      final notitiaFile = NotitiaFileService.createFromTranscription(
+        transcription,
+      );
       final bytes = NotitiaFileService.exportToBytes(notitiaFile);
 
       // 2. Créer la session
@@ -120,7 +120,8 @@ class LocalShareManager extends ChangeNotifier {
       }
 
       debugPrint(
-          '[LocalShareManager] Sender ready — ${bytes.length} bytes to write on NFC tag');
+        '[LocalShareManager] Sender ready — ${bytes.length} bytes to write on NFC tag',
+      );
       return true;
     } catch (e) {
       debugPrint('[LocalShareManager] Start sending error: $e');
@@ -237,12 +238,17 @@ class LocalShareManager extends ChangeNotifier {
         // Sauvegarder automatiquement avec un nouvel ID
         final imported = Transcription(
           id: now.millisecondsSinceEpoch.toString(),
-          title: 'Importation NFC — ${importResult.transcription!.title}',
+          title:
+              'NFC ${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
           content: importResult.transcription!.content,
+          tag: TranscriptionTag.nfc,
           createdAt: importResult.transcription!.createdAt,
           updatedAt: now,
         );
         await StorageService.save(imported);
+
+        // Générer un titre IA en arrière-plan
+        unawaited(MistralService.updateTitleInBackground(imported));
 
         debugPrint('[LocalShareManager] NFC import: ${imported.title}');
 

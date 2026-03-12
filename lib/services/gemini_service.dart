@@ -9,6 +9,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/rich_summary.dart';
+
 /// Service unifié Gemini : embeddings + génération de réponses
 class GeminiService {
   static GeminiService? _instance;
@@ -20,7 +22,7 @@ class GeminiService {
   // Configuration — Clé API Gemini gratuite
   // Obtenir une clé sur : https://aistudio.google.com/app/apikey
   // ---------------------------------------------------------------------------
-  static const String _apiKey = 'AIzaSyC4JXkfK5lEDG89DzdQV_REgzL7fQ7odF8';
+  static const String _apiKey = 'AIzaSyCnTV8AT4kRLwb0IXfL852VLNkoiSu_sZk';
 
   // Modèles
   static const String _embeddingModel = 'gemini-embedding-001';
@@ -383,6 +385,432 @@ $contextText''';
     // Supprimer les doubles espaces
     result = result.replaceAll(RegExp(r'\s{2,}'), ' ');
     return result.trim();
+  }
+
+  // ---------------------------------------------------------------------------
+  // RÉSUMÉ RICHE — Génère un résumé structuré avec sources et images
+  // ---------------------------------------------------------------------------
+
+  /// Génère un résumé riche d'une transcription via Gemini + Google Search grounding.
+  ///
+  /// Retourne un [RichSummary] avec titre, intro narrative, sections thématiques,
+  /// images Unsplash gratuites et vraies sources web.
+  Future<RichSummary> generateRichSummary({
+    required String transcriptionId,
+    required String transcriptionContent,
+    required String transcriptionTitle,
+  }) async {
+    final safeContent = transcriptionContent.length > 12000
+        ? transcriptionContent.substring(0, 12000)
+        : transcriptionContent;
+
+    const systemPrompt = '''Tu es un rédacteur expert et data-visualiseur. À partir d'une transcription vocale brute, tu génères un résumé riche, visuellement attractif et structuré.
+
+RÈGLES DE RÉDACTION :
+1. Écris un résumé NARRATIF et fluide, PAS de listes à puces sauf si absolument nécessaire
+2. Utilise des paragraphes élégants avec des transitions naturelles
+3. Divise en 2 à 4 sections thématiques pertinentes
+4. Le titre doit être accrocheur et résumer l'essence de la conversation
+5. L'introduction doit contextualiser en 2-3 phrases
+6. Écris en français
+
+RÈGLES VISUELLES (TRÈS IMPORTANT) :
+Pour chaque section, choisis LE visuel le plus pertinent parmi :
+- "chart_bar" : si la conversation mentionne des comparaisons, des chiffres, des classements → graphique en barres
+- "chart_pie" : si la conversation parle de répartitions, proportions, pourcentages → camembert
+- "key_figures" : si des chiffres clés, statistiques, métriques ressortent → cartes de chiffres (2-4 max)
+- "flow" : si un processus, des étapes, une chronologie sont décrits → schéma en étapes
+- "quote" : si une phrase marquante ou citation importante a été dite → citation mise en valeur
+- "none" : si aucun visuel n'est pertinent pour cette section
+
+Choisis "key_figures" pour la 1ère section s'il y a des données intéressantes.
+NE FORCE PAS un visuel si le contenu ne s'y prête pas.
+Les données des charts doivent être RÉALISTES et basées sur le contenu de la transcription.
+
+Ajoute aussi 2-4 "top_figures" globaux : les chiffres/faits les plus marquants de toute la conversation.
+
+Réponds UNIQUEMENT en JSON valide avec cette structure exacte :
+{
+  "title": "Titre accrocheur",
+  "introduction": "Introduction narrative de 2-3 phrases...",
+  "top_figures": [
+    {"value": "42%", "label": "Description courte", "icon": "trending_up"},
+    {"value": "3h", "label": "Durée totale", "icon": "schedule"}
+  ],
+  "sections": [
+    {
+      "heading": "Titre de la section",
+      "content": "Paragraphe narratif fluide de 3-5 phrases...",
+      "image_keyword": "3-5 mots-clés TRÈS SPÉCIFIQUES en anglais décrivant précisément le sujet de la section (ex: 'cosmetic product laboratory formulation', 'business team strategy meeting', 'data analytics dashboard screen')",
+      "search_queries": ["recherche google 1", "recherche google 2"],
+      "visual": {
+        "type": "chart_bar | chart_pie | key_figures | flow | quote | none",
+        "chart_title": "Titre du graphique (si chart)",
+        "chart_data": [{"label": "Item A", "value": 45}, {"label": "Item B", "value": 30}],
+        "key_figures": [{"value": "120", "label": "Participants", "icon": "people"}],
+        "flow_steps": [{"title": "Étape 1", "description": "Description..."}, {"title": "Étape 2", "description": "..."}],
+        "quote": "La phrase marquante exacte...",
+        "quote_author": "Nom du locuteur (si identifiable)"
+      }
+    }
+  ]
+}
+
+ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people, euro, star, speed, memory, school, work, check_circle, warning, lightbulb, rocket_launch, analytics''';
+
+
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        debugPrint('[Gemini Summary] Génération du résumé (tentative ${attempt + 1})...');
+
+        final response = await _client
+            .post(
+              Uri.parse(_generateUrl),
+              headers: {'Content-Type': 'application/json'},
+              body: json.encode({
+                'system_instruction': {
+                  'parts': [
+                    {'text': systemPrompt},
+                  ],
+                },
+                'contents': [
+                  {
+                    'role': 'user',
+                    'parts': [
+                      {
+                        'text':
+                            'Voici la transcription "$transcriptionTitle" à résumer :\n\n$safeContent',
+                      },
+                    ],
+                  },
+                ],
+                'generationConfig': {
+                  'temperature': 0.7,
+                  'maxOutputTokens': 4096,
+                  'topP': 0.9,
+                  'responseMimeType': 'application/json',
+                },
+              }),
+            )
+            .timeout(const Duration(seconds: 45));
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body) as Map<String, dynamic>;
+          final candidates = data['candidates'] as List<dynamic>?;
+          if (candidates != null && candidates.isNotEmpty) {
+            final content = candidates[0]['content'] as Map<String, dynamic>?;
+            final parts = content?['parts'] as List<dynamic>?;
+            if (parts != null && parts.isNotEmpty) {
+              final rawText = (parts[0]['text'] as String).trim();
+              return _parseRichSummary(
+                rawText, transcriptionId, safeContent);
+            }
+          }
+        } else if (response.statusCode == 429) {
+          final waitSec = (attempt + 1) * 10;
+          debugPrint('[Gemini Summary] ⏳ Rate limit 429, attente ${waitSec}s...');
+          await Future.delayed(Duration(seconds: waitSec));
+          continue;
+        } else {
+          debugPrint('[Gemini Summary] ✗ Erreur ${response.statusCode}: ${response.body}');
+        }
+      } catch (e) {
+        debugPrint('[Gemini Summary] ✗ Exception: $e');
+        if (attempt < 2) {
+          await Future.delayed(Duration(seconds: (attempt + 1) * 5));
+          continue;
+        }
+      }
+      break;
+    }
+
+    // Fallback : résumé minimal
+    return RichSummary(
+      transcriptionId: transcriptionId,
+      title: transcriptionTitle,
+      introduction: 'Résumé automatique non disponible. Veuillez réessayer.',
+      sections: [],
+      generatedAt: DateTime.now(),
+    );
+  }
+
+  /// Parse le JSON Gemini et enrichit avec images + recherche Google
+  Future<RichSummary> _parseRichSummary(
+      String rawJson, String transcriptionId, String content) async {
+    try {
+      final summaryData = json.decode(rawJson) as Map<String, dynamic>;
+      final title = summaryData['title'] as String? ?? 'Résumé';
+      final intro = summaryData['introduction'] as String? ?? '';
+      final sectionsJson = summaryData['sections'] as List<dynamic>? ?? [];
+
+      // Parse top figures
+      final topFiguresJson = summaryData['top_figures'] as List<dynamic>? ?? [];
+      final topFigures = topFiguresJson
+          .map((f) => KeyFigure.fromJson(f as Map<String, dynamic>))
+          .toList();
+
+      final sections = <SummarySection>[];
+
+      for (final sJson in sectionsJson) {
+        final s = sJson as Map<String, dynamic>;
+        final heading = s['heading'] as String? ?? '';
+        final sContent = s['content'] as String? ?? '';
+        final imageKeyword = s['image_keyword'] as String? ?? '';
+        final searchQueries =
+            (s['search_queries'] as List<dynamic>?)?.cast<String>() ?? [];
+
+        // Parse visual
+        SectionVisual? visual;
+        final visualJson = s['visual'] as Map<String, dynamic>?;
+        if (visualJson != null) {
+          final vType = visualJson['type'] as String? ?? 'none';
+          if (vType != 'none') {
+            visual = SectionVisual.fromJson(visualJson);
+          }
+        }
+
+        // Image — recherche via Gemini grounding (vraies URLs)
+        String? imageUrl;
+        if (imageKeyword.isNotEmpty) {
+          imageUrl = await _findImageUrl(imageKeyword);
+        }
+
+        // Recherche Google via Gemini grounding
+        final sources = <SummarySource>[];
+        for (final query in searchQueries.take(2)) {
+          final searchResults = await _searchGoogleGrounding(query);
+          sources.addAll(searchResults);
+        }
+
+        sections.add(SummarySection(
+          heading: heading,
+          content: sContent,
+          imageUrl: imageUrl,
+          sources: sources,
+          visual: visual,
+        ));
+      }
+
+      debugPrint('[Gemini Summary] ✓ Résumé généré : $title (${sections.length} sections, ${topFigures.length} figures)');
+
+      return RichSummary(
+        transcriptionId: transcriptionId,
+        title: title,
+        introduction: intro,
+        topFigures: topFigures,
+        sections: sections,
+        generatedAt: DateTime.now(),
+      );
+    } catch (e) {
+      debugPrint('[Gemini Summary] ✗ Erreur parsing JSON: $e');
+      debugPrint('[Gemini Summary] Raw: ${rawJson.substring(0, min(500, rawJson.length))}');
+      return RichSummary(
+        transcriptionId: transcriptionId,
+        title: 'Résumé',
+        introduction: content.length > 300 ? '${content.substring(0, 300)}…' : content,
+        sections: [],
+        generatedAt: DateTime.now(),
+      );
+    }
+  }
+
+  /// Recherche une image pertinente via Pexels (gratuit, pas de clé requise pour les URLs de recherche)
+  /// puis fallback sur Unsplash source redirect
+  Future<String?> _findImageUrl(String keyword) async {
+    // Méthode 1 : Gemini grounding pour trouver une vraie URL de stock photo
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(_generateUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'contents': [
+                {
+                  'role': 'user',
+                  'parts': [
+                    {
+                      'text':
+                          'Search for a high-quality stock photo on Unsplash or Pexels that matches EXACTLY this topic: "$keyword". '
+                          'The image MUST be directly related to this specific topic, not a random image. '
+                          'Return ONLY the direct image URL (must contain unsplash.com/photos or images.pexels.com), nothing else.',
+                    },
+                  ],
+                },
+              ],
+              'tools': [
+                {
+                  'google_search': {},
+                },
+              ],
+              'generationConfig': {
+                'temperature': 0.0,
+                'maxOutputTokens': 256,
+              },
+            }),
+          )
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final candidates = data['candidates'] as List<dynamic>?;
+        if (candidates != null && candidates.isNotEmpty) {
+          final candidate = candidates[0] as Map<String, dynamic>;
+
+          // Vérifier le grounding metadata
+          final groundingMeta =
+              candidate['groundingMetadata'] as Map<String, dynamic>?;
+          if (groundingMeta != null) {
+            final chunks =
+                groundingMeta['groundingChunks'] as List<dynamic>? ?? [];
+            for (final chunk in chunks) {
+              final web = (chunk as Map<String, dynamic>)['web']
+                  as Map<String, dynamic>?;
+              if (web != null) {
+                final uri = web['uri'] as String? ?? '';
+                if (_isImageUrl(uri) ||
+                    uri.contains('unsplash.com') ||
+                    uri.contains('pexels.com')) {
+                  debugPrint('[Gemini Image] ✓ Grounding: $uri');
+                  return uri;
+                }
+              }
+            }
+          }
+
+          // Parser le texte de la réponse
+          final content = candidate['content'] as Map<String, dynamic>?;
+          final parts = content?['parts'] as List<dynamic>?;
+          if (parts != null && parts.isNotEmpty) {
+            final text = (parts[0]['text'] as String).trim();
+            final urlMatch = RegExp(
+                    r'https?://(?:images\.unsplash\.com|images\.pexels\.com|www\.pexels\.com)[^\s\)\]"]*')
+                .firstMatch(text);
+            if (urlMatch != null) {
+              final url = urlMatch.group(0)!;
+              debugPrint('[Gemini Image] ✓ Texte: $url');
+              return url;
+            }
+            // URL d'image générique en dernier recours
+            final anyImgMatch = RegExp(
+                    r'https?://\S+\.(?:jpg|jpeg|png|webp)[^\s\)\]]*')
+                .firstMatch(text);
+            if (anyImgMatch != null) {
+              debugPrint('[Gemini Image] ✓ Img générique: ${anyImgMatch.group(0)}');
+              return anyImgMatch.group(0)!;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[Gemini Image] ✗ Erreur pour "$keyword": $e');
+    }
+
+    // Fallback : Unsplash source redirect (images gratuites + pertinentes)
+    final words = keyword.trim().split(RegExp(r'\s+')).take(3).join(',');
+    final encoded = Uri.encodeComponent(words);
+    final fallback = 'https://loremflickr.com/800/400/$encoded';
+    debugPrint('[Gemini Image] → Fallback: $fallback');
+    return fallback;
+  }
+
+  bool _isImageUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.contains('.jpg') ||
+        lower.contains('.jpeg') ||
+        lower.contains('.png') ||
+        lower.contains('.webp');
+  }
+
+  /// Utilise Gemini avec Google Search grounding pour trouver de vraies sources
+  Future<List<SummarySource>> _searchGoogleGrounding(String query) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(_generateUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'contents': [
+                {
+                  'role': 'user',
+                  'parts': [
+                    {
+                      'text':
+                          'Recherche web : "$query". Donne-moi 1-2 sources fiables avec titre et URL réelle. Réponds en JSON : [{"title":"...","url":"https://...","snippet":"..."}]',
+                    },
+                  ],
+                },
+              ],
+              'tools': [
+                {
+                  'google_search': {},
+                },
+              ],
+              'generationConfig': {
+                'temperature': 0.1,
+                'maxOutputTokens': 1024,
+                'responseMimeType': 'application/json',
+              },
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+
+        // Vérifier d'abord les groundingMetadata pour les vrais liens
+        final candidates = data['candidates'] as List<dynamic>?;
+        if (candidates != null && candidates.isNotEmpty) {
+          final candidate = candidates[0] as Map<String, dynamic>;
+
+          // Extraire les sources du grounding metadata (liens réels Google)
+          final groundingMeta =
+              candidate['groundingMetadata'] as Map<String, dynamic>?;
+          if (groundingMeta != null) {
+            final chunks =
+                groundingMeta['groundingChunks'] as List<dynamic>? ?? [];
+            final sources = <SummarySource>[];
+            for (final chunk in chunks.take(2)) {
+              final web = (chunk as Map<String, dynamic>)['web']
+                  as Map<String, dynamic>?;
+              if (web != null) {
+                sources.add(SummarySource(
+                  title: web['title'] as String? ?? query,
+                  url: web['uri'] as String? ?? '',
+                  snippet: '',
+                ));
+              }
+            }
+            if (sources.isNotEmpty) {
+              debugPrint('[Gemini Search] ✓ ${sources.length} sources grounding pour "$query"');
+              return sources;
+            }
+          }
+
+          // Fallback : parser le texte JSON de la réponse
+          final content = candidate['content'] as Map<String, dynamic>?;
+          final parts = content?['parts'] as List<dynamic>?;
+          if (parts != null && parts.isNotEmpty) {
+            final text = (parts[0]['text'] as String).trim();
+            try {
+              final parsed = json.decode(text) as List<dynamic>;
+              return parsed.take(2).map((s) {
+                final src = s as Map<String, dynamic>;
+                return SummarySource(
+                  title: src['title'] as String? ?? query,
+                  url: src['url'] as String? ?? '',
+                  snippet: src['snippet'] as String? ?? '',
+                );
+              }).where((s) => s.url.startsWith('http')).toList();
+            } catch (_) {
+              // Pas de JSON parseable
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[Gemini Search] ✗ Erreur pour "$query": $e');
+    }
+    return [];
   }
 
   void dispose() {

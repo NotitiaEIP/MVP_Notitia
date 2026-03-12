@@ -6,24 +6,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/mind_map.dart';
 import '../models/transcription.dart';
+import '../services/language_service.dart';
 import '../services/mind_map_service.dart';
 import '../services/storage_service.dart';
 import '../theme.dart';
 import '../widgets/mind_map_widget.dart';
 import '../widgets/meduza_widget.dart';
 import '../widgets/meduza_speech_bubble.dart';
+import '../widgets/page_header.dart';
+import '../services/auth_service.dart';
 
 class MindMapPage extends StatefulWidget {
   final Transcription? transcription;
   final ValueNotifier<int>? refreshNotifier;
   final void Function(MeduzaState state, {String? message, BubbleStyle style})?
   onMeduzaStateChanged;
+  final ValueChanged<bool>? onViewingMindMapChanged;
+  final UserProfile? profile;
+  final VoidCallback? onProfileTap;
 
   const MindMapPage({
     super.key,
     this.transcription,
     this.refreshNotifier,
     this.onMeduzaStateChanged,
+    this.onViewingMindMapChanged,
+    this.profile,
+    this.onProfileTap,
   });
 
   @override
@@ -32,7 +41,10 @@ class MindMapPage extends StatefulWidget {
 
 class _MindMapPageState extends State<MindMapPage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  static const double _floatingDockClearance = 84;
+
   final MindMapService _mindMapService = MindMapService();
+  final LanguageService _languageService = LanguageService();
 
   final TextEditingController _textController = TextEditingController();
 
@@ -41,7 +53,6 @@ class _MindMapPageState extends State<MindMapPage>
   bool _isLoading = false;
   MindMap? _currentMindMap;
   String? _errorMessage;
-  MindMapEngine? _selectedEngine;
   MindMapViewMode _viewMode = MindMapViewMode.radial;
 
   List<Transcription> _transcriptions = [];
@@ -80,6 +91,7 @@ class _MindMapPageState extends State<MindMapPage>
 
   @override
   void dispose() {
+    widget.onViewingMindMapChanged?.call(false);
     widget.refreshNotifier?.removeListener(_loadTranscriptions);
     WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
@@ -110,6 +122,13 @@ class _MindMapPageState extends State<MindMapPage>
     debugPrint('📋 MindMap: ${mindMaps.length} mind maps sauvegardées');
   }
 
+  void _closeCurrentMindMap() {
+    setState(() {
+      _currentMindMap = null;
+    });
+    widget.onViewingMindMapChanged?.call(false);
+  }
+
   /// Sauvegarde la mind map courante
   Future<void> _saveCurrentMindMap() async {
     if (_currentMindMap == null) return;
@@ -122,7 +141,13 @@ class _MindMapPageState extends State<MindMapPage>
             children: [
               const Icon(Icons.check_circle, color: Colors.greenAccent),
               const SizedBox(width: 8),
-              Text('Mind map « ${_currentMindMap!.title} » sauvegardée'),
+              Flexible(
+                child: Text(
+                  'Mind map « ${_currentMindMap!.title} » sauvegardée',
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                ),
+              ),
             ],
           ),
           backgroundColor: NotitiaTheme.darkBlue,
@@ -137,13 +162,10 @@ class _MindMapPageState extends State<MindMapPage>
 
   /// Charge une mind map sauvegardée
   void _openSavedMindMap(MindMap mindMap) {
-    final engine = mindMap.metadata['engine'] as String?;
     setState(() {
       _currentMindMap = mindMap;
-      _selectedEngine = engine == 'gemini'
-          ? MindMapEngine.gemini
-          : MindMapEngine.claude;
     });
+    widget.onViewingMindMapChanged?.call(true);
   }
 
   /// Supprime une mind map sauvegardée
@@ -152,25 +174,28 @@ class _MindMapPageState extends State<MindMapPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: NotitiaTheme.darkBlue,
-        title: const Text(
-          'Supprimer cette mind map ?',
-          style: TextStyle(color: NotitiaTheme.white),
+        title: Text(
+          _languageService.translate('delete_mindmap_title'),
+          style: const TextStyle(color: NotitiaTheme.white),
         ),
         content: Text(
-          '« ${mindMap.title} » sera supprimée définitivement.',
+          '« ${mindMap.title} » ${_languageService.translate('mindmap_delete_confirm')}',
           style: const TextStyle(color: NotitiaTheme.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'Annuler',
-              style: TextStyle(color: NotitiaTheme.grey),
+            child: Text(
+              _languageService.translate('cancel'),
+              style: const TextStyle(color: NotitiaTheme.grey),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+            child: Text(
+              _languageService.translate('delete'),
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -186,6 +211,15 @@ class _MindMapPageState extends State<MindMapPage>
     return _transcriptions
         .where((t) => _selectedTranscriptionIds.contains(t.id))
         .toList();
+  }
+
+  String _selectedTranscriptionsLabel(int count) {
+    if (_languageService.isFrench) {
+      final plural = count > 1;
+      return '$count transcription${plural ? 's' : ''} sélectionnée${plural ? 's' : ''}';
+    }
+
+    return '$count transcription${count > 1 ? 's' : ''} selected';
   }
 
   /// Affiche le choix du moteur puis lance la génération
@@ -204,13 +238,12 @@ class _MindMapPageState extends State<MindMapPage>
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      _selectedEngine = engine;
     });
 
     // Meduza - generation en cours
     widget.onMeduzaStateChanged?.call(
       MeduzaState.processing,
-      message: 'Generation de la mind map en cours...',
+      message: _languageService.translate('generating_mindmap'),
     );
 
     MindMapResult result;
@@ -245,17 +278,26 @@ class _MindMapPageState extends State<MindMapPage>
       }
     });
 
+    if (result.success && _currentMindMap != null) {
+      widget.onViewingMindMapChanged?.call(true);
+    }
+
+    // Auto-save après génération réussie
+    if (result.success && _currentMindMap != null) {
+      await _saveCurrentMindMap();
+    }
+
     // Meduza - resultat
     if (result.success) {
       widget.onMeduzaStateChanged?.call(
         MeduzaState.happy,
-        message: 'Mind map generee avec succes.',
+        message: _languageService.translate('mindmap_generated_success'),
         style: BubbleStyle.success,
       );
     } else {
       widget.onMeduzaStateChanged?.call(
         MeduzaState.confused,
-        message: 'Erreur lors de la generation. Reessaie.',
+        message: _languageService.translate('error_generation_retry'),
         style: BubbleStyle.error,
       );
     }
@@ -282,9 +324,9 @@ class _MindMapPageState extends State<MindMapPage>
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            'Choisir le moteur IA',
-            style: TextStyle(
+          Text(
+            _languageService.translate('choose_ai_engine'),
+            style: const TextStyle(
               color: NotitiaTheme.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -298,11 +340,10 @@ class _MindMapPageState extends State<MindMapPage>
             engine: MindMapEngine.gemini,
             icon: Icons.auto_awesome,
             color: Colors.blueAccent,
-            title: 'Gemini',
-            subtitle: 'Gratuit',
-            description:
-                'Mind map rapide avec les thèmes principaux.\nIdéal pour un aperçu rapide.',
-            badge: 'GRATUIT',
+            title: _languageService.translate('engine_gemini_label'),
+            subtitle: _languageService.translate('free_label'),
+            description: _languageService.translate('gemini_description'),
+            badge: _languageService.translate('free_badge'),
             badgeColor: Colors.green,
           ),
           const SizedBox(height: 12),
@@ -313,11 +354,10 @@ class _MindMapPageState extends State<MindMapPage>
             engine: MindMapEngine.claude,
             icon: Icons.diamond,
             color: NotitiaTheme.neonPink,
-            title: 'Claude Sonnet',
-            subtitle: 'Premium',
-            description:
-                'Mind map riche avec citations sources,\nplus de nœuds et analyse approfondie.',
-            badge: 'PREMIUM',
+            title: _languageService.translate('engine_claude_sonnet_label'),
+            subtitle: _languageService.translate('premium_label'),
+            description: _languageService.translate('claude_description'),
+            badge: _languageService.translate('premium_badge'),
             badgeColor: NotitiaTheme.neonPink,
           ),
         ],
@@ -604,7 +644,6 @@ class _MindMapPageState extends State<MindMapPage>
 
   /// Construit la section « Source Text » avec highlight contextuel
   Widget _buildSourceTextSection(String sourceText) {
-    // Chercher le passage dans toutes les transcriptions sélectionnées pour du contexte
     final allContent = _selectedTranscriptions
         .map((t) => t.content)
         .join('\n\n');
@@ -627,9 +666,9 @@ class _MindMapPageState extends State<MindMapPage>
             children: [
               Icon(Icons.format_quote, color: NotitiaTheme.neonCyan, size: 18),
               const SizedBox(width: 8),
-              const Text(
-                'Passage source',
-                style: TextStyle(
+              Text(
+                _languageService.translate('source_passage_title'),
+                style: const TextStyle(
                   color: NotitiaTheme.neonCyan,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
@@ -735,69 +774,127 @@ class _MindMapPageState extends State<MindMapPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NotitiaTheme.deepBlue,
-      appBar: _buildAppBar(),
-      body: _currentMindMap != null
-          ? _buildMindMapView()
-          : _buildSourceSelector(),
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 24),
+            if (_currentMindMap != null)
+              _buildMindMapHeader()
+            else
+              NotitiaPageHeader(
+                icon: Icons.account_tree_rounded,
+                title: 'MIND MAP',
+                profile: widget.profile,
+                onProfileTap: widget.onProfileTap,
+                actions: [
+                  IconButton(
+                    icon: Icon(Icons.refresh, color: NotitiaTheme.neonCyan),
+                    tooltip: _languageService.translate(
+                      'refresh_transcriptions_tooltip',
+                    ),
+                    onPressed: _loadTranscriptions,
+                  ),
+                ],
+              ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _currentMindMap != null
+                  ? _buildMindMapView()
+                  : _buildSourceSelector(),
+            ),
+          ],
+        ),
+      ),
       floatingActionButton: _buildFAB(),
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: NotitiaTheme.darkBlue,
-      elevation: 0,
-      title: Row(
+  Widget _buildMindMapHeader() {
+    final nodesLabel = _languageService
+        .translate('mindmap_nodes_label')
+        .replaceAll('{count}', _currentMindMap!.totalNodes.toString());
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
         children: [
-          Icon(Icons.account_tree, color: NotitiaTheme.neonCyan),
-          const SizedBox(width: 12),
-          const Text(
-            'Mind Map',
-            style: TextStyle(
+          IconButton(
+            icon: const Icon(
+              Icons.arrow_back_rounded,
               color: NotitiaTheme.white,
-              fontWeight: FontWeight.bold,
+            ),
+            onPressed: _closeCurrentMindMap,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _currentMindMap!.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: NotitiaTheme.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  nodesLabel,
+                  style: const TextStyle(
+                    color: NotitiaTheme.grey,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
-          if (_currentMindMap != null) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${_currentMindMap!.totalNodes} nœuds',
-                style: const TextStyle(
-                  color: NotitiaTheme.neonPink,
-                  fontSize: 12,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewModeSwitcher() {
+    return Container(
+      decoration: BoxDecoration(
+        color: NotitiaTheme.darkBlue.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: NotitiaTheme.neonCyan.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: MindMapViewMode.values.map((mode) {
+          final isActive = _viewMode == mode;
+          return Tooltip(
+            message: _viewModeLabel(mode),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                if (_viewMode != mode) {
+                  setState(() => _viewMode = mode);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? NotitiaTheme.neonCyan.withValues(alpha: 0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _viewModeIcon(mode),
+                  color: isActive ? NotitiaTheme.neonCyan : NotitiaTheme.grey,
+                  size: 20,
                 ),
               ),
             ),
-          ],
-        ],
+          );
+        }).toList(),
       ),
-      actions: [
-        // Bouton Rafraîchir transcriptions
-        if (_currentMindMap == null)
-          IconButton(
-            icon: Icon(Icons.refresh, color: NotitiaTheme.neonCyan),
-            tooltip: 'Rafraîchir les transcriptions',
-            onPressed: _loadTranscriptions,
-          ),
-        // Bouton Reset
-        if (_currentMindMap != null)
-          IconButton(
-            icon: Icon(Icons.refresh, color: NotitiaTheme.grey),
-            tooltip: 'Nouvelle mind map',
-            onPressed: () {
-              setState(() {
-                _currentMindMap = null;
-              });
-            },
-          ),
-      ],
     );
   }
 
@@ -812,10 +909,19 @@ class _MindMapPageState extends State<MindMapPage>
             indicatorColor: NotitiaTheme.neonCyan,
             labelColor: NotitiaTheme.neonCyan,
             unselectedLabelColor: NotitiaTheme.grey,
-            tabs: const [
-              Tab(icon: Icon(Icons.history), text: 'Transcriptions'),
-              Tab(icon: Icon(Icons.edit), text: 'Texte libre'),
-              Tab(icon: Icon(Icons.bookmark), text: 'Sauvegardées'),
+            tabs: [
+              Tab(
+                icon: const Icon(Icons.history),
+                text: _languageService.translate('transcriptions_tab'),
+              ),
+              Tab(
+                icon: const Icon(Icons.edit),
+                text: _languageService.translate('free_text_tab'),
+              ),
+              Tab(
+                icon: const Icon(Icons.bookmark),
+                text: _languageService.translate('saved_tab'),
+              ),
             ],
           ),
         ),
@@ -873,12 +979,12 @@ class _MindMapPageState extends State<MindMapPage>
             ),
             const SizedBox(height: 16),
             Text(
-              'Aucune transcription disponible',
+              _languageService.translate('no_transcriptions_available'),
               style: TextStyle(color: NotitiaTheme.grey, fontSize: 16),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Commencez par enregistrer une transcription',
+            Text(
+              _languageService.translate('start_with_transcription_hint'),
               style: TextStyle(color: NotitiaTheme.grey),
             ),
           ],
@@ -903,7 +1009,9 @@ class _MindMapPageState extends State<MindMapPage>
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '${_selectedTranscriptionIds.length} transcription${_selectedTranscriptionIds.length > 1 ? 's' : ''} sélectionnée${_selectedTranscriptionIds.length > 1 ? 's' : ''}',
+                  _selectedTranscriptionsLabel(
+                    _selectedTranscriptionIds.length,
+                  ),
                   style: const TextStyle(
                     color: NotitiaTheme.neonCyan,
                     fontWeight: FontWeight.w600,
@@ -914,9 +1022,9 @@ class _MindMapPageState extends State<MindMapPage>
                 GestureDetector(
                   onTap: () =>
                       setState(() => _selectedTranscriptionIds.clear()),
-                  child: const Text(
-                    'Tout désélectionner',
-                    style: TextStyle(
+                  child: Text(
+                    _languageService.translate('deselect_all'),
+                    style: const TextStyle(
                       color: NotitiaTheme.grey,
                       fontSize: 12,
                       decoration: TextDecoration.underline,
@@ -928,7 +1036,12 @@ class _MindMapPageState extends State<MindMapPage>
           ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: 16,
+            ),
             itemCount: _transcriptions.length,
             itemBuilder: (context, index) {
               final transcription = _transcriptions[index];
@@ -1030,6 +1143,54 @@ class _MindMapPageState extends State<MindMapPage>
             },
           ),
         ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            16 + MediaQuery.of(context).padding.bottom + _floatingDockClearance,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _isLoading || _selectedTranscriptionIds.isEmpty
+                  ? null
+                  : _showEnginePickerAndGenerate,
+              style: FilledButton.styleFrom(
+                backgroundColor: NotitiaTheme.neonCyan,
+                disabledBackgroundColor: NotitiaTheme.grey.withValues(
+                  alpha: 0.5,
+                ),
+                foregroundColor: NotitiaTheme.deepBlue,
+                disabledForegroundColor: NotitiaTheme.deepBlue.withValues(
+                  alpha: 0.7,
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: NotitiaTheme.deepBlue,
+                      ),
+                    )
+                  : const Icon(Icons.auto_awesome),
+              label: Text(
+                _isLoading
+                    ? _languageService.translate('generating_label')
+                    : _languageService.translate(
+                        'generate_mindmap_button_label',
+                      ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1047,12 +1208,12 @@ class _MindMapPageState extends State<MindMapPage>
             ),
             const SizedBox(height: 16),
             Text(
-              'Aucune mind map sauvegardée',
+              _languageService.translate('no_saved_mindmaps'),
               style: TextStyle(color: NotitiaTheme.grey, fontSize: 16),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Générez une mind map puis sauvegardez-la',
+            Text(
+              _languageService.translate('generate_and_save_mindmap'),
               style: TextStyle(color: NotitiaTheme.grey),
             ),
           ],
@@ -1061,7 +1222,7 @@ class _MindMapPageState extends State<MindMapPage>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 16),
       itemCount: _savedMindMaps.length,
       itemBuilder: (context, index) {
         final mindMap = _savedMindMaps[index];
@@ -1184,68 +1345,126 @@ class _MindMapPageState extends State<MindMapPage>
   }
 
   Widget _buildTextInput() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    final canGenerate = _textController.text.isNotEmpty;
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        100 + MediaQuery.of(context).padding.bottom + _floatingDockClearance,
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              maxLines: null,
-              expands: true,
-              style: const TextStyle(color: NotitiaTheme.white),
-              decoration: InputDecoration(
-                hintText:
-                    'Collez ou tapez votre texte ici...\n\nLe système analysera le contenu et générera une mind map structurée avec les thèmes principaux, idées, actions et questions identifiées.',
-                hintStyle: TextStyle(
-                  color: NotitiaTheme.grey.withValues(alpha: 0.5),
-                ),
-                filled: true,
-                fillColor: NotitiaTheme.darkBlue,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: NotitiaTheme.grey.withValues(alpha: 0.3),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: NotitiaTheme.grey.withValues(alpha: 0.3),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: NotitiaTheme.neonCyan),
+          // Zone de texte — grandit avec le contenu
+          TextField(
+            controller: _textController,
+            maxLines: null,
+            minLines: 4,
+            style: const TextStyle(color: NotitiaTheme.white),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: _languageService.translate('paste_or_type_text_hint'),
+              hintStyle: TextStyle(
+                color: NotitiaTheme.grey.withValues(alpha: 0.5),
+              ),
+              filled: true,
+              fillColor: NotitiaTheme.darkBlue,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: NotitiaTheme.grey.withValues(alpha: 0.3),
                 ),
               ),
-              textAlignVertical: TextAlignVertical.top,
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: NotitiaTheme.grey.withValues(alpha: 0.3),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: NotitiaTheme.neonCyan),
+              ),
             ),
+            textAlignVertical: TextAlignVertical.top,
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          // Barre d'actions + bouton Générer
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 4,
+            runSpacing: 8,
             children: [
               TextButton.icon(
                 onPressed: () async {
                   final data = await Clipboard.getData(Clipboard.kTextPlain);
                   if (data?.text != null) {
-                    _textController.text = data!.text!;
+                    setState(() => _textController.text = data!.text!);
                   }
                 },
-                icon: const Icon(Icons.paste, color: NotitiaTheme.grey),
+                icon: const Icon(
+                  Icons.paste,
+                  color: NotitiaTheme.grey,
+                  size: 18,
+                ),
                 label: const Text(
                   'Coller',
-                  style: TextStyle(color: NotitiaTheme.grey),
+                  style: TextStyle(color: NotitiaTheme.grey, fontSize: 13),
                 ),
               ),
-              const SizedBox(width: 8),
               TextButton.icon(
-                onPressed: () => _textController.clear(),
-                icon: const Icon(Icons.clear, color: NotitiaTheme.grey),
+                onPressed: () => setState(() => _textController.clear()),
+                icon: const Icon(
+                  Icons.clear,
+                  color: NotitiaTheme.grey,
+                  size: 18,
+                ),
                 label: const Text(
                   'Effacer',
-                  style: TextStyle(color: NotitiaTheme.grey),
+                  style: TextStyle(color: NotitiaTheme.grey, fontSize: 13),
+                ),
+              ),
+              AnimatedOpacity(
+                opacity: canGenerate ? 1.0 : 0.45,
+                duration: const Duration(milliseconds: 200),
+                child: FilledButton.icon(
+                  onPressed: _isLoading || !canGenerate
+                      ? null
+                      : _showEnginePickerAndGenerate,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: NotitiaTheme.neonCyan,
+                    foregroundColor: NotitiaTheme.deepBlue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                  ),
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: NotitiaTheme.deepBlue,
+                          ),
+                        )
+                      : const Icon(Icons.auto_awesome, size: 18),
+                  label: Text(
+                    _isLoading
+                        ? _languageService.translate('generating_label')
+                        : _languageService.translate(
+                            'generate_mindmap_button_label',
+                          ),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1256,161 +1475,14 @@ class _MindMapPageState extends State<MindMapPage>
   }
 
   Widget _buildMindMapView() {
-    final isSaved = _savedMindMaps.any((m) => m.id == _currentMindMap!.id);
-
     return Stack(
       children: [
-        // Mind Map
         MindMapWidget(
           mindMap: _currentMindMap!,
           onNodeTap: _showNodeDetails,
           viewMode: _viewMode,
         ),
-
-        // Info overlay
-        Positioned(
-          top: 16,
-          left: 16,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: NotitiaTheme.darkBlue.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: NotitiaTheme.neonCyan.withValues(alpha: 0.5),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _currentMindMap!.title,
-                  style: const TextStyle(
-                    color: NotitiaTheme.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Profondeur: ${_currentMindMap!.maxDepth} • Nœuds: ${_currentMindMap!.totalNodes}',
-                      style: const TextStyle(
-                        color: NotitiaTheme.grey,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _selectedEngine == MindMapEngine.claude
-                            ? NotitiaTheme.neonPink.withValues(alpha: 0.2)
-                            : Colors.green.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        _selectedEngine == MindMapEngine.claude
-                            ? '✦ Claude'
-                            : '✦ Gemini',
-                        style: TextStyle(
-                          color: _selectedEngine == MindMapEngine.claude
-                              ? NotitiaTheme.neonPink
-                              : Colors.greenAccent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_currentMindMap!.sourceTranscriptionIds.length > 1) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_currentMindMap!.sourceTranscriptionIds.length} sources',
-                    style: TextStyle(
-                      color: NotitiaTheme.neonCyan.withValues(alpha: 0.8),
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-
-        // Save button
-        Positioned(
-          bottom: 16,
-          right: 16,
-          child: FloatingActionButton.small(
-            heroTag: 'save_mindmap',
-            onPressed: isSaved ? null : _saveCurrentMindMap,
-            backgroundColor: isSaved
-                ? NotitiaTheme.grey.withValues(alpha: 0.3)
-                : NotitiaTheme.neonPink,
-            child: Icon(
-              isSaved ? Icons.bookmark : Icons.bookmark_border,
-              color: isSaved ? NotitiaTheme.grey : NotitiaTheme.white,
-            ),
-          ),
-        ),
-
-        // View mode switcher
-        Positioned(
-          top: 16,
-          right: 16,
-          child: Container(
-            decoration: BoxDecoration(
-              color: NotitiaTheme.darkBlue.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: NotitiaTheme.neonCyan.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: MindMapViewMode.values.map((mode) {
-                final isActive = _viewMode == mode;
-                return Tooltip(
-                  message: _viewModeLabel(mode),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () {
-                      if (_viewMode != mode) {
-                        setState(() {
-                          _viewMode = mode;
-                        });
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? NotitiaTheme.neonCyan.withValues(alpha: 0.2)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        _viewModeIcon(mode),
-                        color: isActive
-                            ? NotitiaTheme.neonCyan
-                            : NotitiaTheme.grey,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ),
+        Positioned(top: 12, right: 12, child: _buildViewModeSwitcher()),
       ],
     );
   }
@@ -1429,44 +1501,19 @@ class _MindMapPageState extends State<MindMapPage>
   String _viewModeLabel(MindMapViewMode mode) {
     switch (mode) {
       case MindMapViewMode.radial:
-        return 'Radial';
+        return _languageService.translate('view_mode_radial');
       case MindMapViewMode.organigramme:
-        return 'Organigramme';
+        return _languageService.translate('view_mode_organigramme');
       case MindMapViewMode.horizontal:
-        return 'Horizontal';
+        return _languageService.translate('view_mode_horizontal');
     }
   }
 
   Widget _buildFAB() {
     if (_currentMindMap != null) return const SizedBox.shrink();
-    if (_tabController.index == 2) return const SizedBox.shrink(); // Saved tab
+    // Tous les onglets utilisent désormais des boutons intégrés dans le contenu.
+    if (_tabController.index != 0) return const SizedBox.shrink();
 
-    final canGenerate =
-        (_tabController.index == 0 && _selectedTranscriptionIds.isNotEmpty) ||
-        (_tabController.index == 1 && _textController.text.isNotEmpty);
-
-    return FloatingActionButton.extended(
-      onPressed: _isLoading ? null : _showEnginePickerAndGenerate,
-      backgroundColor: canGenerate
-          ? NotitiaTheme.neonCyan
-          : NotitiaTheme.grey.withValues(alpha: 0.5),
-      icon: _isLoading
-          ? SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: NotitiaTheme.deepBlue,
-              ),
-            )
-          : Icon(Icons.auto_awesome, color: NotitiaTheme.deepBlue),
-      label: Text(
-        _isLoading ? 'Génération...' : 'Générer Mind Map',
-        style: TextStyle(
-          color: NotitiaTheme.deepBlue,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }

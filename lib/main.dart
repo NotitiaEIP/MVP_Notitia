@@ -5,6 +5,8 @@
 //                   Recherche sémantique
 // =============================================================================
 
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -15,15 +17,17 @@ import 'pages/capture_page.dart';
 import 'pages/email_otp_page.dart';
 import 'pages/history_page.dart';
 import 'pages/login_page.dart';
+import 'pages/meeting_page.dart';
 import 'pages/mind_map_page.dart';
 import 'pages/onboarding_page.dart';
+import 'pages/subscription_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/register_page.dart';
-import 'pages/search_page.dart';
 import 'pages/splash_screen.dart';
 import 'services/auth_service.dart';
 import 'services/foreground_service.dart';
 import 'services/home_widget_service.dart';
+import 'services/language_service.dart';
 import 'services/nfc_share_service.dart';
 import 'services/notitia_file_service.dart';
 import 'theme.dart';
@@ -43,6 +47,9 @@ void main() async {
 
   // Initialisation de Supabase
   await AuthService.initialize();
+
+  // Initialisation du service de langue
+  await LanguageService().initialize();
 
   // Port de communication pour le foreground service
   FlutterForegroundTask.initCommunicationPort();
@@ -81,14 +88,45 @@ class NotitiaApp extends StatelessWidget {
         textTheme: GoogleFonts.orbitronTextTheme(ThemeData.dark().textTheme),
       ),
       home: const SplashScreen(),
-      routes: {
-        '/main': (context) => const WithForegroundTask(child: MainNavigation()),
-        '/auth': (context) => const AuthChoicePage(),
-        '/login': (context) => const LoginPage(),
-        '/register': (context) => const RegisterPage(),
-        '/email-otp': (context) => const EmailOtpPage(),
-        '/profile': (context) => const ProfilePage(),
-        '/onboarding': (context) => const OnboardingPage(),
+      onGenerateRoute: (settings) {
+        final routes = <String, WidgetBuilder>{
+          '/main': (context) =>
+              const WithForegroundTask(child: MainNavigation()),
+          '/auth': (context) => const AuthChoicePage(),
+          '/login': (context) => const LoginPage(),
+          '/register': (context) => const RegisterPage(),
+          '/email-otp': (context) => const EmailOtpPage(),
+          '/profile': (context) => const ProfilePage(),
+          '/onboarding': (context) => const OnboardingPage(),
+          '/subscription': (context) => const SubscriptionPage(),
+        };
+
+        final builder = routes[settings.name];
+        if (builder == null) return null;
+
+        // Smooth fade transition when arriving from onboarding
+        final args = settings.arguments;
+        if (settings.name == '/main' &&
+            args is Map &&
+            args['fromOnboarding'] == true) {
+          return PageRouteBuilder(
+            settings: settings,
+            pageBuilder: (context, _, __) => builder(context),
+            transitionDuration: const Duration(milliseconds: 600),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionsBuilder: (context, animation, _, child) {
+              return FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOut,
+                ),
+                child: child,
+              );
+            },
+          );
+        }
+
+        return MaterialPageRoute(settings: settings, builder: builder);
       },
     );
   }
@@ -106,9 +144,11 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation>
     with WidgetsBindingObserver {
-  int _currentIndex = 0;
+  int _currentIndex = 2; // Capture au centre
   final _authService = AuthService();
   UserProfile? _profile;
+  bool _fromOnboarding = false;
+  bool _isViewingMindMap = false;
 
   // --- Meduza state management (event-driven) ---
   MeduzaState _meduzaState = MeduzaState.idle;
@@ -153,8 +193,26 @@ class _MainNavigationState extends State<MainNavigation>
   /// Notifie les pages enfants qu'une nouvelle transcription a été sauvegardée.
   final ValueNotifier<int> _refreshNotifier = ValueNotifier(0);
 
+  /// Filtre l'historique pour n'afficher que les réunions.
+  bool _filterHistoryMeetings = false;
+
   void _onTranscriptionSaved() {
     _refreshNotifier.value++;
+  }
+
+  /// Navigue vers l'onglet historique en filtrant sur les réunions.
+  void _navigateToHistoryMeetings() {
+    setState(() {
+      _filterHistoryMeetings = true;
+      _currentIndex = 0; // Index de l'onglet Historique
+    });
+  }
+
+  void _onMindMapViewingChanged(bool isViewing) {
+    if (_isViewingMindMap == isViewing) return;
+    setState(() {
+      _isViewingMindMap = isViewing;
+    });
   }
 
   @override
@@ -184,7 +242,18 @@ class _MainNavigationState extends State<MainNavigation>
     final saved = await HomeWidgetService.checkPendingTranscription();
     if (saved && mounted) {
       _refreshNotifier.value++;
-      debugPrint('[MainNavigation] Widget pending transcription traitée → refresh');
+      debugPrint(
+        '[MainNavigation] Widget pending transcription traitée → refresh',
+      );
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && args['fromOnboarding'] == true && !_fromOnboarding) {
+      _fromOnboarding = true;
     }
   }
 
@@ -207,7 +276,11 @@ class _MainNavigationState extends State<MainNavigation>
   }
 
   void _onTabChanged(int index) {
-    setState(() => _currentIndex = index);
+    setState(() {
+      _currentIndex = index;
+      // Réinitialiser le filtre réunion si on quitte manuellement l'historique
+      if (index != 0) _filterHistoryMeetings = false;
+    });
   }
 
   void _openProfile() {
@@ -220,27 +293,52 @@ class _MainNavigationState extends State<MainNavigation>
 
   @override
   Widget build(BuildContext context) {
+    final hideDock = _currentIndex == 3 && _isViewingMindMap;
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
+
     return Scaffold(
-      appBar: _buildAppBar(),
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // Contenu principal
+          // Contenu principal — scroll sous la dock flottante
           IndexedStack(
             index: _currentIndex,
             children: [
+              // 0 — Historique
+              HistoryPage(
+                refreshNotifier: _refreshNotifier,
+                profile: _profile,
+                onProfileTap: _openProfile,
+                filterMeetingsOnly: _filterHistoryMeetings,
+              ),
+              // 1 — Réunion
+              MeetingPage(
+                refreshNotifier: _refreshNotifier,
+                onMeduzaStateChanged: _setMeduzaState,
+                onNavigateToHistory: _navigateToHistoryMeetings,
+              ),
+              // 2 — Capture (centre)
               CapturePage(
                 onTranscriptionSaved: _onTranscriptionSaved,
                 onMeduzaStateChanged: _setMeduzaState,
+                profile: _profile,
+                onProfileTap: _openProfile,
+                fromOnboarding: _fromOnboarding,
               ),
-              HistoryPage(refreshNotifier: _refreshNotifier),
+              // 3 — MindMap
               MindMapPage(
                 refreshNotifier: _refreshNotifier,
                 onMeduzaStateChanged: _setMeduzaState,
+                onViewingMindMapChanged: _onMindMapViewingChanged,
+                profile: _profile,
+                onProfileTap: _openProfile,
               ),
-              SearchPage(refreshNotifier: _refreshNotifier),
+              // 4 — Assistant
               AssistantPage(
                 refreshNotifier: _refreshNotifier,
                 onMeduzaStateChanged: _setMeduzaState,
+                profile: _profile,
+                onProfileTap: _openProfile,
               ),
             ],
           ),
@@ -253,166 +351,174 @@ class _MainNavigationState extends State<MainNavigation>
               visible: _showMeduza,
               onDismiss: _dismissMeduza,
             ),
+          // ── Floating Glass Dock ──
+          if (!hideDock)
+            Positioned(
+              left: 20,
+              right: 20,
+              bottom: 10 + bottomSafe,
+              child: _buildFloatingDock(),
+            ),
         ],
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: NotitiaTheme.deepBlue,
-      elevation: 0,
-      title: Row(
+  // ===========================================================================
+  // FLOATING GLASS DOCK (iPadOS / Dynamic Island style)
+  // ===========================================================================
+
+  static const _navIcons = [
+    Icons.history_rounded,
+    Icons.groups_rounded,
+    Icons.mic_rounded, // centre
+    Icons.account_tree_rounded,
+    Icons.auto_awesome,
+  ];
+
+  Widget _buildFloatingDock() {
+    const double dockHeight = 56;
+    const double borderWidth = 1.5;
+    const double dockTotalHeight = dockHeight + borderWidth * 2;
+    const double centerBtnSize = 64;
+    const double dockRadius = 32;
+    const int centerIndex = 2;
+
+    return SizedBox(
+      height: centerBtnSize + 4,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
         children: [
+          // ── Glass dock body with gradient border ──
           Container(
-            width: 32,
-            height: 32,
+            height: dockTotalHeight,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(dockRadius),
               gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
                 colors: [
-                  NotitiaTheme.neonPink,
-                  NotitiaTheme.neonPink.withOpacity(0.6),
+                  NotitiaTheme.neonPink.withValues(alpha: 0.6),
+                  NotitiaTheme.neonPink.withValues(alpha: 0.15),
+                  NotitiaTheme.neonCyan.withValues(alpha: 0.15),
+                  NotitiaTheme.neonCyan.withValues(alpha: 0.6),
                 ],
               ),
             ),
-            child: const Icon(Icons.memory, size: 18, color: Colors.white),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            'NOTITIA',
-            style: GoogleFonts.orbitron(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: NotitiaTheme.white,
-              letterSpacing: 3,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        // Bouton profil
-        Padding(
-          padding: const EdgeInsets.only(right: 16),
-          child: GestureDetector(
-            onTap: _openProfile,
-            child: _buildProfileAvatar(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProfileAvatar() {
-    final isLoggedIn = _authService.isAuthenticated;
-
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: isLoggedIn
-            ? LinearGradient(
-                colors: [
-                  NotitiaTheme.neonPink,
-                  NotitiaTheme.neonPink.withOpacity(0.6),
-                ],
-              )
-            : null,
-        border: !isLoggedIn
-            ? Border.all(
-                color: NotitiaTheme.neonPink.withOpacity(0.5),
-                width: 2,
-              )
-            : null,
-        boxShadow: isLoggedIn
-            ? [
-                BoxShadow(
-                  color: NotitiaTheme.neonPink.withOpacity(0.3),
-                  blurRadius: 8,
-                  spreadRadius: 1,
+            padding: const EdgeInsets.all(borderWidth),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(dockRadius - borderWidth),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: NotitiaTheme.darkBlue.withValues(alpha: 0.55),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildDockIcon(0),
+                      _buildDockIcon(1),
+                      SizedBox(width: centerBtnSize + 8),
+                      _buildDockIcon(3),
+                      _buildDockIcon(4),
+                    ],
+                  ),
                 ),
-              ]
-            : null,
-      ),
-      child: _profile?.avatarUrl != null
-          ? ClipOval(
-              child: Image.network(
-                _profile!.avatarUrl!,
-                fit: BoxFit.cover,
-                width: 40,
-                height: 40,
-                errorBuilder: (_, __, ___) => _buildDefaultAvatarContent(),
               ),
-            )
-          : _buildDefaultAvatarContent(),
+            ),
+          ),
+          // ── Center floating button (protrudes above & below) ──
+          _buildDockCenterButton(centerIndex),
+        ],
+      ),
     );
   }
 
-  Widget _buildDefaultAvatarContent() {
-    if (_authService.isAuthenticated) {
-      final initial =
-          (_profile?.username ??
-                  _profile?.email ??
-                  _authService.currentUser?.email ??
-                  'U')[0]
-              .toUpperCase();
-      return Center(
-        child: Text(
-          initial,
-          style: GoogleFonts.orbitron(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-      );
-    } else {
-      return Icon(Icons.person_outline, color: NotitiaTheme.neonPink, size: 22);
-    }
-  }
+  Widget _buildDockIcon(int index) {
+    final isSelected = _currentIndex == index;
+    final color = isSelected ? NotitiaTheme.neonPink : NotitiaTheme.grey;
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: NotitiaTheme.darkBlue,
-        border: Border(
-          top: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.3)),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _onTabChanged(index),
+      child: SizedBox(
+        width: 50,
+        height: 50,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? NotitiaTheme.neonPink.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(_navIcons[index], size: 26, color: color),
+          ),
         ),
       ),
-      child: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: _onTabChanged,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        selectedItemColor: NotitiaTheme.neonPink,
-        unselectedItemColor: NotitiaTheme.grey,
-        selectedLabelStyle: GoogleFonts.orbitron(fontSize: 10),
-        unselectedLabelStyle: GoogleFonts.orbitron(fontSize: 10),
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.mic_rounded),
-            label: 'CAPTURE',
+    );
+  }
+
+  Widget _buildDockCenterButton(int index) {
+    final isSelected = _currentIndex == index;
+    const double size = 64;
+
+    return GestureDetector(
+      onTap: () => _onTabChanged(index),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: isSelected
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [NotitiaTheme.neonPink, Color(0xFFAA0055)],
+                )
+              : LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    NotitiaTheme.darkBlue.withValues(alpha: 0.9),
+                    NotitiaTheme.deepBlue,
+                  ],
+                ),
+          border: Border.all(
+            color: isSelected
+                ? NotitiaTheme.neonPink
+                : NotitiaTheme.grey.withValues(alpha: 0.4),
+            width: isSelected ? 2 : 1.5,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history_rounded),
-            label: 'HISTORIQUE',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_tree_rounded),
-            label: 'MIND MAP',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search_rounded),
-            label: 'RECHERCHE',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.auto_awesome),
-            label: 'ASSISTANT',
-          ),
-        ],
+          boxShadow: [
+            if (isSelected) ...[
+              BoxShadow(
+                color: NotitiaTheme.neonPink.withValues(alpha: 0.5),
+                blurRadius: 18,
+                spreadRadius: 2,
+              ),
+              BoxShadow(
+                color: NotitiaTheme.neonPink.withValues(alpha: 0.2),
+                blurRadius: 40,
+                spreadRadius: 8,
+              ),
+            ] else
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+          ],
+        ),
+        child: Icon(
+          Icons.mic_rounded,
+          size: 30,
+          color: isSelected ? NotitiaTheme.white : NotitiaTheme.grey,
+        ),
       ),
     );
   }

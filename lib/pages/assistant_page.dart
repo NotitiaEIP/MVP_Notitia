@@ -8,19 +8,27 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/language_service.dart';
 import '../services/rag_service.dart';
 import '../theme.dart';
 import '../widgets/meduza_widget.dart';
+import '../widgets/meduza_companion.dart';
 import '../widgets/meduza_speech_bubble.dart';
+import '../widgets/page_header.dart';
+import '../services/auth_service.dart';
 
 class AssistantPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
   final void Function(MeduzaState state, {String? message, BubbleStyle style})?
   onMeduzaStateChanged;
+  final UserProfile? profile;
+  final VoidCallback? onProfileTap;
   const AssistantPage({
     super.key,
     required this.refreshNotifier,
     this.onMeduzaStateChanged,
+    this.profile,
+    this.onProfileTap,
   });
 
   @override
@@ -29,9 +37,12 @@ class AssistantPage extends StatefulWidget {
 
 class _AssistantPageState extends State<AssistantPage>
     with TickerProviderStateMixin {
+  static const double _floatingDockClearance = 84;
+
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final RAGService _rag = RAGService.instance;
+  final LanguageService _languageService = LanguageService();
 
   bool _isLoading = false;
   bool _isIndexing = false;
@@ -117,7 +128,9 @@ class _AssistantPageState extends State<AssistantPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Re-indexation terminée : ${status.totalChunks} fragments créés',
+              _languageService
+                  .translate('reindex_completed')
+                  .replaceAll('{count}', status.totalChunks.toString()),
               style: GoogleFonts.poppins(),
             ),
             backgroundColor: NotitiaTheme.neonCyan,
@@ -130,7 +143,9 @@ class _AssistantPageState extends State<AssistantPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Erreur de ré-indexation: $e',
+              _languageService
+                  .translate('reindex_error')
+                  .replaceAll('{error}', e.toString()),
               style: GoogleFonts.poppins(),
             ),
             backgroundColor: Colors.red,
@@ -151,7 +166,7 @@ class _AssistantPageState extends State<AssistantPage>
     // Meduza - recherche en cours
     widget.onMeduzaStateChanged?.call(
       MeduzaState.processing,
-      message: 'Recherche dans tes notes...',
+      message: _languageService.translate('searching_notes'),
     );
 
     _scrollToBottom();
@@ -161,14 +176,14 @@ class _AssistantPageState extends State<AssistantPage>
       // Meduza - reponse trouvee
       widget.onMeduzaStateChanged?.call(
         MeduzaState.happy,
-        message: 'Reponse generee a partir de tes notes.',
+        message: _languageService.translate('answer_generated_from_notes'),
         style: BubbleStyle.success,
       );
     } catch (e) {
       // Meduza - erreur
       widget.onMeduzaStateChanged?.call(
         MeduzaState.confused,
-        message: 'Je n\'ai pas pu trouver de reponse pertinente.',
+        message: _languageService.translate('no_relevant_answer_available'),
         style: BubbleStyle.error,
       );
     }
@@ -201,18 +216,18 @@ class _AssistantPageState extends State<AssistantPage>
           side: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.3)),
         ),
         title: Text(
-          'Nouvelle conversation',
+          _languageService.translate('new_conversation'),
           style: GoogleFonts.orbitron(color: NotitiaTheme.white, fontSize: 16),
         ),
         content: Text(
-          'Effacer l\'historique de cette conversation ?',
+          _languageService.translate('clear_history_question'),
           style: GoogleFonts.poppins(color: NotitiaTheme.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
-              'Annuler',
+              _languageService.translate('cancel'),
               style: GoogleFonts.poppins(color: NotitiaTheme.grey),
             ),
           ),
@@ -223,7 +238,7 @@ class _AssistantPageState extends State<AssistantPage>
               setState(() {});
             },
             child: Text(
-              'Effacer',
+              _languageService.translate('clear'),
               style: GoogleFonts.poppins(color: NotitiaTheme.neonPink),
             ),
           ),
@@ -240,6 +255,7 @@ class _AssistantPageState extends State<AssistantPage>
     final messages = _rag.conversationHistory;
 
     return SafeArea(
+      bottom: false,
       child: Column(
         children: [
           const SizedBox(height: 24),
@@ -265,6 +281,17 @@ class _AssistantPageState extends State<AssistantPage>
           if (_isLoading) _buildTypingIndicator(),
           // ── Barre de saisie ──
           _buildInputBar(),
+          // Dock clearance: snap above keyboard when open, above dock otherwise
+          Builder(
+            builder: (ctx) {
+              final mq = MediaQuery.of(ctx);
+              final keyboardHeight = mq.viewInsets.bottom;
+              final spacing = keyboardHeight > 0
+                  ? keyboardHeight + 8
+                  : mq.padding.bottom + _floatingDockClearance;
+              return SizedBox(height: spacing);
+            },
+          ),
         ],
       ),
     );
@@ -274,57 +301,24 @@ class _AssistantPageState extends State<AssistantPage>
   // HEADER
   // ---------------------------------------------------------------------------
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: NotitiaTheme.neonPink.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.auto_awesome,
-              color: NotitiaTheme.neonPink,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'ASSISTANT',
-                  style: GoogleFonts.orbitron(
-                    fontSize: 18,
-                    color: NotitiaTheme.white,
-                    letterSpacing: 4,
-                  ),
-                ),
-                Text(
-                  'Pose-moi une question sur tes conversations',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: NotitiaTheme.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: _forceReindex,
-            icon: const Icon(Icons.sync_rounded, color: NotitiaTheme.neonCyan),
-            tooltip: 'Re-indexer les conversations',
-          ),
-          IconButton(
-            onPressed: _clearConversation,
-            icon: const Icon(Icons.refresh_rounded, color: NotitiaTheme.grey),
-            tooltip: 'Nouvelle conversation',
-          ),
-        ],
-      ),
+    return NotitiaPageHeader(
+      leading: const MeduzaMiniAvatar(state: MeduzaState.idle),
+      title: 'MEDUZA',
+      subtitle: 'Pose-moi une question sur tes conversations',
+      profile: widget.profile,
+      onProfileTap: widget.onProfileTap,
+      actions: [
+        IconButton(
+          onPressed: _forceReindex,
+          icon: const Icon(Icons.sync_rounded, color: NotitiaTheme.neonCyan),
+          tooltip: 'Re-indexer les conversations',
+        ),
+        IconButton(
+          onPressed: _clearConversation,
+          icon: const Icon(Icons.refresh_rounded, color: NotitiaTheme.grey),
+          tooltip: 'Nouvelle conversation',
+        ),
+      ],
     );
   }
 
@@ -359,7 +353,7 @@ class _AssistantPageState extends State<AssistantPage>
             child: Text(
               status.currentTitle != null
                   ? 'Indexation : ${status.currentTitle}...'
-                  : 'Indexation des conversations...',
+                  : _languageService.translate('indexing_conversations'),
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: NotitiaTheme.neonCyan,
@@ -391,9 +385,20 @@ class _AssistantPageState extends State<AssistantPage>
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       child: Row(
         children: [
-          _buildStatChip(Icons.memory, '$chunks fragments'),
+          _buildStatChip(
+            Icons.memory,
+            _languageService
+                .translate('fragments_label')
+                .replaceAll('{count}', chunks.toString()),
+          ),
           const SizedBox(width: 8),
-          _buildStatChip(Icons.check_circle_outline, '$indexed/$total indexés'),
+          _buildStatChip(
+            Icons.check_circle_outline,
+            _languageService
+                .translate('indexed_label')
+                .replaceAll('{indexed}', indexed.toString())
+                .replaceAll('{total}', total.toString()),
+          ),
         ],
       ),
     );
@@ -431,21 +436,10 @@ class _AssistantPageState extends State<AssistantPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: NotitiaTheme.neonPink.withValues(alpha: 0.1),
-                ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  size: 48,
-                  color: NotitiaTheme.neonPink,
-                ),
-              ),
+              const MeduzaWidget(state: MeduzaState.hello, size: 120),
               const SizedBox(height: 24),
               Text(
-                'Salut ! Je suis ton assistant mémoire.',
+                _languageService.translate('hi_memory_assistant'),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 16,
@@ -455,8 +449,7 @@ class _AssistantPageState extends State<AssistantPage>
               ),
               const SizedBox(height: 8),
               Text(
-                'Je connais toutes tes conversations enregistrées. '
-                'Pose-moi une question !',
+                _languageService.translate('i_know_conversations'),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
@@ -470,9 +463,15 @@ class _AssistantPageState extends State<AssistantPage>
                 runSpacing: 8,
                 alignment: WrapAlignment.center,
                 children: [
-                  _buildSuggestionChip('De quoi a-t-on parlé récemment ?'),
-                  _buildSuggestionChip('Résume mes dernières conversations'),
-                  _buildSuggestionChip('Qu\'a-t-on dit sur le budget ?'),
+                  _buildSuggestionChip(
+                    _languageService.translate('recent_discussions'),
+                  ),
+                  _buildSuggestionChip(
+                    _languageService.translate('summarize_conversations'),
+                  ),
+                  _buildSuggestionChip(
+                    _languageService.translate('budget_discussion'),
+                  ),
                 ],
               ),
             ],
@@ -525,18 +524,9 @@ class _AssistantPageState extends State<AssistantPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: NotitiaTheme.neonPink.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.auto_awesome,
-                size: 16,
-                color: NotitiaTheme.neonPink,
-              ),
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: MeduzaMiniAvatar(state: MeduzaState.idle),
             ),
             const SizedBox(width: 8),
           ],
@@ -594,18 +584,7 @@ class _AssistantPageState extends State<AssistantPage>
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: NotitiaTheme.neonPink.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.auto_awesome,
-              size: 16,
-              color: NotitiaTheme.neonPink,
-            ),
-          ),
+          const MeduzaMiniAvatar(state: MeduzaState.processing),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -626,7 +605,7 @@ class _AssistantPageState extends State<AssistantPage>
                 _buildDot(2),
                 const SizedBox(width: 8),
                 Text(
-                  'Recherche dans tes conversations...',
+                  _languageService.translate('searching_conversations'),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: NotitiaTheme.grey,
@@ -663,13 +642,8 @@ class _AssistantPageState extends State<AssistantPage>
   // ---------------------------------------------------------------------------
   Widget _buildInputBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      decoration: BoxDecoration(
-        color: NotitiaTheme.darkBlue,
-        border: Border(
-          top: BorderSide(color: NotitiaTheme.neonPink.withValues(alpha: 0.2)),
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      decoration: const BoxDecoration(color: Colors.transparent),
       child: Row(
         children: [
           Expanded(
@@ -684,7 +658,7 @@ class _AssistantPageState extends State<AssistantPage>
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _sendMessage(),
               decoration: InputDecoration(
-                hintText: 'Pose une question...',
+                hintText: _languageService.translate('ask_question'),
                 hintStyle: GoogleFonts.poppins(
                   color: NotitiaTheme.grey,
                   fontSize: 14,

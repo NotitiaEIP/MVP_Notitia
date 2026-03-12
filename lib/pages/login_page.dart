@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/email_otp_args.dart';
 import '../services/auth_service.dart';
+import '../services/language_service.dart';
 import '../theme.dart';
 
 class LoginPage extends StatefulWidget {
@@ -24,6 +25,7 @@ class _LoginPageState extends State<LoginPage>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = AuthService();
+  final _languageService = LanguageService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -91,7 +93,7 @@ class _LoginPageState extends State<LoginPage>
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Une erreur inattendue s\'est produite';
+        _errorMessage = _languageService.translate('unexpected_error');
       });
     } finally {
       if (mounted) {
@@ -102,10 +104,10 @@ class _LoginPageState extends State<LoginPage>
 
   String _getErrorMessage(String message) {
     if (message.contains('Invalid login credentials')) {
-      return 'Email ou mot de passe incorrect';
+      return _languageService.translate('invalid_credentials');
     }
     if (message.contains('Email not confirmed')) {
-      return 'Veuillez confirmer votre email. Vérifiez vos emails ou cliquez pour renvoyer le code.';
+      return _languageService.translate('email_not_confirmed_instruction');
     }
     return message;
   }
@@ -121,7 +123,7 @@ class _LoginPageState extends State<LoginPage>
       await _authService.markAuthSeen();
     } catch (e) {
       setState(() {
-        _errorMessage = 'Erreur de connexion avec Google';
+        _errorMessage = _languageService.translate('google_signin_error');
       });
     } finally {
       if (mounted) {
@@ -141,7 +143,7 @@ class _LoginPageState extends State<LoginPage>
       await _authService.markAuthSeen();
     } catch (e) {
       setState(() {
-        _errorMessage = 'Erreur de connexion avec GitHub';
+        _errorMessage = _languageService.translate('github_signin_error');
       });
     } finally {
       if (mounted) {
@@ -208,7 +210,7 @@ class _LoginPageState extends State<LoginPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Bon retour!',
+          _languageService.translate('welcome_back'),
           style: GoogleFonts.orbitron(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -217,7 +219,7 @@ class _LoginPageState extends State<LoginPage>
         ),
         const SizedBox(height: 8),
         Text(
-          'Connectez-vous pour accéder à votre compte',
+          _languageService.translate('sign_in_to_account'),
           style: GoogleFonts.rajdhani(
             fontSize: 16,
             color: NotitiaTheme.grey,
@@ -235,16 +237,16 @@ class _LoginPageState extends State<LoginPage>
           // Email
           _CyberpunkTextField(
             controller: _emailController,
-            label: 'Email',
-            hint: 'votre@email.com',
+            label: _languageService.translate('email_label'),
+            hint: _languageService.translate('email_placeholder'),
             icon: Icons.email_outlined,
             keyboardType: TextInputType.emailAddress,
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Entrez votre email';
+                return _languageService.translate('enter_email');
               }
               if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                return 'Email invalide';
+                return _languageService.translate('invalid_email');
               }
               return null;
             },
@@ -254,8 +256,8 @@ class _LoginPageState extends State<LoginPage>
           // Mot de passe
           _CyberpunkTextField(
             controller: _passwordController,
-            label: 'Mot de passe',
-            hint: '••••••••',
+            label: _languageService.translate('password_label'),
+            hint: _languageService.translate('password_placeholder'),
             icon: Icons.lock_outlined,
             obscureText: _obscurePassword,
             suffixIcon: IconButton(
@@ -268,7 +270,7 @@ class _LoginPageState extends State<LoginPage>
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Entrez votre mot de passe';
+                return _languageService.translate('enter_password');
               }
               return null;
             },
@@ -317,7 +319,7 @@ class _LoginPageState extends State<LoginPage>
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Code de confirmation renvoyé à $email',
+                                _languageService.translate('confirmation_code_resent').replaceAll('{email}', email),
                                 style: GoogleFonts.rajdhani(),
                               ),
                               backgroundColor: NotitiaTheme.neonPink,
@@ -337,7 +339,7 @@ class _LoginPageState extends State<LoginPage>
                         } catch (e) {
                           if (!mounted) return;
                           setState(() {
-                            _errorMessage = 'Erreur lors de l\'envoi du code : ${e.toString()}';
+                            _errorMessage = _languageService.translate('resend_code_error').replaceAll('{error}', e.toString());
                           });
                         } finally {
                           if (mounted) setState(() => _isLoading = false);
@@ -345,7 +347,7 @@ class _LoginPageState extends State<LoginPage>
                       }
                     },
                     child: Text(
-                      'Renvoyer le code de confirmation',
+                      _languageService.translate('resend_confirmation_code'),
                       style: GoogleFonts.rajdhani(
                         color: NotitiaTheme.neonPink,
                         fontSize: 14,
@@ -402,7 +404,7 @@ class _LoginPageState extends State<LoginPage>
                   ),
                 )
               : Text(
-                  'SE CONNECTER',
+                  _languageService.translate('sign_in').toUpperCase(),
                   style: GoogleFonts.orbitron(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -430,7 +432,7 @@ class _LoginPageState extends State<LoginPage>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                'ou',
+                _languageService.translate('or'),
                 style: GoogleFonts.rajdhani(
                   color: NotitiaTheme.grey,
                   fontSize: 14,
@@ -480,7 +482,7 @@ class _LoginPageState extends State<LoginPage>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          'Pas encore de compte?',
+          _languageService.translate('no_account_yet'),
           style: GoogleFonts.rajdhani(
             color: NotitiaTheme.grey,
             fontSize: 14,
@@ -491,7 +493,7 @@ class _LoginPageState extends State<LoginPage>
             Navigator.of(context).pushReplacementNamed('/register');
           },
           child: Text(
-            'Inscrivez-vous',
+            _languageService.translate('sign_up_here'),
             style: GoogleFonts.rajdhani(
               color: NotitiaTheme.neonPink,
               fontSize: 14,

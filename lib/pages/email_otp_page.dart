@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/email_otp_args.dart';
 import '../services/auth_service.dart';
+import '../services/language_service.dart';
 import '../theme.dart';
 import 'onboarding_page.dart';
 
@@ -26,6 +27,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
   static const int _emailOtpLength = 8;
 
   final _authService = AuthService();
+  final _languageService = LanguageService();
   final _emailController = TextEditingController();
   final _pinController = TextEditingController();
 
@@ -91,7 +93,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
   Future<void> _sendCode() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      setState(() => _error = 'Entrez votre email');
+      setState(() => _error = _languageService.translate('enter_email'));
       return;
     }
 
@@ -115,7 +117,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Code envoyé à $email', style: GoogleFonts.rajdhani()),
+          content: Text(_languageService.translate('code_sent_to').replaceAll('{email}', email), style: GoogleFonts.rajdhani()),
           backgroundColor: NotitiaTheme.neonPink,
         ),
       );
@@ -125,15 +127,14 @@ class _EmailOtpPageState extends State<EmailOtpPage>
         if (!_shouldCreateUser &&
             (e.message.toLowerCase().contains('user') &&
                 e.message.toLowerCase().contains('not found'))) {
-          _error =
-              'Aucun compte trouvé pour cet email. Inscrivez-vous d\'abord.';
+          _error = _languageService.translate('no_account_found_signup');
         } else {
           _error = e.message;
         }
       });
     } catch (e) {
       setState(() {
-        _error = 'Erreur : ${e.toString()}';
+        _error = _languageService.translate('error_occurred').replaceAll('{error}', e.toString());
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -146,11 +147,11 @@ class _EmailOtpPageState extends State<EmailOtpPage>
     final navigator = Navigator.of(context);
 
     if (email.isEmpty) {
-      setState(() => _error = 'Entrez votre email');
+      setState(() => _error = _languageService.translate('enter_email'));
       return;
     }
     if (code.length != _emailOtpLength) {
-      setState(() => _error = 'Entrez le code à $_emailOtpLength chiffres');
+      setState(() => _error = _languageService.translate('enter_otp_code').replaceAll('{length}', _emailOtpLength.toString()));
       return;
     }
 
@@ -188,8 +189,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
         navigator.pushNamedAndRemoveUntil('/main', (route) => false);
       } else {
         setState(() {
-          _error =
-              'Code validé, mais aucune session active. Vérifiez la configuration Supabase (Email OTP).';
+          _error = _languageService.translate('session_error_supabase');
         });
       }
     } on AuthException catch (e) {
@@ -198,7 +198,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
       });
     } catch (e) {
       setState(() {
-        _error = 'Code invalide ou expiré : ${e.toString()}';
+        _error = _languageService.translate('invalid_expired_code').replaceAll('{error}', e.toString());
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -233,7 +233,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
                   const SizedBox(height: 16),
                 ],
                 _buildPrimaryButton(
-                  _codeSent ? 'VÉRIFIER LE CODE' : 'ENVOYER LE CODE',
+                  _codeSent ? _languageService.translate('verify_code_button') : _languageService.translate('send_code_button'),
                   _codeSent ? _verifyCode : _sendCode,
                 ),
                 if (_codeSent) ...[
@@ -241,7 +241,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
                   TextButton(
                     onPressed: _isLoading ? null : _sendCode,
                     child: Text(
-                      'Renvoyer le code',
+                      _languageService.translate('resend_code'),
                       style: GoogleFonts.rajdhani(
                         color: NotitiaTheme.neonPink,
                         fontSize: 14,
@@ -281,7 +281,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _shouldCreateUser ? 'Inscription par code' : 'Connexion par code',
+          _shouldCreateUser ? _languageService.translate('signup_by_code') : _languageService.translate('signin_by_code'),
           style: GoogleFonts.orbitron(
             fontSize: 26,
             fontWeight: FontWeight.bold,
@@ -291,8 +291,8 @@ class _EmailOtpPageState extends State<EmailOtpPage>
         const SizedBox(height: 8),
         Text(
           _shouldCreateUser
-              ? 'Entrez votre email, recevez un code à $_emailOtpLength chiffres, puis validez-le pour créer votre compte.'
-              : 'Entrez votre email, recevez un code à $_emailOtpLength chiffres, puis validez-le.',
+              ? _languageService.translate('signup_otp_description').replaceAll('{length}', _emailOtpLength.toString())
+              : _languageService.translate('signin_otp_description').replaceAll('{length}', _emailOtpLength.toString()),
           style: GoogleFonts.rajdhani(fontSize: 16, color: NotitiaTheme.grey),
         ),
       ],
@@ -306,7 +306,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
       enabled: !_codeSent && !_isLoading,
       style: GoogleFonts.rajdhani(color: NotitiaTheme.white, fontSize: 16),
       decoration: InputDecoration(
-        labelText: 'Email',
+        labelText: _languageService.translate('email'),
         hintText: 'votre@email.com',
         labelStyle: GoogleFonts.rajdhani(color: NotitiaTheme.grey),
         hintStyle: GoogleFonts.rajdhani(
@@ -354,7 +354,7 @@ class _EmailOtpPageState extends State<EmailOtpPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Code à $_emailOtpLength chiffres',
+          _languageService.translate('otp_code_label').replaceAll('{length}', _emailOtpLength.toString()),
           style: GoogleFonts.rajdhani(
             fontSize: 14,
             color: NotitiaTheme.grey,
