@@ -222,6 +222,125 @@ class _ProfilePageState extends State<ProfilePage>
     }
   }
 
+  Future<void> _deleteAccount() async {
+    // Dialog de confirmation - première étape
+    final confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: NotitiaTheme.darkBlue,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.red.withOpacity(0.5)),
+        ),
+        title: Text(
+          _languageService.translate('delete_account_title'),
+          style: GoogleFonts.orbitron(color: Colors.red, fontSize: 18),
+        ),
+        content: Text(
+          _languageService.translate('delete_account_confirm_message'),
+          style: GoogleFonts.rajdhani(color: NotitiaTheme.grey, fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              _languageService.translate('cancel'),
+              style: GoogleFonts.rajdhani(color: NotitiaTheme.grey),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              _languageService.translate('delete_account_title'),
+              style: GoogleFonts.rajdhani(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmDelete != true) return;
+
+    // Dialog d'avertissement ultime - deuxième étape
+    final finalConfirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: NotitiaTheme.darkBlue,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.red.withOpacity(0.5)),
+        ),
+        title: Text(
+          _languageService.translate('delete_account_permanent_title'),
+          style: GoogleFonts.orbitron(color: Colors.red, fontSize: 18),
+        ),
+        content: Text(
+          _languageService.translate('delete_account_permanent_message'),
+          style: GoogleFonts.rajdhani(color: NotitiaTheme.grey, fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              _languageService.translate('cancel'),
+              style: GoogleFonts.rajdhani(color: NotitiaTheme.grey),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              _languageService.translate('delete_permanently'),
+              style: GoogleFonts.rajdhani(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (finalConfirm != true) return;
+
+    // Procéder à la suppression
+    setState(() => _isUpdating = true);
+
+    try {
+      await _authService.deleteAccount();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _languageService.translate('account_deleted_success'),
+              style: GoogleFonts.rajdhani(),
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Rediriger vers la page de login
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/auth', (route) => false);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _languageService.translate('delete_account_error'),
+              style: GoogleFonts.rajdhani(),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUpdating = false);
+      }
+    }
+  }
+
   Future<void> _showLanguageDialog() async {
     final selectedLanguage = await showDialog<String>(
       context: context,
@@ -781,18 +900,7 @@ class _ProfilePageState extends State<ProfilePage>
           title: _languageService.translate('delete_account_title'),
           subtitle: _languageService.translate('delete_account_subtitle'),
           iconColor: Colors.red,
-          onTap: () {
-            // TODO: Implémenter la suppression de compte
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  _languageService.translate('feature_coming_soon'),
-                  style: GoogleFonts.rajdhani(),
-                ),
-                backgroundColor: NotitiaTheme.grey,
-              ),
-            );
-          },
+          onTap: _deleteAccount,
         ),
       ],
     );

@@ -396,5 +396,11 @@
   "nfc_receive_tooltip": "Recevoir via NFC",
   "filter_all": "Tout",
   "no_transcriptions_for_tag": "Aucune transcription",
-  "no_results_tag_prefix": "Aucun résultat pour le filtre"
+  "no_results_tag_prefix": "Aucun résultat pour le filtre",
+  "delete_account_confirm_message": "Cette action est définitive et irréversible. Toutes vos données seront supprimées. Êtes-vous vraiment sûr ?",
+  "delete_account_permanent_title": "SUPPRESSION DÉFINITIVE",
+  "delete_account_permanent_message": "Ceci est votre dernier avertissement. Cette action ne peut pas être annulée. Votre compte et toutes les données seront perdues à jamais.",
+  "delete_permanently": "SUPPRIMER DÉFINITIVEMENT",
+  "account_deleted_success": "Compte supprimé avec succès",
+  "delete_account_error": "Erreur lors de la suppression du compte"
 }
