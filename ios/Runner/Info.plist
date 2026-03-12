@@ -16,6 +16,11 @@
 		<!-- Permission Réseau local - Réunions en local -->
 		<key>NSLocalNetworkUsageDescription</key>
 		<string>Notitia utilise le réseau local pour héberger et rejoindre des réunions entre appareils sur le même Wi-Fi.</string>
+		<!-- Bonjour - Requis pour Flutter debug sur device physique -->
+		<key>NSBonjourServices</key>
+		<array>
+			<string>_dartVmService._tcp</string>
+		</array>
 		<!-- Permission Bluetooth - Scan et connexion BLE -->
 		<key>NSBluetoothAlwaysUsageDescription</key>
 		<string>Notitia utilise le Bluetooth pour se connecter au Notitia Node et synchroniser vos données.</string>
