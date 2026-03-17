@@ -111,7 +111,7 @@ class NotitiaApp extends StatelessWidget {
             args['fromOnboarding'] == true) {
           return PageRouteBuilder(
             settings: settings,
-            pageBuilder: (context, _, __) => builder(context),
+            pageBuilder: (context, _, _) => builder(context),
             transitionDuration: const Duration(milliseconds: 600),
             reverseTransitionDuration: const Duration(milliseconds: 300),
             transitionsBuilder: (context, animation, _, child) {

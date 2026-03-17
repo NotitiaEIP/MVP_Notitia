@@ -118,7 +118,7 @@ class _RegisterPageState extends State<RegisterPage>
     } catch (e) {
       setState(() {
         _errorMessage =
-            _languageService.translate('error') + ': ${e.toString().replaceFirst('Exception: ', '').trim()}';
+            '${_languageService.translate('error')}: ${e.toString().replaceFirst('Exception: ', '').trim()}';
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);

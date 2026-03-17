@@ -145,7 +145,7 @@ class _RichSummaryPageState extends State<RichSummaryPage>
           children: [
             AnimatedBuilder(
               animation: _pulseController,
-              builder: (_, __) {
+              builder: (_, _) {
                 final s = 0.8 + _pulseController.value * 0.4;
                 return Transform.scale(
                   scale: s,
@@ -309,7 +309,7 @@ class _RichSummaryPageState extends State<RichSummaryPage>
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
         itemCount: figures.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
           final f = figures[i];
           final color = _chartColors[i % _chartColors.length];
@@ -408,7 +408,7 @@ class _RichSummaryPageState extends State<RichSummaryPage>
                 height: 180,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
+                placeholder: (_, _) => Container(
                   height: 180,
                   decoration: BoxDecoration(
                     color: NotitiaTheme.darkBlue,
@@ -421,7 +421,7 @@ class _RichSummaryPageState extends State<RichSummaryPage>
                           color: NotitiaTheme.grey.withValues(alpha: 0.4),
                           size: 40)),
                 ),
-                errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                errorWidget: (_, _, _) => const SizedBox.shrink(),
               ),
             ),
             const SizedBox(height: 14),
@@ -431,7 +431,7 @@ class _RichSummaryPageState extends State<RichSummaryPage>
           MarkdownBody(
             data: section.content,
             styleSheet: _mdStyle(),
-            onTapLink: (_, href, __) {
+            onTapLink: (_, href, _) {
               if (href != null) _openUrl(href);
             },
           ),

@@ -62,7 +62,7 @@ class NotitiaProfileButton extends StatelessWidget {
                   fit: BoxFit.cover,
                   width: size,
                   height: size,
-                  errorBuilder: (_, __, ___) =>
+                  errorBuilder: (_, _, _) =>
                       _buildDefault(authService, isLoggedIn),
                 ),
               )
