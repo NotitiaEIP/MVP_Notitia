@@ -404,7 +404,8 @@ $contextText''';
         ? transcriptionContent.substring(0, 12000)
         : transcriptionContent;
 
-    const systemPrompt = '''Tu es un rédacteur expert et data-visualiseur. À partir d'une transcription vocale brute, tu génères un résumé riche, visuellement attractif et structuré.
+    const systemPrompt =
+        '''Tu es un rédacteur expert et data-visualiseur. À partir d'une transcription vocale brute, tu génères un résumé riche, visuellement attractif et structuré.
 
 RÈGLES DE RÉDACTION :
 1. Écris un résumé NARRATIF et fluide, PAS de listes à puces sauf si absolument nécessaire
@@ -458,10 +459,11 @@ Réponds UNIQUEMENT en JSON valide avec cette structure exacte :
 
 ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people, euro, star, speed, memory, school, work, check_circle, warning, lightbulb, rocket_launch, analytics''';
 
-
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
-        debugPrint('[Gemini Summary] Génération du résumé (tentative ${attempt + 1})...');
+        debugPrint(
+          '[Gemini Summary] Génération du résumé (tentative ${attempt + 1})...',
+        );
 
         final response = await _client
             .post(
@@ -502,17 +504,20 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
             final parts = content?['parts'] as List<dynamic>?;
             if (parts != null && parts.isNotEmpty) {
               final rawText = (parts[0]['text'] as String).trim();
-              return _parseRichSummary(
-                rawText, transcriptionId, safeContent);
+              return _parseRichSummary(rawText, transcriptionId, safeContent);
             }
           }
         } else if (response.statusCode == 429) {
           final waitSec = (attempt + 1) * 10;
-          debugPrint('[Gemini Summary] ⏳ Rate limit 429, attente ${waitSec}s...');
+          debugPrint(
+            '[Gemini Summary] ⏳ Rate limit 429, attente ${waitSec}s...',
+          );
           await Future.delayed(Duration(seconds: waitSec));
           continue;
         } else {
-          debugPrint('[Gemini Summary] ✗ Erreur ${response.statusCode}: ${response.body}');
+          debugPrint(
+            '[Gemini Summary] ✗ Erreur ${response.statusCode}: ${response.body}',
+          );
         }
       } catch (e) {
         debugPrint('[Gemini Summary] ✗ Exception: $e');
@@ -536,7 +541,10 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
 
   /// Parse le JSON Gemini et enrichit avec images + recherche Google
   Future<RichSummary> _parseRichSummary(
-      String rawJson, String transcriptionId, String content) async {
+    String rawJson,
+    String transcriptionId,
+    String content,
+  ) async {
     try {
       final summaryData = json.decode(rawJson) as Map<String, dynamic>;
       final title = summaryData['title'] as String? ?? 'Résumé';
@@ -582,16 +590,20 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
           sources.addAll(searchResults);
         }
 
-        sections.add(SummarySection(
-          heading: heading,
-          content: sContent,
-          imageUrl: imageUrl,
-          sources: sources,
-          visual: visual,
-        ));
+        sections.add(
+          SummarySection(
+            heading: heading,
+            content: sContent,
+            imageUrl: imageUrl,
+            sources: sources,
+            visual: visual,
+          ),
+        );
       }
 
-      debugPrint('[Gemini Summary] ✓ Résumé généré : $title (${sections.length} sections, ${topFigures.length} figures)');
+      debugPrint(
+        '[Gemini Summary] ✓ Résumé généré : $title (${sections.length} sections, ${topFigures.length} figures)',
+      );
 
       return RichSummary(
         transcriptionId: transcriptionId,
@@ -603,11 +615,15 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
       );
     } catch (e) {
       debugPrint('[Gemini Summary] ✗ Erreur parsing JSON: $e');
-      debugPrint('[Gemini Summary] Raw: ${rawJson.substring(0, min(500, rawJson.length))}');
+      debugPrint(
+        '[Gemini Summary] Raw: ${rawJson.substring(0, min(500, rawJson.length))}',
+      );
       return RichSummary(
         transcriptionId: transcriptionId,
         title: 'Résumé',
-        introduction: content.length > 300 ? '${content.substring(0, 300)}…' : content,
+        introduction: content.length > 300
+            ? '${content.substring(0, 300)}…'
+            : content,
         sections: [],
         generatedAt: DateTime.now(),
       );
@@ -638,14 +654,9 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
                 },
               ],
               'tools': [
-                {
-                  'google_search': {},
-                },
+                {'google_search': {}},
               ],
-              'generationConfig': {
-                'temperature': 0.0,
-                'maxOutputTokens': 256,
-              },
+              'generationConfig': {'temperature': 0.0, 'maxOutputTokens': 256},
             }),
           )
           .timeout(const Duration(seconds: 12));
@@ -663,8 +674,9 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
             final chunks =
                 groundingMeta['groundingChunks'] as List<dynamic>? ?? [];
             for (final chunk in chunks) {
-              final web = (chunk as Map<String, dynamic>)['web']
-                  as Map<String, dynamic>?;
+              final web =
+                  (chunk as Map<String, dynamic>)['web']
+                      as Map<String, dynamic>?;
               if (web != null) {
                 final uri = web['uri'] as String? ?? '';
                 if (_isImageUrl(uri) ||
@@ -683,8 +695,8 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
           if (parts != null && parts.isNotEmpty) {
             final text = (parts[0]['text'] as String).trim();
             final urlMatch = RegExp(
-                    r'https?://(?:images\.unsplash\.com|images\.pexels\.com|www\.pexels\.com)[^\s\)\]"]*')
-                .firstMatch(text);
+              r'https?://(?:images\.unsplash\.com|images\.pexels\.com|www\.pexels\.com)[^\s\)\]"]*',
+            ).firstMatch(text);
             if (urlMatch != null) {
               final url = urlMatch.group(0)!;
               debugPrint('[Gemini Image] ✓ Texte: $url');
@@ -692,10 +704,12 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
             }
             // URL d'image générique en dernier recours
             final anyImgMatch = RegExp(
-                    r'https?://\S+\.(?:jpg|jpeg|png|webp)[^\s\)\]]*')
-                .firstMatch(text);
+              r'https?://\S+\.(?:jpg|jpeg|png|webp)[^\s\)\]]*',
+            ).firstMatch(text);
             if (anyImgMatch != null) {
-              debugPrint('[Gemini Image] ✓ Img générique: ${anyImgMatch.group(0)}');
+              debugPrint(
+                '[Gemini Image] ✓ Img générique: ${anyImgMatch.group(0)}',
+              );
               return anyImgMatch.group(0)!;
             }
           }
@@ -741,9 +755,7 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
                 },
               ],
               'tools': [
-                {
-                  'google_search': {},
-                },
+                {'google_search': {}},
               ],
               'generationConfig': {
                 'temperature': 0.1,
@@ -770,18 +782,23 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
                 groundingMeta['groundingChunks'] as List<dynamic>? ?? [];
             final sources = <SummarySource>[];
             for (final chunk in chunks.take(2)) {
-              final web = (chunk as Map<String, dynamic>)['web']
-                  as Map<String, dynamic>?;
+              final web =
+                  (chunk as Map<String, dynamic>)['web']
+                      as Map<String, dynamic>?;
               if (web != null) {
-                sources.add(SummarySource(
-                  title: web['title'] as String? ?? query,
-                  url: web['uri'] as String? ?? '',
-                  snippet: '',
-                ));
+                sources.add(
+                  SummarySource(
+                    title: web['title'] as String? ?? query,
+                    url: web['uri'] as String? ?? '',
+                    snippet: '',
+                  ),
+                );
               }
             }
             if (sources.isNotEmpty) {
-              debugPrint('[Gemini Search] ✓ ${sources.length} sources grounding pour "$query"');
+              debugPrint(
+                '[Gemini Search] ✓ ${sources.length} sources grounding pour "$query"',
+              );
               return sources;
             }
           }
@@ -793,14 +810,18 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
             final text = (parts[0]['text'] as String).trim();
             try {
               final parsed = json.decode(text) as List<dynamic>;
-              return parsed.take(2).map((s) {
-                final src = s as Map<String, dynamic>;
-                return SummarySource(
-                  title: src['title'] as String? ?? query,
-                  url: src['url'] as String? ?? '',
-                  snippet: src['snippet'] as String? ?? '',
-                );
-              }).where((s) => s.url.startsWith('http')).toList();
+              return parsed
+                  .take(2)
+                  .map((s) {
+                    final src = s as Map<String, dynamic>;
+                    return SummarySource(
+                      title: src['title'] as String? ?? query,
+                      url: src['url'] as String? ?? '',
+                      snippet: src['snippet'] as String? ?? '',
+                    );
+                  })
+                  .where((s) => s.url.startsWith('http'))
+                  .toList();
             } catch (_) {
               // Pas de JSON parseable
             }
