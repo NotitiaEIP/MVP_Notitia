@@ -1,5 +1,5 @@
 // =============================================================================
-// NOTITIA — Modèle de résumé riche (Gemini)
+// NOTITIA — Modèle de résumé riche (IA)
 // =============================================================================
 
 /// Une source web réelle (grounding Google Search)

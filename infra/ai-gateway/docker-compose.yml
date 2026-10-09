@@ -1,0 +1,79 @@
+# =============================================================================
+# NOTITIA — Passerelle IA
+#
+#   PC local / réseau Wi-Fi :  docker compose up -d
+#   Démo accessible partout :   docker compose --profile tunnel up -d
+#   VPS avec HTTPS + domaine :  docker compose --profile https up -d
+#
+# Voir README.md pour le détail.
+# =============================================================================
+
+services:
+  litellm:
+    image: ${LITELLM_IMAGE:-ghcr.io/berriai/litellm:main-stable}
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@db:5432/litellm
+      STORE_MODEL_IN_DB: "False"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      # 0.0.0.0 = joignable depuis le téléphone sur le même Wi-Fi.
+      # Sur un VPS avec le profil https, mettre LITELLM_BIND=127.0.0.1.
+      - "${LITELLM_BIND:-0.0.0.0}:4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: litellm
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # HTTPS automatique (Let's Encrypt) — uniquement sur un serveur avec domaine
+  caddy:
+    profiles: ["https"]
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - litellm
+    restart: unless-stopped
+
+  # URL publique temporaire (https://xxx.trycloudflare.com) sans compte ni domaine.
+  # L'URL change à chaque redémarrage : `docker compose logs tunnel` pour la voir.
+  tunnel:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "--url", "http://litellm:4000"]
+    depends_on:
+      - litellm
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  caddy_data:

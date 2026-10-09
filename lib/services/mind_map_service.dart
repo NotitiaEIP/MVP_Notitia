@@ -4,15 +4,15 @@
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import '../config/ai_config.dart';
 import '../models/mind_map.dart';
 import '../models/transcription.dart';
-import 'claude_service.dart';
+import 'ai_client.dart';
 
 /// Moteur de génération de Mind Map
 enum MindMapEngine {
-  gemini, // Gratuit — Google Gemini
-  claude, // Premium — Claude Sonnet (plus riche / plus précis)
+  standard, // Gratuit — modèle "smart" (DeepSeek V4 Flash)
+  premium, // Premium — modèle "premium" (Kimi K2.6), plus riche / plus précis
 }
 
 /// Service de génération de Mind Maps à partir de transcriptions
@@ -21,8 +21,7 @@ class MindMapService {
   factory MindMapService() => _instance;
   MindMapService._internal();
 
-  final ClaudeService _claude = ClaudeService();
-  final http.Client _httpClient = http.Client();
+  final AiClient _ai = AiClient.instance;
 
   // ---------------------------------------------------------------------------
   // Prompt System Expert pour la génération de Mind Maps
@@ -105,17 +104,9 @@ Extraire TOUTES les informations importantes de la transcription:
 - Caractères spéciaux de contrôle (tabs, retours chariot) dans les strings JSON''';
 
   // ---------------------------------------------------------------------------
-  // Gemini — Configuration (gratuit)
+  // Prompt simplifié pour le moteur standard (gratuit)
   // ---------------------------------------------------------------------------
-  static const String _geminiApiKey = 'AIzaSyC4JXkfK5lEDG89DzdQV_REgzL7fQ7odF8';
-  static const String _geminiModel = 'gemini-2.5-flash';
-  static String get _geminiUrl =>
-      'https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent?key=$_geminiApiKey';
-
-  // ---------------------------------------------------------------------------
-  // Prompt simplifié pour Gemini (gratuit)
-  // ---------------------------------------------------------------------------
-  static const String _geminiSystemPrompt =
+  static const String _standardSystemPrompt =
       '''Tu es un expert en synthèse visuelle.
 Analyse la transcription et crée une mind map structurée en JSON.
 
@@ -164,10 +155,10 @@ root, topic, subtopic, idea, action, question, decision, person, date, location
   // API Publique
   // ---------------------------------------------------------------------------
 
-  /// Génère une mind map avec le moteur choisi (défaut: Claude)
+  /// Génère une mind map avec le moteur choisi (défaut: premium)
   Future<MindMapResult> generateFromTranscription(
     Transcription transcription, {
-    MindMapEngine engine = MindMapEngine.claude,
+    MindMapEngine engine = MindMapEngine.premium,
   }) async {
     return generateFromTranscriptions([transcription], engine: engine);
   }
@@ -175,7 +166,7 @@ root, topic, subtopic, idea, action, question, decision, person, date, location
   /// Génère une mind map à partir de PLUSIEURS transcriptions
   Future<MindMapResult> generateFromTranscriptions(
     List<Transcription> transcriptions, {
-    MindMapEngine engine = MindMapEngine.claude,
+    MindMapEngine engine = MindMapEngine.premium,
   }) async {
     if (transcriptions.isEmpty) {
       return MindMapResult.error('Aucune transcription fournie.');
@@ -187,19 +178,14 @@ root, topic, subtopic, idea, action, question, decision, person, date, location
       return MindMapResult.error('Toutes les transcriptions sont vides.');
     }
 
-    switch (engine) {
-      case MindMapEngine.claude:
-        return _generateWithClaude(nonEmpty);
-      case MindMapEngine.gemini:
-        return _generateWithGemini(nonEmpty);
-    }
+    return _generate(nonEmpty, engine);
   }
 
   /// Génère une mind map depuis du texte brut
   Future<MindMapResult> generateFromText(
     String text, {
     String? title,
-    MindMapEngine engine = MindMapEngine.claude,
+    MindMapEngine engine = MindMapEngine.premium,
   }) async {
     final transcription = Transcription.create(
       content: text,
@@ -209,18 +195,20 @@ root, topic, subtopic, idea, action, question, decision, person, date, location
   }
 
   // ---------------------------------------------------------------------------
-  // Claude (Premium) — Mind map riche avec sourceText
+  // Génération — même pipeline pour les deux moteurs, seuls le modèle et le
+  // prompt changent (premium = plus riche, avec sourceText)
   // ---------------------------------------------------------------------------
-  Future<MindMapResult> _generateWithClaude(
+  Future<MindMapResult> _generate(
     List<Transcription> transcriptions,
+    MindMapEngine engine,
   ) async {
-    if (!_claude.isConfigured) {
-      return MindMapResult.error('Clé API Claude non configurée.');
-    }
+    final premium = engine == MindMapEngine.premium;
+    final model = premium ? AiConfig.premiumModel : AiConfig.smartModel;
+    final label = premium ? 'Premium' : 'Standard';
 
     final titles = transcriptions.map((t) => t.title).join(', ');
     debugPrint(
-      '🧠 MindMap [Claude Premium]: Génération pour $titles (${transcriptions.length} source(s))...',
+      '🧠 MindMap [$label]: Génération pour $titles (${transcriptions.length} source(s))...',
     );
 
     final transcriptionBlocks = transcriptions
@@ -244,22 +232,20 @@ $transcriptionBlocks
 Génère la mind map en JSON selon le format spécifié.${plural ? ' Regroupe les thèmes communs et mentionne les différences entre les sources.' : ''}''';
 
     try {
-      final response = await _claude.generateJson(
-        prompt: userPrompt,
-        systemPrompt: _systemPrompt,
+      final response = await _ai.chat(
+        model: model,
+        system: premium ? _systemPrompt : _standardSystemPrompt,
+        messages: [
+          {'role': 'user', 'content': userPrompt},
+        ],
+        temperature: premium ? 0.5 : 0.4,
         maxTokens: 8192,
+        jsonMode: true,
+        timeout: const Duration(seconds: 120),
       );
 
-      if (!response.success) {
-        return MindMapResult.error(response.error ?? 'Erreur inconnue');
-      }
-
-      if (response.content == null || response.content!.isEmpty) {
-        return MindMapResult.error('Réponse vide de Claude');
-      }
-
-      final jsonData = _parseJsonResponse(response.content!);
-      if (jsonData == null) {
+      final jsonData = _parseJsonResponse(response.content);
+      if (jsonData == null || jsonData['root'] is! Map<String, dynamic>) {
         return MindMapResult.error('Impossible de parser la réponse JSON');
       }
 
@@ -271,7 +257,8 @@ Génère la mind map en JSON selon le format spécifié.${plural ? ' Regroupe le
         root: MindMapNode.fromJson(jsonData['root'] as Map<String, dynamic>),
         metadata: {
           'summary': jsonData['summary'],
-          'engine': 'claude',
+          'engine': engine.name,
+          'model': response.model ?? model,
           'inputTokens': response.inputTokens,
           'outputTokens': response.outputTokens,
           'sourceCount': transcriptions.length,
@@ -279,122 +266,20 @@ Génère la mind map en JSON selon le format spécifié.${plural ? ' Regroupe le
       );
 
       debugPrint(
-        '✅ MindMap [Claude]: ${mindMap.totalNodes} nœuds, profondeur ${mindMap.maxDepth}',
+        '✅ MindMap [$label]: ${mindMap.totalNodes} nœuds, profondeur ${mindMap.maxDepth}',
       );
       return MindMapResult.success(mindMap);
-    } catch (e) {
-      debugPrint('❌ MindMap [Claude]: $e');
-      return MindMapResult.error('Erreur Claude: $e');
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Gemini (Gratuit) — Mind map plus simple, sans sourceText
-  // ---------------------------------------------------------------------------
-  Future<MindMapResult> _generateWithGemini(
-    List<Transcription> transcriptions,
-  ) async {
-    final titles = transcriptions.map((t) => t.title).join(', ');
-    debugPrint(
-      '🧠 MindMap [Gemini Gratuit]: Génération pour $titles (${transcriptions.length} source(s))...',
-    );
-
-    final transcriptionBlocks = transcriptions
-        .map(
-          (t) =>
-              '''
-Titre: ${t.title}
-Date: ${t.formattedDate}
----
-${t.content}
----''',
-        )
-        .join('\n\n');
-
-    final plural = transcriptions.length > 1;
-    final userPrompt =
-        '''Analyse ${plural ? 'ces ${transcriptions.length} transcriptions' : 'cette transcription'} et génère une mind map structurée en JSON.
-$transcriptionBlocks
-
-Réponds UNIQUEMENT avec le JSON, sans texte avant ni après.${plural ? ' Regroupe les thèmes communs.' : ''}''';
-
-    try {
-      final response = await _httpClient
-          .post(
-            Uri.parse(_geminiUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({
-              'system_instruction': {
-                'parts': [
-                  {'text': _geminiSystemPrompt},
-                ],
-              },
-              'contents': [
-                {
-                  'role': 'user',
-                  'parts': [
-                    {'text': userPrompt},
-                  ],
-                },
-              ],
-              'generationConfig': {
-                'temperature': 0.4,
-                'maxOutputTokens': 8192,
-                'topP': 0.9,
-              },
-            }),
-          )
-          .timeout(const Duration(seconds: 45));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        final candidates = data['candidates'] as List<dynamic>?;
-        if (candidates == null || candidates.isEmpty) {
-          return MindMapResult.error('Réponse vide de Gemini');
-        }
-
-        final content = candidates[0]['content'] as Map<String, dynamic>?;
-        final parts = content?['parts'] as List<dynamic>?;
-        if (parts == null || parts.isEmpty) {
-          return MindMapResult.error('Contenu vide de Gemini');
-        }
-
-        final rawText = (parts[0]['text'] as String).trim();
-        final jsonData = _parseJsonResponse(rawText);
-        if (jsonData == null) {
-          return MindMapResult.error('Impossible de parser le JSON Gemini');
-        }
-
-        final mindMap = MindMap(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          title: jsonData['title'] as String? ?? transcriptions.first.title,
-          sourceTranscriptionIds: transcriptions.map((t) => t.id).toList(),
-          createdAt: DateTime.now(),
-          root: MindMapNode.fromJson(jsonData['root'] as Map<String, dynamic>),
-          metadata: {
-            'summary': jsonData['summary'],
-            'engine': 'gemini',
-            'sourceCount': transcriptions.length,
-          },
-        );
-
-        debugPrint(
-          '✅ MindMap [Gemini]: ${mindMap.totalNodes} nœuds, profondeur ${mindMap.maxDepth}',
-        );
-        return MindMapResult.success(mindMap);
-      } else if (response.statusCode == 429) {
+    } on AiException catch (e) {
+      debugPrint('❌ MindMap [$label]: $e');
+      if (e.statusCode == 429) {
         return MindMapResult.error(
-          'Rate limit Gemini atteint. Réessayez dans quelques secondes.',
+          'Limite atteinte. Réessayez dans quelques secondes.',
         );
-      } else {
-        debugPrint(
-          '❌ MindMap [Gemini] HTTP ${response.statusCode}: ${response.body}',
-        );
-        return MindMapResult.error('Erreur Gemini (${response.statusCode})');
       }
+      return MindMapResult.error('Erreur IA: ${e.message}');
     } catch (e) {
-      debugPrint('❌ MindMap [Gemini]: $e');
-      return MindMapResult.error('Erreur Gemini: $e');
+      debugPrint('❌ MindMap [$label]: $e');
+      return MindMapResult.error('Erreur IA: $e');
     }
   }
 

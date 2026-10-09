@@ -10,7 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/rich_summary.dart';
 import '../models/transcription.dart';
-import '../services/gemini_service.dart';
+import '../services/ai_service.dart';
 import '../services/summary_storage_service.dart';
 import '../theme.dart';
 
@@ -104,7 +104,7 @@ class _RichSummaryPageState extends State<RichSummaryPage>
     await Future.delayed(const Duration(milliseconds: 300));
     setState(() => _statusText = 'Rédaction du résumé & graphiques…');
 
-    final summary = await GeminiService.instance.generateRichSummary(
+    final summary = await AiService.instance.generateRichSummary(
       transcriptionId: widget.transcription.id,
       transcriptionContent: widget.transcription.content,
       transcriptionTitle: widget.transcription.title,

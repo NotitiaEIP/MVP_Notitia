@@ -19,7 +19,7 @@ import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 
 import '../models/transcription.dart';
-import 'mistral_service.dart';
+import 'correction_service.dart';
 import 'rag_service.dart';
 import 'storage_service.dart';
 
@@ -58,7 +58,7 @@ class WidgetRecordingService {
       if (finalText.length > 10) {
         try {
           debugPrint('[WidgetRecording] Correction Mistral en cours...');
-          final corrected = await MistralService.instance.correctTranscription(
+          final corrected = await CorrectionService.instance.correctTranscription(
             finalText,
           );
           if (corrected.isNotEmpty) {
@@ -90,7 +90,7 @@ class WidgetRecordingService {
       await StorageService.save(transcription);
 
       // Générer un titre IA en arrière-plan
-      unawaited(MistralService.updateTitleInBackground(transcription));
+      unawaited(CorrectionService.updateTitleInBackground(transcription));
 
       // Indexation RAG
       RAGService.instance.indexSingleTranscription(transcription);

@@ -97,3 +97,8 @@ Thumbs.db
 .settings/
 *.sublime-workspace
 *.sublime-project
+
+# Clés et config locales (voir env/ai.example.json)
+env/*.json
+!env/ai.example.json
+ia_python/.env

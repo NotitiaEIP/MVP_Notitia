@@ -14,7 +14,7 @@ import '../models/transcription.dart';
 import '../services/deepgram_service.dart';
 import '../services/foreground_service.dart';
 import '../services/language_service.dart';
-import '../services/mistral_service.dart';
+import '../services/correction_service.dart';
 import '../services/rag_service.dart';
 import '../services/live_activity_service.dart';
 import '../services/storage_service.dart';
@@ -484,7 +484,7 @@ class _CapturePageState extends State<CapturePage>
     try {
       debugPrint('[Notitia] Correction Mistral en cours...');
       final original = _fullTranscript;
-      final corrected = await MistralService.instance.correctTranscription(
+      final corrected = await CorrectionService.instance.correctTranscription(
         _fullTranscript,
       );
 
@@ -560,7 +560,7 @@ class _CapturePageState extends State<CapturePage>
     // Tenter de générer un titre IA
     String title = defaultTitle;
     try {
-      final aiTitle = await MistralService.instance.generateTitle(
+      final aiTitle = await CorrectionService.instance.generateTitle(
         _fullTranscript.trim(),
       );
       if (aiTitle != null && aiTitle.isNotEmpty) {
@@ -605,7 +605,7 @@ class _CapturePageState extends State<CapturePage>
     final titleController = TextEditingController(text: defaultTitle);
 
     // Génération IA du titre en parallèle (ne bloque pas l'affichage)
-    MistralService.instance.generateTitle(_fullTranscript.trim()).then((
+    CorrectionService.instance.generateTitle(_fullTranscript.trim()).then((
       aiTitle,
     ) {
       if (aiTitle != null && aiTitle.isNotEmpty) {

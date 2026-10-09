@@ -9,7 +9,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'gemini_service.dart';
+import '../config/ai_config.dart';
+import 'ai_service.dart';
 
 // =============================================================================
 // MODÈLE — Chunk de texte avec son embedding
@@ -26,6 +27,9 @@ class TextChunk {
   /// Métadonnées optionnelles (titre de la transcription, date, etc.)
   final Map<String, String> metadata;
 
+  /// Modèle d'embedding ayant produit le vecteur (voir AiConfig.embeddingSignature)
+  final String? embeddingSignature;
+
   TextChunk({
     required this.id,
     required this.transcriptionId,
@@ -33,6 +37,7 @@ class TextChunk {
     required this.embedding,
     required this.createdAt,
     this.metadata = const {},
+    this.embeddingSignature,
   });
 
   Map<String, dynamic> toJson() => {
@@ -42,6 +47,7 @@ class TextChunk {
     'embedding': embedding,
     'createdAt': createdAt.toIso8601String(),
     'metadata': metadata,
+    'embeddingSignature': embeddingSignature,
   };
 
   factory TextChunk.fromJson(Map<String, dynamic> json) => TextChunk(
@@ -57,6 +63,7 @@ class TextChunk {
           (k, v) => MapEntry(k, v.toString()),
         ) ??
         {},
+    embeddingSignature: json['embeddingSignature'] as String?,
   );
 }
 
@@ -203,9 +210,23 @@ class VectorStoreService {
       }
       final jsonString = await file.readAsString();
       final List<dynamic> jsonList = json.decode(jsonString) as List<dynamic>;
-      _chunks = jsonList
+      final allChunks = jsonList
           .map((j) => TextChunk.fromJson(j as Map<String, dynamic>))
           .toList();
+
+      // Les vecteurs d'un autre modèle sont incomparables : on les écarte,
+      // leurs transcriptions seront ré-indexées automatiquement.
+      final signature = AiConfig.embeddingSignature;
+      _chunks = allChunks
+          .where((c) => c.embeddingSignature == signature)
+          .toList();
+      final stale = allChunks.length - _chunks!.length;
+      if (stale > 0) {
+        debugPrint(
+          '[VectorStore] $stale chunks d\'un ancien modèle écartés → ré-indexation nécessaire ($signature)',
+        );
+        await _saveAll();
+      }
       // Remplir le set des IDs indexés
       for (final chunk in _chunks!) {
         _indexedTranscriptionIds.add(chunk.transcriptionId);
@@ -264,36 +285,37 @@ class VectorStoreService {
       '[VectorStore] Indexation: ${textChunks.length} chunks pour transcription $transcriptionId',
     );
 
-    // 2. Embedding de chaque chunk
+    // 2. Embedding par lots
+    const batchSize = 16;
     int indexed = 0;
-    for (int i = 0; i < textChunks.length; i++) {
+    for (int start = 0; start < textChunks.length; start += batchSize) {
+      final end = (start + batchSize).clamp(0, textChunks.length);
+      final batch = textChunks.sublist(start, end);
       debugPrint(
-        '[VectorStore] Embedding chunk ${i + 1}/${textChunks.length} (${textChunks[i].length} chars)...',
+        '[VectorStore] Embedding chunks ${start + 1}-$end/${textChunks.length}...',
       );
-      final embedding = await GeminiService.instance.embed(textChunks[i]);
-      if (embedding != null) {
-        final chunk = TextChunk(
-          id: '${transcriptionId}_chunk_$i',
-          transcriptionId: transcriptionId,
-          text: textChunks[i],
-          embedding: embedding,
-          createdAt: DateTime.now(),
-          metadata: metadata,
-        );
-        _chunks!.add(chunk);
-        indexed++;
-        debugPrint(
-          '[VectorStore] ✓ Chunk ${i + 1} embedé (${embedding.length} dims)',
-        );
-      } else {
-        debugPrint('[VectorStore] ✗ Chunk ${i + 1} ÉCHEC embedding');
+      final embeddings = await AiService.instance.embedBatch(batch);
+      for (int j = 0; j < batch.length; j++) {
+        final i = start + j;
+        final embedding = embeddings[j];
+        if (embedding != null) {
+          _chunks!.add(
+            TextChunk(
+              id: '${transcriptionId}_chunk_$i',
+              transcriptionId: transcriptionId,
+              text: textChunks[i],
+              embedding: embedding,
+              createdAt: DateTime.now(),
+              metadata: metadata,
+              embeddingSignature: AiConfig.embeddingSignature,
+            ),
+          );
+          indexed++;
+        } else {
+          debugPrint('[VectorStore] ✗ Chunk ${i + 1} ÉCHEC embedding');
+        }
       }
-      onProgress?.call(i + 1, textChunks.length);
-
-      // Rate limiting (API gratuite Gemini : ~100 req/min)
-      if (i < textChunks.length - 1) {
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
+      onProgress?.call(end, textChunks.length);
     }
 
     // Ne marquer comme indexé QUE si au moins 1 chunk a été créé
@@ -364,7 +386,7 @@ class VectorStoreService {
     // Calcul de similarité cosinus pour chaque chunk
     final results = <VectorSearchResult>[];
     for (final chunk in allChunks) {
-      final similarity = GeminiService.cosineSimilarity(
+      final similarity = AiService.cosineSimilarity(
         queryEmbedding,
         chunk.embedding,
       );

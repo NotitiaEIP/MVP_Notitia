@@ -1,0 +1,5 @@
+{
+  "AI_BASE_URL": "http://192.168.1.20:4000",
+  "AI_API_KEY": "sk-cle-virtuelle-de-la-passerelle",
+  "DEEPGRAM_API_KEY": ""
+}

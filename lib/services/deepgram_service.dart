@@ -7,6 +7,8 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:record/record.dart';
 
+import '../config/ai_config.dart';
+
 /// 🎙️ Service Deepgram Nova-3 pour Flutter
 /// Transcription en temps réel via WebSocket - Sans serveur Python
 /// 
@@ -23,8 +25,8 @@ class DeepgramService {
   // Configuration
   // ---------------------------------------------------------------------------
   
-  /// Clé API Deepgram (à mettre en variable d'environnement en production)
-  static const String _apiKey = 'f7a04f3710a4b823fc325c44cae2c39b52a007e7';
+  /// Clé API Deepgram, injectée au build (DEEPGRAM_API_KEY dans env/ai.json)
+  static const String _apiKey = ServiceKeys.deepgram;
   
   /// URL WebSocket Deepgram
   static const String _wsBaseUrl = 'wss://api.deepgram.com/v1/listen';

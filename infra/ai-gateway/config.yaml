@@ -1,0 +1,73 @@
+# =============================================================================
+# NOTITIA — Passerelle IA (LiteLLM)
+#
+# L'app n'appelle JAMAIS un modèle par son vrai nom : elle utilise les alias
+# `notitia-*` ci-dessous. Pour changer de modèle, on modifie uniquement ce
+# fichier puis `docker compose restart litellm` — aucune mise à jour de l'app.
+#
+# Tous les modèles sont open-weight et hébergés par DeepInfra (payé au token).
+# Prix indicatifs (oct. 2026, $ / 1M tokens entrée → sortie) en commentaire.
+# =============================================================================
+
+model_list:
+  # Correction de transcription + titres — rapide, très bon en français
+  # 0.075 → 0.20
+  - model_name: notitia-fast
+    litellm_params:
+      model: deepinfra/mistralai/Mistral-Small-3.2-24B-Instruct-2506
+      api_key: os.environ/DEEPINFRA_API_KEY
+
+  # Assistant RAG, résumé enrichi, mind map standard (JSON)
+  # 0.09 → 0.18
+  - model_name: notitia-smart
+    litellm_params:
+      model: deepinfra/deepseek-ai/DeepSeek-V4-Flash
+      api_key: os.environ/DEEPINFRA_API_KEY
+
+  # Mind map premium (remplace Claude Sonnet)
+  # 0.75 → 3.50
+  - model_name: notitia-premium
+    litellm_params:
+      model: deepinfra/moonshotai/Kimi-K2.6
+      api_key: os.environ/DEEPINFRA_API_KEY
+
+  # Modèle de secours utilisé automatiquement si un autre tombe
+  # 0.14 → 1.00
+  - model_name: notitia-fallback
+    litellm_params:
+      model: deepinfra/Qwen/Qwen3.5-35B-A3B
+      api_key: os.environ/DEEPINFRA_API_KEY
+
+  # Embeddings pour la recherche sémantique — 0.01 / 1M tokens
+  # Passé par l'endpoint OpenAI-compatible de DeepInfra.
+  - model_name: notitia-embed
+    litellm_params:
+      model: openai/Qwen/Qwen3-Embedding-8B
+      api_base: https://api.deepinfra.com/v1/openai
+      api_key: os.environ/DEEPINFRA_API_KEY
+    model_info:
+      mode: embedding
+
+# Recherche web (sources du résumé enrichi) — POST /v1/search/brave-search
+search_tools:
+  - search_tool_name: brave-search
+    litellm_params:
+      search_provider: brave
+      api_key: os.environ/BRAVE_API_KEY
+
+router_settings:
+  num_retries: 2
+  timeout: 120
+  fallbacks:
+    - notitia-fast: [notitia-fallback]
+    - notitia-smart: [notitia-fallback]
+    - notitia-premium: [notitia-smart]
+
+litellm_settings:
+  # Ignore les paramètres non supportés par un modèle au lieu d'échouer
+  drop_params: true
+  request_timeout: 120
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL

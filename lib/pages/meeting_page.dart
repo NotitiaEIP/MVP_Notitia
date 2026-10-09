@@ -14,7 +14,7 @@ import '../models/meeting.dart';
 import '../models/transcription.dart';
 import '../services/deepgram_service.dart';
 import '../services/meeting_service.dart';
-import '../services/mistral_service.dart';
+import '../services/correction_service.dart';
 import '../services/storage_service.dart';
 import '../services/auth_service.dart';
 import '../services/live_activity_service.dart';
@@ -280,7 +280,7 @@ class _MeetingPageState extends State<MeetingPage> {
     String finalContent = _fullTranscript;
     if (finalContent.isNotEmpty) {
       try {
-        finalContent = await MistralService.instance.correctTranscription(finalContent);
+        finalContent = await CorrectionService.instance.correctTranscription(finalContent);
       } catch (e) {
         debugPrint('Erreur Mistral: $e');
       }
@@ -303,7 +303,7 @@ class _MeetingPageState extends State<MeetingPage> {
     await StorageService.save(transcription);
 
     // Générer un titre IA en arrière-plan
-    MistralService.updateTitleInBackground(transcription);
+    CorrectionService.updateTitleInBackground(transcription);
 
     // Rendre la transcription disponible aux participants via le serveur
     _hostService.endMeeting(transcription);
@@ -362,7 +362,7 @@ class _MeetingPageState extends State<MeetingPage> {
     String finalContent = _fullTranscript;
     if (finalContent.isNotEmpty) {
       try {
-        finalContent = await MistralService.instance.correctTranscription(finalContent);
+        finalContent = await CorrectionService.instance.correctTranscription(finalContent);
       } catch (e) {
         debugPrint('Erreur Mistral: $e');
       }
