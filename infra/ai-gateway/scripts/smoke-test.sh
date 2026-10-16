@@ -58,9 +58,9 @@ check "notitia-premium" /v1/chat/completions \
 
 check "notitia-embed" /v1/embeddings \
   '{"model":"notitia-embed","input":"Réunion budget 2027","dimensions":1024}' \
-  'import json,sys; d=json.load(sys.stdin); print(len(d["data"][0]["embedding"]), "dimensions")'
+  'import json,sys; d=json.load(sys.stdin); n=len(d["data"][0]["embedding"]); print(n, "dimensions" + (" (l\x27app réduit à 1024)" if n > 1024 else ""))'
 
-check "brave-search" /v1/search/brave-search \
+check "web-search" /v1/search/web-search \
   '{"query":"intelligence artificielle open source","max_results":2}' \
   'import json,sys; d=json.load(sys.stdin); r=d["results"]; assert r; print(len(r), "résultats —", r[0]["url"][:60])'
 

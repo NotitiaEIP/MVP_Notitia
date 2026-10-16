@@ -1,0 +1,20 @@
+# =============================================================================
+# SearXNG — moteur de recherche open source auto-hébergé (sources web du
+# résumé enrichi). Accessible uniquement par la passerelle (réseau Docker interne).
+# La clé secrète vient de la variable SEARXNG_SECRET (.env).
+# =============================================================================
+use_default_settings: true
+
+server:
+  # Pas de limiteur : seul LiteLLM l'interroge, depuis le réseau interne
+  limiter: false
+  image_proxy: false
+  public_instance: false
+
+search:
+  safe_search: 1
+  default_lang: "fr"
+  # LiteLLM lit le format JSON (désactivé par défaut dans SearXNG)
+  formats:
+    - html
+    - json

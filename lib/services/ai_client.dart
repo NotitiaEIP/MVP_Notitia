@@ -7,6 +7,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -179,11 +180,26 @@ class AiClient {
     }
     return items
         .map(
-          (e) => (e['embedding'] as List<dynamic>)
-              .map((v) => (v as num).toDouble())
-              .toList(),
+          (e) => reduceDimensions(
+            (e['embedding'] as List<dynamic>)
+                .map((v) => (v as num).toDouble())
+                .toList(),
+            dims,
+          ),
         )
         .toList();
+  }
+
+  /// Certains fournisseurs ignorent `dimensions` : on tronque alors nous-mêmes
+  /// puis on renormalise. Valide pour les modèles entraînés en Matryoshka
+  /// (Qwen3-Embedding), dont les premières dimensions portent l'essentiel.
+  @visibleForTesting
+  static List<double> reduceDimensions(List<double> vector, int dims) {
+    if (dims <= 0 || vector.length <= dims) return vector;
+    final truncated = vector.sublist(0, dims);
+    final norm = sqrt(truncated.fold<double>(0, (sum, v) => sum + v * v));
+    if (norm == 0) return truncated;
+    return truncated.map((v) => v / norm).toList();
   }
 
   // ---------------------------------------------------------------------------
@@ -205,6 +221,8 @@ class AiClient {
       return (data['results'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>()
           .where((r) => (r['url'] as String? ?? '').startsWith('http'))
+          // SearXNG ignore max_results et renvoie ~20 résultats
+          .take(maxResults)
           .map(
             (r) => AiSearchResult(
               title: r['title'] as String? ?? query,

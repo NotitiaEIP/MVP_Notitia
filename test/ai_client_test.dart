@@ -163,14 +163,54 @@ void main() {
 
       final results = await ai.search('ia open source');
 
-      expect(sent.url.path, '/v1/search/brave-search');
+      expect(sent.url.path, '/v1/search/web-search');
       expect(results, hasLength(1));
       expect(results.first.url, 'https://a.fr');
+    });
+
+    test('limite à maxResults même si le moteur en renvoie plus', () async {
+      final ai = _client(
+        (_) async => _json({
+          'results': [
+            for (var i = 0; i < 20; i++)
+              {'title': 'R$i', 'url': 'https://r$i.fr'},
+          ],
+        }),
+      );
+      final results = await ai.search('x', maxResults: 2);
+      expect(results.map((r) => r.url), ['https://r0.fr', 'https://r1.fr']);
     });
 
     test('renvoie une liste vide en cas d\'erreur', () async {
       final ai = _client((_) async => _json({'error': 'bad key'}, 400));
       expect(await ai.search('x'), isEmpty);
+    });
+  });
+
+  group('reduceDimensions', () {
+    test('tronque et renormalise si le fournisseur ignore dimensions', () {
+      final reduced = AiClient.reduceDimensions([3, 4, 12, 0], 2);
+      expect(reduced, [0.6, 0.8]);
+    });
+
+    test('laisse le vecteur intact s\'il est déjà à la bonne taille', () {
+      expect(AiClient.reduceDimensions([0.1, 0.2], 2), [0.1, 0.2]);
+      expect(AiClient.reduceDimensions([0.1, 0.2, 0.3], 0), [0.1, 0.2, 0.3]);
+    });
+
+    test('embed applique la réduction', () async {
+      final ai = _client(
+        (_) async => _json({
+          'data': [
+            {
+              'index': 0,
+              'embedding': [3, 4, 5, 6],
+            },
+          ],
+        }),
+      );
+      final vectors = await ai.embed(['a'], dimensions: 2);
+      expect(vectors.single, [0.6, 0.8]);
     });
   });
 

@@ -48,12 +48,15 @@ model_list:
     model_info:
       mode: embedding
 
-# Recherche web (sources du résumé enrichi) — POST /v1/search/brave-search
+# Recherche web (sources du résumé enrichi) — POST /v1/search/web-search
+# SearXNG open source, auto-hébergé dans docker-compose : gratuit, sans clé.
+# Pour passer à un service payant plus tard (Brave, Exa…), il suffit de changer
+# search_provider + api_key ici : l'app appelle toujours "web-search".
 search_tools:
-  - search_tool_name: brave-search
+  - search_tool_name: web-search
     litellm_params:
-      search_provider: brave
-      api_key: os.environ/BRAVE_API_KEY
+      search_provider: searxng
+      api_base: http://searxng:8080
 
 router_settings:
   num_retries: 2

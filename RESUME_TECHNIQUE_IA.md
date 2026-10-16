@@ -46,7 +46,7 @@ Le projet est organisé en deux blocs :
 | **Passerelle IA (LiteLLM)** | `infra/ai-gateway/` + `lib/services/ai_client.dart` | Point d'entrée unique vers les modèles open source (DeepInfra), clés plafonnées, fallback | Entrée: requêtes OpenAI-compatibles • Sortie: texte / JSON / vecteurs |
 | **Mistral Small 3.2** (`notitia-fast`) | `lib/services/correction_service.dart` | Correction de transcription + titres | Entrée: texte brut • Sortie: texte corrigé |
 | **DeepSeek V4 Flash** (`notitia-smart`) + **Qwen3-Embedding 8B** (`notitia-embed`) | `ai_service.dart`, `rag_service.dart`, `vector_store_service.dart`, `mind_map_service.dart` | Assistant RAG, résumé enrichi, mind map standard, recherche sémantique | Entrée: question/texte • Sortie: réponse, JSON, vecteurs 1024 dims |
-| **Kimi K2.6** (`notitia-premium`) + **Brave Search** | `mind_map_service.dart`, `ai_service.dart` | Mind map premium · sources web du résumé (images : Openverse) | Entrée: transcriptions • Sortie: JSON / URLs |
+| **Kimi K2.6** (`notitia-premium`) + **SearXNG** (recherche web auto-hébergée) | `mind_map_service.dart`, `ai_service.dart` | Mind map premium · sources web du résumé (images : Openverse) | Entrée: transcriptions • Sortie: JSON / URLs |
 | **Réduction de bruit (RNNoise/noisereduce)** | `ia_python/noise_reduction.py` | Nettoyage audio avant transcription (backend local) | Entrée: signal audio • Sortie: audio débruité |
 
 ---

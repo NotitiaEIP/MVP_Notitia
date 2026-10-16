@@ -446,7 +446,7 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
     return fallback;
   }
 
-  /// Recherche web (Brave via la passerelle) : 1 à 2 sources par requête.
+  /// Recherche web (SearXNG via la passerelle) : 1 à 2 sources par requête.
   Future<List<SummarySource>> _searchSources(List<String> queries) async {
     final results = await Future.wait(
       queries.map((q) => _ai.search(q, maxResults: 2)),

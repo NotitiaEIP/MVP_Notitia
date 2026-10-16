@@ -6,7 +6,7 @@ Une seule API compatible OpenAI pour toute l'IA de l'app, basée sur
 ```
 App Flutter ──► Passerelle (LiteLLM) ──► DeepInfra (modèles open source, payé au token)
  clé virtuelle    clés par personne,        plafond de dépense côté DeepInfra
- plafonnée        budgets, logs, fallback   + Brave Search pour les sources web
+ plafonnée        budgets, logs, fallback   + SearXNG (recherche web open source, auto-hébergée)
 ```
 
 La passerelle ne fait **aucun calcul IA** : elle relaie. Elle tourne donc sur
@@ -20,8 +20,8 @@ n'importe quel PC ou petit VPS (2 vCPU / 2–4 Go de RAM suffisent).
 | `notitia-smart` | DeepSeek V4 Flash | assistant, résumé enrichi, mind map standard | 0,09 → 0,18 |
 | `notitia-premium` | Kimi K2.6 | mind map premium | 0,75 → 3,50 |
 | `notitia-fallback` | Qwen3.5 35B A3B | secours automatique | 0,14 → 1,00 |
-| `notitia-embed` | Qwen3-Embedding 8B (1024 dims) | recherche sémantique | 0,01 |
-| `brave-search` | Brave Search API | sources web du résumé | 5 $ offerts / mois |
+| `notitia-embed` | Qwen3-Embedding 8B (réduit à 1024 dims par l'app) | recherche sémantique | 0,01 |
+| `web-search` | SearXNG (open source, dans le docker-compose) | sources web du résumé | gratuit, sans clé |
 
 Changer de modèle = modifier `config.yaml` puis `docker compose restart litellm`.
 **Aucune mise à jour de l'app n'est nécessaire.**
@@ -38,7 +38,8 @@ cp .env.example .env
 # Remplir .env :
 #   LITELLM_MASTER_KEY  → echo "sk-$(openssl rand -hex 24)"
 #   POSTGRES_PASSWORD   → openssl rand -hex 24
-#   DEEPINFRA_API_KEY, BRAVE_API_KEY, UI_PASSWORD
+#   SEARXNG_SECRET      → openssl rand -hex 32
+#   DEEPINFRA_API_KEY, UI_PASSWORD
 docker compose up -d
 ```
 
@@ -142,7 +143,8 @@ cd MVP_Notitia/infra/ai-gateway
 cp .env.example .env
 echo "sk-$(openssl rand -hex 24)"   # → LITELLM_MASTER_KEY
 openssl rand -hex 24                # → POSTGRES_PASSWORD
-nano .env   # + DEEPINFRA_API_KEY, BRAVE_API_KEY, UI_PASSWORD,
+openssl rand -hex 32                # → SEARXNG_SECRET
+nano .env   # + DEEPINFRA_API_KEY, UI_PASSWORD,
             #   DOMAIN=notitia-ai.duckdns.org, LITELLM_BIND=127.0.0.1
 docker compose --profile https up -d
 docker compose ps                   # litellm et db « healthy » après ~1 min
@@ -223,6 +225,6 @@ Ordre de grandeur : ~2 000 générations ≈ 1 $ avec `notitia-smart`.
 |---|---|
 | `Invalid proxy server token` | mauvaise `AI_API_KEY` dans `env/ai.json` |
 | `User is not authorized to access this resource` | `DEEPINFRA_API_KEY` invalide dans `.env` |
-| `SUBSCRIPTION_TOKEN_INVALID` | `BRAVE_API_KEY` invalide (le résumé marche, sans sources) |
+| `web-search` échoue ou renvoie 0 résultat | `docker compose logs searxng` ; un moteur peut bloquer temporairement l'IP du serveur (le résumé marche, sans sources) |
 | `Budget exceeded` | budget de la clé atteint → `create-key.sh` ou l'UI |
 | L'app n'arrive pas à joindre la passerelle | mauvaise IP / pas le même Wi-Fi / pare-feu du PC (port 4000) |

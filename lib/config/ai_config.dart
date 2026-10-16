@@ -56,7 +56,7 @@ class AiConfig {
   /// Nom de l'outil de recherche web configuré dans la passerelle (vide = désactivé).
   static const String searchTool = String.fromEnvironment(
     'AI_SEARCH_TOOL',
-    defaultValue: 'brave-search',
+    defaultValue: 'web-search',
   );
 
   /// Identifie les vecteurs stockés : si le modèle change, l'index local est
