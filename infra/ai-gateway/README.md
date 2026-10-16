@@ -116,6 +116,48 @@ Gratuit, HTTPS, sans compte. L'URL change à chaque redémarrage du tunnel.
 6. Recréer les clés (`create-key.sh`) puis mettre `AI_BASE_URL=https://notitia-ai.duckdns.org`
 7. Surveillance gratuite : [UptimeRobot](https://uptimerobot.com) sur `https://<domaine>/health/liveliness`
 
+## 6. Variante : Azure for Students (100 $ de crédits)
+
+L'offre étudiante inclut **12 mois gratuits** de VM `Standard_B2ats_v2`
+(2 vCPU AMD, **1 Go de RAM**, 750 h/mois = 24 h/24). Mesuré : LiteLLM ≈ 740 Mo +
+Postgres ≈ 75 Mo → ça tient avec **4 Go de swap**. Les 100 $ ne servent qu'aux
+petits frais (IP publique, ≈ 0–4 $/mois) et il n'y a pas de carte bancaire :
+aucune facture surprise.
+
+**Créer la VM** (portail Azure → *Machines virtuelles* → *Créer*) :
+
+| Champ | Valeur |
+|---|---|
+| Région | France Central (sinon une région autorisée : l'erreur liste celles permises) |
+| Image | Ubuntu Server 24.04 LTS – **x64** |
+| Taille | **Standard_B2ats_v2** (badge « gratuit ») — pas B2pts (ARM) |
+| Authentification | Clé SSH publique, utilisateur `azureuser` |
+| Ports entrants | SSH (22), HTTP (80), HTTPS (443) — **pas 4000** |
+| Disque OS | **SSD Premium 64 Go (P6)** — inclus dans l'offre gratuite |
+| Réseau → IP publique | *Étiquette de nom DNS* : `notitia-ai` → donne `notitia-ai.<region>.cloudapp.azure.com` (remplace DuckDNS) |
+| Gestion → Arrêt automatique | **Désactivé** (sinon la VM s'éteint chaque soir) |
+
+**Sur la VM** (`ssh azureuser@notitia-ai.<region>.cloudapp.azure.com`) :
+
+```bash
+# 4 Go de swap (indispensable avec 1 Go de RAM)
+sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# Docker + mises à jour de sécurité automatiques
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker azureuser   # puis se déconnecter / reconnecter en SSH
+sudo apt-get install -y unattended-upgrades
+```
+
+Puis l'étape 5 à partir du `git clone`, avec dans `.env` :
+`DOMAIN=notitia-ai.<region>.cloudapp.azure.com` et `LITELLM_BIND=127.0.0.1`.
+
+**Côté coûts** : *Gestion des coûts → Budgets* → alerte e-mail à 10 $. Si la VM est
+trop juste un jour de démo, la redimensionner temporairement en `Standard_B2als_v2`
+(4 Go, ≈ 1 $/jour) puis revenir en `B2ats_v2`.
+
 ## Budget
 
 Plafond de dépense DeepInfra (réglé dans leur console) + budget par clé ici.
