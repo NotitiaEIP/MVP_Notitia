@@ -105,16 +105,67 @@ docker compose logs tunnel | grep trycloudflare
 
 Gratuit, HTTPS, sans compte. L'URL change à chaque redémarrage du tunnel.
 
-## 5. Passer sur un VPS (quand il est disponible)
+## 5. Mettre en ligne 24 h/24 sur un VPS (OVH VPS-1)
 
-1. Ubuntu 24.04, installer Docker : `curl -fsSL https://get.docker.com | sh`
-2. Créer un sous-domaine gratuit sur [duckdns.org](https://www.duckdns.org) pointant vers l'IP du VPS
-3. `git clone` du dépôt, puis dans `infra/ai-gateway/.env` :
-   `DOMAIN=notitia-ai.duckdns.org` et `LITELLM_BIND=127.0.0.1`
-4. Ouvrir les ports 80 et 443 (pare-feu du fournisseur)
-5. `docker compose --profile https up -d` — Caddy obtient le certificat HTTPS tout seul
-6. Recréer les clés (`create-key.sh`) puis mettre `AI_BASE_URL=https://notitia-ai.duckdns.org`
-7. Surveillance gratuite : [UptimeRobot](https://uptimerobot.com) sur `https://<domaine>/health/liveliness`
+Serveur retenu : **OVH VPS-1** (2 vCore, 4 Go, 40 Go NVMe, IPv4 incluse, France),
+Ubuntu 24.04, utilisateur `ubuntu`.
+
+**a. Accès SSH (depuis ton PC)**
+
+```bash
+ssh-keygen -t ed25519            # si tu n'as pas encore de clé
+ssh-copy-id ubuntu@<IP_DU_VPS>   # inutile si la clé a été donnée à la commande
+ssh ubuntu@<IP_DU_VPS>
+```
+
+**b. Nom de domaine gratuit** : sur [duckdns.org](https://www.duckdns.org), créer
+`notitia-ai` et y mettre l'IPv4 du VPS → `notitia-ai.duckdns.org`.
+
+**c. Préparer le serveur**
+
+```bash
+sudo apt-get update && sudo apt-get -y upgrade
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker ubuntu                 # puis se déconnecter / reconnecter
+sudo apt-get install -y unattended-upgrades    # mises à jour de sécurité auto
+sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp && sudo ufw --force enable
+```
+
+**d. Installer la passerelle**
+
+```bash
+git clone -b feat/ai-gateway https://github.com/NotitiaEIP/MVP_Notitia.git
+cd MVP_Notitia/infra/ai-gateway
+cp .env.example .env
+echo "sk-$(openssl rand -hex 24)"   # → LITELLM_MASTER_KEY
+openssl rand -hex 24                # → POSTGRES_PASSWORD
+nano .env   # + DEEPINFRA_API_KEY, BRAVE_API_KEY, UI_PASSWORD,
+            #   DOMAIN=notitia-ai.duckdns.org, LITELLM_BIND=127.0.0.1
+docker compose --profile https up -d
+docker compose ps                   # litellm et db « healthy » après ~1 min
+```
+
+(Dépôt privé : utiliser un [token GitHub](https://github.com/settings/tokens) ou une clé de déploiement pour le clone.)
+
+**e. Vérifier et créer les clés**
+
+```bash
+./scripts/smoke-test.sh https://notitia-ai.duckdns.org
+./scripts/create-key.sh app-demo 3 30        # clé de l'app
+./scripts/create-key.sh dev-<prénom> 2 60    # une par membre
+```
+
+Admin et coûts : `https://notitia-ai.duckdns.org/ui`.
+
+**f. Surveillance** : [UptimeRobot](https://uptimerobot.com) (gratuit) sur
+`https://notitia-ai.duckdns.org/health/liveliness`, alerte par e-mail.
+
+**g. Mettre à jour plus tard**
+
+```bash
+cd ~/MVP_Notitia && git pull && cd infra/ai-gateway
+docker compose --profile https pull && docker compose --profile https up -d
+```
 
 ## 6. Variante : Azure for Students (100 $ de crédits)
 
