@@ -107,8 +107,11 @@ Gratuit, HTTPS, sans compte. L'URL change à chaque redémarrage du tunnel.
 
 ## 5. Mettre en ligne 24 h/24 sur un VPS (OVH VPS-1)
 
-Serveur retenu : **OVH VPS-1** (2 vCore, 4 Go, 40 Go NVMe, IPv4 incluse, France),
-Ubuntu 24.04, utilisateur `ubuntu`.
+Serveur retenu : **OVH VPS-1** (2 vCore, 4 Go, 40 Go NVMe, IPv4 incluse), datacenter
+Beauharnois (Canada), Ubuntu 24.04, utilisateur `ubuntu`.
+
+> ⚠️ À la création du domaine, DuckDNS pré-remplit l'IP **de ton ordinateur** (ou de
+> ton VPN) : la remplacer par l'IPv4 du VPS puis *update ip*. Laisser l'IPv6 vide.
 
 **a. Accès SSH (depuis ton PC)**
 
