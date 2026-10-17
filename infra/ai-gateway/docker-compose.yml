@@ -28,6 +28,8 @@ services:
         condition: service_healthy
       searxng:
         condition: service_started
+      stt-adapter:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')\""]
       interval: 30s
@@ -49,6 +51,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+
+  # Traduit /v1/audio/transcriptions (format OpenAI) vers l'API native DeepInfra
+  # (Whisper). Interne, sans port publié, sans secret : la clé vient de LiteLLM.
+  stt-adapter:
+    build: ./stt-adapter
     restart: unless-stopped
 
   # Recherche web open source (sources du résumé enrichi) — interne, sans port publié

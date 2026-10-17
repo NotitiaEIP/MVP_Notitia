@@ -19,21 +19,21 @@ fi
 
 FAILED=0
 
-check() {
-  local name="$1" path="$2" body="$3" extract="$4"
+# request <nom> <extract python> <chemin> <arguments curl...>
+request() {
+  local name="$1" extract="$2" path="$3"
+  shift 3
   local start end out status
   start=$(date +%s%N)
   out=$(curl -sS --max-time 120 -w '\n%{http_code}' "$GATEWAY_URL$path" \
-    -H "Authorization: Bearer $KEY" \
-    -H "Content-Type: application/json" \
-    -d "$body" 2>&1)
+    -H "Authorization: Bearer $KEY" "$@" 2>&1)
   end=$(date +%s%N)
   status="${out##*$'\n'}"
   out="${out%$'\n'*}"
   local ms=$(( (end - start) / 1000000 ))
   local result
   if result=$(printf '%s' "$out" | python3 -c "$extract" 2>/dev/null); then
-    printf '✅ %-16s %6d ms  %s\n' "$name" "$ms" "$result"
+    printf '✅ %-18s %6d ms  %s\n' "$name" "$ms" "$result"
   else
     local detail
     detail="$(printf '%s' "$out" | head -c 300)"
@@ -42,9 +42,14 @@ check() {
       000) detail="serveur injoignable : $detail" ;;
       *) detail="HTTP $status $detail" ;;
     esac
-    printf '❌ %-16s %6d ms  %s\n' "$name" "$ms" "$detail"
+    printf '❌ %-18s %6d ms  %s\n' "$name" "$ms" "$detail"
     FAILED=1
   fi
+}
+
+# check <nom> <chemin> <corps JSON> <extract python>
+check() {
+  request "$1" "$4" "$2" -H "Content-Type: application/json" -d "$3"
 }
 
 CHAT='import json,sys; d=json.load(sys.stdin); print(d["choices"][0]["message"]["content"].strip().replace("\n"," ")[:80])'
@@ -72,6 +77,20 @@ check "notitia-embed" /v1/embeddings \
 check "web-search" /v1/search/web-search \
   '{"query":"intelligence artificielle open source","max_results":2}' \
   'import json,sys; d=json.load(sys.stdin); r=d["results"]; assert r; print(len(r), "résultats —", r[0]["url"][:60])'
+
+# Transcription : 1 s de son de test (un bip, pas de parole : le texte peut être vide)
+WAV="$(mktemp --suffix=.wav)"
+trap 'rm -f "$WAV"' EXIT
+python3 - "$WAV" <<'PY'
+import math, struct, sys, wave
+with wave.open(sys.argv[1], "wb") as w:
+    w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
+    w.writeframes(b"".join(struct.pack("<h", int(3000 * math.sin(2 * math.pi * 440 * i / 16000))) for i in range(16000)))
+PY
+request "notitia-transcribe" \
+  'import json,sys; d=json.load(sys.stdin); assert "text" in d; print("réponse OK (texte du bip : " + repr(d["text"][:40]) + ")")' \
+  /v1/audio/transcriptions \
+  -F "file=@$WAV;type=audio/wav" -F "model=notitia-transcribe" -F "language=fr"
 
 echo
 if [[ $FAILED -eq 0 ]]; then echo "Tout est OK 🎉"; else echo "Au moins un test a échoué."; fi

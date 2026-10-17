@@ -48,6 +48,18 @@ model_list:
     model_info:
       mode: embedding
 
+  # Transcription vocale (remplace Deepgram) — Whisper large-v3-turbo
+  # ≈ 0,0002 $ / minute d'audio. DeepInfra n'a que son API native pour l'audio :
+  # le service stt-adapter (docker-compose) fait la traduction depuis le format OpenAI.
+  - model_name: notitia-transcribe
+    litellm_params:
+      model: openai/openai/whisper-large-v3-turbo
+      api_base: http://stt-adapter:8080/v1
+      api_key: os.environ/DEEPINFRA_API_KEY
+    model_info:
+      mode: audio_transcription
+      input_cost_per_second: 0.0000033333
+
 # Recherche web (sources du résumé enrichi) — POST /v1/search/web-search
 # SearXNG open source, auto-hébergé dans docker-compose : gratuit, sans clé.
 # Pour passer à un service payant plus tard (Brave, Exa…), il suffit de changer

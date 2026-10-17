@@ -32,7 +32,6 @@ curl -sS --fail-with-body "$GATEWAY_URL/key/generate" \
   "key_alias": "$ALIAS",
   "max_budget": $BUDGET,
   "budget_duration": "30d",
-  "rpm_limit": $RPM,
-  "models": ["notitia-fast", "notitia-smart", "notitia-premium", "notitia-fallback", "notitia-embed"]
+  "rpm_limit": $RPM
 }
 JSON
