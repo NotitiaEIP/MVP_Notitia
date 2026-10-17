@@ -21,19 +21,28 @@ FAILED=0
 
 check() {
   local name="$1" path="$2" body="$3" extract="$4"
-  local start end out
+  local start end out status
   start=$(date +%s%N)
-  out=$(curl -sS --max-time 120 "$GATEWAY_URL$path" \
+  out=$(curl -sS --max-time 120 -w '\n%{http_code}' "$GATEWAY_URL$path" \
     -H "Authorization: Bearer $KEY" \
     -H "Content-Type: application/json" \
     -d "$body" 2>&1)
   end=$(date +%s%N)
+  status="${out##*$'\n'}"
+  out="${out%$'\n'*}"
   local ms=$(( (end - start) / 1000000 ))
   local result
   if result=$(printf '%s' "$out" | python3 -c "$extract" 2>/dev/null); then
     printf '✅ %-16s %6d ms  %s\n' "$name" "$ms" "$result"
   else
-    printf '❌ %-16s %6d ms  %s\n' "$name" "$ms" "$(printf '%s' "$out" | head -c 300)"
+    local detail
+    detail="$(printf '%s' "$out" | head -c 300)"
+    case "$status" in
+      502|503|504) detail="HTTP $status : LiteLLM ne répond pas (en démarrage ? → docker compose ps / logs litellm) $detail" ;;
+      000) detail="serveur injoignable : $detail" ;;
+      *) detail="HTTP $status $detail" ;;
+    esac
+    printf '❌ %-16s %6d ms  %s\n' "$name" "$ms" "$detail"
     FAILED=1
   fi
 }
