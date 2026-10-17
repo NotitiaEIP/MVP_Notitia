@@ -23,24 +23,18 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
-import okio.ByteString
-import okio.ByteString.Companion.toByteString
-import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 /**
  * NOTITIA — Service d'enregistrement natif (Foreground Service)
  *
- * Enregistre l'audio et stream vers Deepgram Nova-3 pour transcription
- * en temps réel, SANS ouvrir l'application Flutter.
+ * Enregistre l'audio dans un fichier WAV, SANS ouvrir l'application Flutter.
+ * Aucune clé ni appel réseau ici : la transcription (Whisper open source via
+ * la passerelle Notitia) est faite par l'app à sa prochaine ouverture.
  *
  * Déclenché par le widget écran d'accueil :
  *   ACTION_START → démarre l'enregistrement + notification persistante
@@ -49,8 +43,8 @@ import java.util.concurrent.TimeUnit
  * Le widget lit l'état (is_recording, timer) dans SharedPreferences
  * et affiche le bon layout (idle / recording + timer).
  *
- * Au prochain lancement de l'app Flutter, le transcript en attente
- * est récupéré, corrigé par Mistral, et sauvegardé dans StorageService.
+ * Au prochain lancement de l'app Flutter, les enregistrements en attente
+ * (pending_audio_paths) sont transcrits, corrigés et sauvegardés.
  */
 class NotitiaRecordingService : Service() {
 
@@ -64,8 +58,7 @@ class NotitiaRecordingService : Service() {
         const val NOTIFICATION_ID  = 1001
         const val PREFS_NAME       = "HomeWidgetPreferences"
 
-        // Deepgram
-        private const val DEEPGRAM_API_KEY = "f7a04f3710a4b823fc325c44cae2c39b52a007e7"
+        // Audio : PCM 16 bits mono 16 kHz (format attendu par Whisper)
         private const val SAMPLE_RATE      = 16000
         private const val CHANNEL_CONFIG   = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT     = AudioFormat.ENCODING_PCM_16BIT
@@ -75,13 +68,10 @@ class NotitiaRecordingService : Service() {
     // État
     // =========================================================================
     private var audioRecord: AudioRecord? = null
-    private var webSocket: WebSocket? = null
-    private var okHttpClient: OkHttpClient? = null
     private var recordingThread: Thread? = null
     private var isRecording = false
 
-    private val transcript = StringBuilder()
-    private var currentPartial = ""
+    private var pcmFile: File? = null
     private var startTimeMillis: Long = 0
 
     private val handler = Handler(Looper.getMainLooper())
@@ -151,17 +141,12 @@ class NotitiaRecordingService : Service() {
 
         isRecording = true
         startTimeMillis = System.currentTimeMillis()
-        transcript.clear()
-        currentPartial = ""
 
         // Mettre à jour le widget immédiatement
         updateWidgetState(true, "00:00")
 
-        // Connecter Deepgram WebSocket
-        connectDeepgram()
-
-        // Démarrer le streaming audio
-        startAudioStreaming()
+        // Démarrer l'enregistrement audio dans un fichier
+        startAudioRecording()
 
         // Démarrer le timer (mise à jour chaque seconde)
         handler.postDelayed(timerRunnable, 1000)
@@ -184,37 +169,26 @@ class NotitiaRecordingService : Service() {
         // Arrêter le timer
         handler.removeCallbacks(timerRunnable)
 
-        // Arrêter le streaming audio
+        // Arrêter l'enregistrement et attendre l'écriture des derniers octets
         try {
             audioRecord?.stop()
-            audioRecord?.release()
         } catch (e: Exception) {
             Log.e(TAG, "Erreur arrêt AudioRecord", e)
         }
+        try {
+            recordingThread?.join(2000)
+        } catch (e: InterruptedException) {
+            Log.e(TAG, "Attente du thread audio interrompue", e)
+        }
+        audioRecord?.release()
         audioRecord = null
         recordingThread = null
 
-        // Fermer le WebSocket
-        try {
-            webSocket?.close(1000, "Recording stopped")
-        } catch (e: Exception) {
-            Log.e(TAG, "Erreur fermeture WebSocket", e)
-        }
-        webSocket = null
-
-        // Finaliser le transcript
-        if (currentPartial.isNotEmpty()) {
-            if (transcript.isNotEmpty()) transcript.append(" ")
-            transcript.append(currentPartial)
-            currentPartial = ""
-        }
-
-        val finalTranscript = transcript.toString().trim()
-        Log.d(TAG, "Transcript final: $finalTranscript")
-
-        // Sauvegarder le transcript en attente (Flutter le récupérera)
-        if (finalTranscript.isNotEmpty()) {
-            savePendingTranscription(finalTranscript)
+        // Fichier PCM → WAV, ajouté aux enregistrements en attente (Flutter le transcrira)
+        val wav = pcmFile?.let { finalizeWav(it) }
+        pcmFile = null
+        if (wav != null) {
+            savePendingAudio(wav)
         }
 
         // Repasser le widget en état idle
@@ -228,91 +202,10 @@ class NotitiaRecordingService : Service() {
     }
 
     // =========================================================================
-    // Deepgram WebSocket
-    // =========================================================================
-    private fun connectDeepgram() {
-        val params = mapOf(
-            "model" to "nova-3",
-            "language" to "fr",
-            "punctuate" to "true",
-            "smart_format" to "true",
-            "interim_results" to "true",
-            "encoding" to "linear16",
-            "sample_rate" to SAMPLE_RATE.toString(),
-            "channels" to "1"
-        )
-        val query = params.entries.joinToString("&") { "${it.key}=${it.value}" }
-        val url = "wss://api.deepgram.com/v1/listen?$query"
-
-        okHttpClient = OkHttpClient.Builder()
-            .readTimeout(0, TimeUnit.MILLISECONDS)   // pas de timeout sur WebSocket
-            .writeTimeout(10, TimeUnit.SECONDS)
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .build()
-
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", "Token $DEEPGRAM_API_KEY")
-            .build()
-
-        webSocket = okHttpClient!!.newWebSocket(request, deepgramListener)
-        Log.d(TAG, "Connexion Deepgram en cours...")
-    }
-
-    private val deepgramListener = object : WebSocketListener() {
-        override fun onOpen(ws: WebSocket, response: Response) {
-            Log.d(TAG, "🔌 Deepgram WebSocket connecté")
-        }
-
-        override fun onMessage(ws: WebSocket, text: String) {
-            try {
-                val json = JSONObject(text)
-
-                // Erreur Deepgram ?
-                if (json.has("error")) {
-                    Log.e(TAG, "Deepgram error: ${json.getString("error")}")
-                    return
-                }
-
-                val channel = json.optJSONObject("channel") ?: return
-                val alternatives = channel.optJSONArray("alternatives") ?: return
-                if (alternatives.length() == 0) return
-
-                val alt = alternatives.getJSONObject(0)
-                val text2 = alt.optString("transcript", "")
-                val isFinal = json.optBoolean("is_final", false)
-                val speechFinal = json.optBoolean("speech_final", false)
-
-                if (text2.isNotEmpty()) {
-                    if (isFinal || speechFinal) {
-                        if (transcript.isNotEmpty()) transcript.append(" ")
-                        transcript.append(text2)
-                        currentPartial = ""
-                        Log.d(TAG, "📝 [FINAL] $text2")
-                    } else {
-                        currentPartial = text2
-                        Log.d(TAG, "📝 [PARTIAL] $text2")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Erreur parsing Deepgram", e)
-            }
-        }
-
-        override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-            Log.e(TAG, "❌ Deepgram WebSocket error: ${t.message}", t)
-        }
-
-        override fun onClosed(ws: WebSocket, code: Int, reason: String) {
-            Log.d(TAG, "Deepgram WebSocket fermé: $reason")
-        }
-    }
-
-    // =========================================================================
-    // Audio streaming (AudioRecord → WebSocket)
+    // Enregistrement audio (AudioRecord → fichier PCM)
     // =========================================================================
     @Suppress("MissingPermission") // Vérification faite dans startRecording()
-    private fun startAudioStreaming() {
+    private fun startAudioRecording() {
         val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
         audioRecord = AudioRecord(
             MediaRecorder.AudioSource.VOICE_RECOGNITION,
@@ -322,23 +215,68 @@ class NotitiaRecordingService : Service() {
             bufferSize * 2
         )
 
+        val file = File(recordingsDir(), "widget_${System.currentTimeMillis()}.pcm")
+        pcmFile = file
         audioRecord?.startRecording()
 
         recordingThread = Thread({
             val buffer = ByteArray(bufferSize)
-            while (isRecording && audioRecord != null) {
-                val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: -1
-                if (bytesRead > 0 && webSocket != null) {
-                    try {
-                        webSocket?.send(buffer.copyOf(bytesRead).toByteString())
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Erreur envoi audio", e)
+            try {
+                FileOutputStream(file).use { out ->
+                    while (isRecording && audioRecord != null) {
+                        val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: -1
+                        if (bytesRead > 0) out.write(buffer, 0, bytesRead)
                     }
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur écriture audio", e)
             }
-        }, "NotitiaAudioStream").apply { start() }
+        }, "NotitiaAudioRecord").apply { start() }
 
-        Log.d(TAG, "🎤 Stream audio démarré (buffer=$bufferSize)")
+        Log.d(TAG, "🎤 Enregistrement audio démarré → ${file.name}")
+    }
+
+    private fun recordingsDir(): File =
+        File(filesDir, "widget_recordings").apply { mkdirs() }
+
+    /** Ajoute l'en-tête WAV (44 octets) au PCM brut ; null si rien d'enregistré. */
+    private fun finalizeWav(pcm: File): File? {
+        val dataSize = pcm.length()
+        if (dataSize < SAMPLE_RATE * 2 / 2) { // < 0,5 s : rien d'exploitable
+            pcm.delete()
+            return null
+        }
+        val wav = File(pcm.parentFile, pcm.nameWithoutExtension + ".wav")
+        try {
+            FileOutputStream(wav).use { out ->
+                out.write(wavHeader(dataSize))
+                pcm.inputStream().use { input -> input.copyTo(out) }
+            }
+            pcm.delete()
+            return wav
+        } catch (e: Exception) {
+            Log.e(TAG, "Erreur création WAV", e)
+            return null
+        }
+    }
+
+    private fun wavHeader(dataSize: Long): ByteArray {
+        val byteRate = SAMPLE_RATE * 2
+        val header = java.nio.ByteBuffer.allocate(44).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray())
+        header.putInt((36 + dataSize).toInt())
+        header.put("WAVE".toByteArray())
+        header.put("fmt ".toByteArray())
+        header.putInt(16)                // taille du bloc fmt
+        header.putShort(1)               // PCM
+        header.putShort(1)               // mono
+        header.putInt(SAMPLE_RATE)
+        header.putInt(byteRate)
+        header.putShort(2)               // octets par échantillon
+        header.putShort(16)              // bits
+        header.put("data".toByteArray())
+        header.putInt(dataSize.toInt())
+        return header.array()
     }
 
     // =========================================================================
@@ -367,13 +305,8 @@ class NotitiaRecordingService : Service() {
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private fun updateWidgetState(isRec: Boolean, timer: String) {
-        // Construire un aperçu du transcript live pour le widget large
-        val liveText = if (currentPartial.isNotEmpty()) {
-            val base = transcript.toString()
-            if (base.isNotEmpty()) "$base $currentPartial" else currentPartial
-        } else {
-            transcript.toString()
-        }
+        // La transcription se fait à l'ouverture de l'app : simple indication ici
+        val liveText = if (isRec) "🎙️ Enregistrement… (transcrit à l'ouverture de Notitia)" else ""
 
         getPrefs().edit()
             .putBoolean("is_recording", isRec)
@@ -385,18 +318,20 @@ class NotitiaRecordingService : Service() {
         triggerWidgetUpdate()
     }
 
-    private fun savePendingTranscription(text: String) {
+    /** Liste (une ligne par fichier) des enregistrements à transcrire par l'app. */
+    private fun savePendingAudio(wav: File) {
+        val prefs = getPrefs()
+        val existing = prefs.getString("pending_audio_paths", "").orEmpty()
+        val paths = if (existing.isBlank()) wav.absolutePath else "$existing\n${wav.absolutePath}"
         val dateStr = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
-        // Sauvegarder le transcript complet + un aperçu pour le widget large
-        val preview = if (text.length > 80) text.take(80) + "…" else text
-        getPrefs().edit()
-            .putString("pending_transcription", text)
+        prefs.edit()
+            .putString("pending_audio_paths", paths)
             .putString("pending_transcription_date", dateStr)
-            .putString("last_transcription", preview)
+            .putString("last_transcription", "Enregistrement prêt — ouvrez Notitia")
             .putString("live_transcript", "")
             .apply()
 
-        Log.d(TAG, "Transcript en attente sauvegardé (${text.length} chars)")
+        Log.d(TAG, "Enregistrement en attente : ${wav.name} (${wav.length() / 1024} Ko)")
     }
 
     private fun triggerWidgetUpdate() {

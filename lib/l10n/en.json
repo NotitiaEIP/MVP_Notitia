@@ -196,6 +196,8 @@
   "transcription_in_progress": "Transcription in progress… {duration}",
   "give_transcription_title": "Give a title to this transcription:",
   "title_placeholder": "Title…",
+  "engine_notitia": "WHISPER",
+  "notitia_stt_subtitle": "Open source • Notitia",
   "engine_deepgram": "DEEPGRAM",
   "deepgram_subtitle": "Nova-3 • Cloud",
   "engine_native": "NATIVE",

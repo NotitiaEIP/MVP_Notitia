@@ -22,6 +22,11 @@ n'importe quel PC ou petit VPS (2 vCPU / 2–4 Go de RAM suffisent).
 | `notitia-fallback` | Qwen3.5 35B A3B | secours automatique | 0,14 → 1,00 |
 | `notitia-embed` | Qwen3-Embedding 8B (réduit à 1024 dims par l'app) | recherche sémantique | 0,01 |
 | `web-search` | SearXNG (open source, dans le docker-compose) | sources web du résumé | gratuit, sans clé |
+| `notitia-transcribe` | Whisper large-v3-turbo (via `stt-adapter`) | transcription vocale (capture, réunion, widget) | 0,0002 $ / min d'audio |
+
+> DeepInfra n'expose Whisper que par son API native : le petit service interne
+> `stt-adapter` (Python standard, sans dépendance ni secret) traduit le format
+> OpenAI `/v1/audio/transcriptions` utilisé par LiteLLM.
 
 Changer de modèle = modifier `config.yaml` puis `docker compose restart litellm`.
 **Aucune mise à jour de l'app n'est nécessaire.**
@@ -58,6 +63,7 @@ virtuelles plafonnées :
 ```bash
 ./scripts/create-key.sh app-demo 3 30        # clé de l'app : 3 $/30 j, 30 req/min
 ./scripts/create-key.sh dev-alexandre 2 60   # une clé par membre de l'équipe
+./scripts/unlock-key.sh sk-...               # clé créée avant l'ajout d'un modèle → accès à tous
 ```
 
 Si une clé fuite, la perte maximale est son budget. On peut la révoquer depuis
@@ -227,4 +233,5 @@ Ordre de grandeur : ~2 000 générations ≈ 1 $ avec `notitia-smart`.
 | `User is not authorized to access this resource` | `DEEPINFRA_API_KEY` invalide dans `.env` |
 | `web-search` échoue ou renvoie 0 résultat | `docker compose logs searxng` ; un moteur peut bloquer temporairement l'IP du serveur (le résumé marche, sans sources) |
 | `Budget exceeded` | budget de la clé atteint → `create-key.sh` ou l'UI |
+| `model 'notitia-transcribe' is not available for this API key` | clé créée avant la transcription → `./scripts/unlock-key.sh sk-...` |
 | L'app n'arrive pas à joindre la passerelle | mauvaise IP / pas le même Wi-Fi / pare-feu du PC (port 4000) |

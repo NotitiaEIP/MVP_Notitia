@@ -238,6 +238,38 @@ class AiClient {
   }
 
   // ---------------------------------------------------------------------------
+  // TRANSCRIPTION (Whisper open source via la passerelle)
+  // ---------------------------------------------------------------------------
+
+  /// Transcrit un fichier WAV. [prompt] = texte précédent, pour la continuité
+  /// entre deux segments.
+  Future<String> transcribe(
+    Uint8List wav, {
+    String? language,
+    String? prompt,
+    String? model,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/v1/audio/transcriptions');
+    final data = await _sendWithRetry('/v1/audio/transcriptions', () async {
+      final request = http.MultipartRequest('POST', uri)
+        ..headers['Authorization'] = 'Bearer $_apiKey'
+        ..fields['model'] = model ?? AiConfig.transcribeModel
+        ..fields['response_format'] = 'json'
+        ..files.add(
+          http.MultipartFile.fromBytes('file', wav, filename: 'audio.wav'),
+        );
+      if (language != null && language.isNotEmpty) {
+        request.fields['language'] = language;
+      }
+      if (prompt != null && prompt.isNotEmpty) {
+        request.fields['prompt'] = prompt;
+      }
+      return http.Response.fromStream(await _http.send(request));
+    }, const Duration(seconds: 60));
+    return (data['text'] as String? ?? '').trim();
+  }
+
+  // ---------------------------------------------------------------------------
   // SANTÉ
   // ---------------------------------------------------------------------------
 
@@ -263,6 +295,21 @@ class AiClient {
     String path,
     Map<String, dynamic> body,
     Duration timeout,
+  ) {
+    final uri = Uri.parse('$_baseUrl$path');
+    return _sendWithRetry(
+      path,
+      () => _http.post(uri, headers: _headers, body: json.encode(body)),
+      timeout,
+    );
+  }
+
+  /// [send] est rappelé à chaque tentative (une requête multipart ne peut
+  /// être envoyée qu'une fois).
+  Future<Map<String, dynamic>> _sendWithRetry(
+    String path,
+    Future<http.Response> Function() send,
+    Duration timeout,
   ) async {
     if (!isConfigured) {
       throw AiException(
@@ -270,14 +317,11 @@ class AiClient {
       );
     }
 
-    final uri = Uri.parse('$_baseUrl$path');
     AiException? lastError;
 
     for (int attempt = 1; attempt <= _maxAttempts; attempt++) {
       try {
-        final response = await _http
-            .post(uri, headers: _headers, body: json.encode(body))
-            .timeout(timeout);
+        final response = await send().timeout(timeout);
 
         if (response.statusCode == 200) {
           return json.decode(utf8.decode(response.bodyBytes))

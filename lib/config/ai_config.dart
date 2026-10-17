@@ -47,6 +47,19 @@ class AiConfig {
     defaultValue: 'notitia-embed',
   );
 
+  /// Transcription vocale (Whisper open source)
+  static const String transcribeModel = String.fromEnvironment(
+    'AI_MODEL_TRANSCRIBE',
+    defaultValue: 'notitia-transcribe',
+  );
+
+  /// Moteur de transcription par défaut (réunions, écran de capture) :
+  /// 'notitia' (Whisper via la passerelle) ou 'deepgram'.
+  static const String sttEngine = String.fromEnvironment(
+    'AI_STT_ENGINE',
+    defaultValue: 'notitia',
+  );
+
   /// Dimensions demandées au modèle d'embedding (0 = valeur par défaut du modèle).
   static const int embedDimensions = int.fromEnvironment(
     'AI_EMBED_DIMENSIONS',

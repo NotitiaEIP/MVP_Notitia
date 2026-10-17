@@ -42,8 +42,3 @@ android {
 flutter {
     source = "../.."
 }
-
-dependencies {
-    // OkHttp — WebSocket natif pour Deepgram (enregistrement widget sans Flutter)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-}

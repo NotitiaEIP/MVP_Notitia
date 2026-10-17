@@ -20,7 +20,7 @@ Le projet est organisé en deux blocs :
   - `assistant_page.dart` / `search_page.dart` (assistant & recherche)
   - `history_page.dart`, `meeting_page.dart`, `mind_map_page.dart`
 - **Services métier** : `lib/services/`
-  - STT temps réel : `deepgram_service.dart`
+  - Transcription : `open_stt_service.dart` (Whisper via la passerelle, par défaut), `deepgram_service.dart` (option), interface `live_transcriber.dart`
   - Client IA unique (API compatible OpenAI) : `ai_client.dart` + config `lib/config/ai_config.dart`
   - Embeddings + génération (RAG, résumé enrichi) : `ai_service.dart`
   - Orchestration RAG : `rag_service.dart`
@@ -40,7 +40,8 @@ Le projet est organisé en deux blocs :
 
 | IA / Service | Où dans le code | Rôle dans le produit | Entrées / sorties |
 |---|---|---|---|
-| **Deepgram (Nova-3)** | `lib/services/deepgram_service.dart` | Transcription vocale **temps réel** via WebSocket | Entrée: flux audio PCM 16kHz • Sortie: texte partiel/final + confiance |
+| **Whisper large-v3-turbo** (`notitia-transcribe`, open source) | `lib/services/open_stt_service.dart` + `speech_segmenter.dart` | Transcription par segments coupés sur les pauses (capture, réunion, widget Android) | Entrée: PCM 16 kHz • Sortie: texte au fil de l'eau |
+| **Deepgram (Nova-3)**, option | `lib/services/deepgram_service.dart` | Transcription vocale **temps réel** via WebSocket (crédits gratuits) | Entrée: flux audio PCM 16kHz • Sortie: texte partiel/final + confiance |
 | **Speech-to-Text natif** | `lib/pages/capture_page.dart` | Fallback local de transcription (OS) | Entrée: micro • Sortie: texte transcrit |
 | **Faster-Whisper (local Python)** | `ia_python/notitia_stt.py` + `ia_python/notitia_api.py` | STT local haute précision (pipeline backend optionnel) | Entrée: fichier/base64/PCM • Sortie: segments, mots, timestamps, confiance |
 | **Passerelle IA (LiteLLM)** | `infra/ai-gateway/` + `lib/services/ai_client.dart` | Point d'entrée unique vers les modèles open source (DeepInfra), clés plafonnées, fallback | Entrée: requêtes OpenAI-compatibles • Sortie: texte / JSON / vecteurs |
@@ -54,7 +55,7 @@ Le projet est organisé en deux blocs :
 ## Flux technique principal
 
 1. L’utilisateur enregistre sa voix depuis `capture_page.dart`.
-2. Transcription en direct via **Deepgram** (ou fallback natif / backend Whisper selon le mode).
+2. Transcription via **Whisper open source** (passerelle), ou Deepgram / moteur natif au choix dans l'écran de capture.
 3. Le texte peut être amélioré via **Mistral** (`correctTranscription`).
 4. Sauvegarde locale des transcriptions (`storage_service.dart`).
 5. Indexation RAG :
@@ -68,7 +69,7 @@ Le projet est organisé en deux blocs :
 ## Stack technique
 
 - **Frontend** : Flutter, Dart, `http`, `web_socket_channel`, `record`, `speech_to_text`, `supabase_flutter`.
-- **Backend IA local (optionnel)** : Python, Flask, Faster-Whisper, Mistral client, scipy/soundfile/noisereduce.
+- **Backend IA local (optionnel, non utilisé par l'app)** : Python, Flask, Faster-Whisper, Mistral client, scipy/soundfile/noisereduce.
 - **Passerelle IA** : LiteLLM (Docker) + Postgres, modèles open-weight via DeepInfra.
 - **Persistance** : JSON local (transcriptions + vecteurs), Supabase optionnel pour auth/data.
 
