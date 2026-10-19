@@ -14,10 +14,11 @@
 class AiConfig {
   AiConfig._();
 
-  /// URL de la passerelle (sans /v1). Ex : http://192.168.1.20:4000
+  /// URL de la passerelle (sans /v1). Par défaut : le serveur Notitia en ligne
+  /// (VPS OVH). Ex. en local : http://192.168.1.20:4000
   static const String baseUrl = String.fromEnvironment(
     'AI_BASE_URL',
-    defaultValue: 'http://localhost:4000',
+    defaultValue: 'https://notitia-tunnels.duckdns.org',
   );
 
   /// Clé virtuelle de la passerelle (plafonnée côté serveur).

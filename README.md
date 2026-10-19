@@ -106,11 +106,24 @@ flutter config --enable-web
 #### Linux / macOS / Windows
 Les dépendances natives sont téléchargées automatiquement.
 
-### 5. Lancer l'application
+### 5. Configurer l'IA (clé de la passerelle Notitia)
+
+Aucune clé n'est dans le code. Copier le modèle puis y mettre la clé `app-demo`
+(demander à l'équipe, ou la créer sur le serveur : `infra/ai-gateway/README.md`) :
 
 \`\`\`bash
-flutter run
+cp env/ai.example.json env/ai.json   # jamais commité
 \`\`\`
+
+### 6. Lancer l'application
+
+\`\`\`bash
+flutter run --dart-define-from-file=env/ai.json
+\`\`\`
+
+Sans ce paramètre, l'app démarre mais toutes les fonctions IA (transcription
+Whisper, correction, assistant, mind map, résumé) échouent. Dans VS Code, F5 le
+passe automatiquement (`.vscode/launch.json`).
 
 ---
 
@@ -119,13 +132,13 @@ flutter run
 ### Démarrer l'application
 
 \`\`\`bash
-# Lancer sur tous les appareils disponibles
-flutter run
+# Lancer sur tous les appareils disponibles (avec la config IA)
+flutter run --dart-define-from-file=env/ai.json
 
 # Lancer en mode release
-flutter run --release
+flutter run --release --dart-define-from-file=env/ai.json
 
-# Lancer sur une plateforme spécifique
+# Lancer sur une plateforme spécifique (ajouter --dart-define-from-file=env/ai.json)
 flutter run -d android          # Android
 flutter run -d ios              # iOS
 flutter run -d chrome           # Web

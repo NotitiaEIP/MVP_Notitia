@@ -55,8 +55,9 @@ windows/flutter/generated_plugins.cmake
 linux/flutter/ephemeral/
 linux/flutter/generated_plugins.cmake
 
-# IDEs
-.vscode/
+# IDEs (sauf la config de lancement partagée, qui passe env/ai.json)
+.vscode/*
+!.vscode/launch.json
 .idea/
 *.swp
 *.swo

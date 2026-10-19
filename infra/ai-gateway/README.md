@@ -61,7 +61,7 @@ Ne jamais mettre la `LITELLM_MASTER_KEY` dans l'app. On crée des clés
 virtuelles plafonnées :
 
 ```bash
-./scripts/create-key.sh app-demo 3 30        # clé de l'app : 3 $/30 j, 30 req/min
+./scripts/create-key.sh app-demo 3 60        # clé de l'app : 3 $/30 j, 60 req/min
 ./scripts/create-key.sh dev-alexandre 2 60   # une clé par membre de l'équipe
 ./scripts/unlock-key.sh sk-...               # clé créée avant l'ajout d'un modèle → accès à tous
 ```
@@ -78,15 +78,26 @@ cp env/ai.example.json env/ai.json   # à la racine du projet, jamais commité
 
 ```json
 {
-  "AI_BASE_URL": "http://<adresse>:4000",
+  "AI_BASE_URL": "https://notitia-tunnels.duckdns.org",
   "AI_API_KEY": "sk-...clé app-demo...",
   "DEEPGRAM_API_KEY": "..."
 }
 ```
 
+Seule `AI_API_KEY` est obligatoire : sans `AI_BASE_URL`, l'app vise le serveur
+en ligne (`https://notitia-tunnels.duckdns.org`). `DEEPGRAM_API_KEY` ne sert que
+si on choisit Deepgram dans l'écran de capture.
+
 ```bash
 flutter run --dart-define-from-file=env/ai.json
 ```
+
+Dans VS Code, les configurations de `.vscode/launch.json` passent déjà ce fichier
+(F5 → *Notitia (debug)*, ou *Notitia (release)* pour tester la vitesse réelle).
+
+> 🔑 La clé est compilée dans l'app : elle peut être extraite d'un APK. C'est
+> accepté, car elle est **plafonnée** (budget + requêtes/min) et révocable depuis `/ui`.
+> Ne jamais y mettre la `LITELLM_MASTER_KEY`.
 
 Quelle `AI_BASE_URL` mettre ?
 
@@ -96,7 +107,7 @@ Quelle `AI_BASE_URL` mettre ?
 | Émulateur Android | `http://10.0.2.2:4000` |
 | Téléphone sur le même Wi-Fi que le PC | `http://<IP locale du PC>:4000` (`hostname -I`) |
 | Démo depuis n'importe où (PC allumé) | URL du tunnel, voir ci-dessous |
-| VPS avec domaine | `https://notitia-ai.duckdns.org` |
+| VPS avec domaine | `https://notitia-tunnels.duckdns.org` |
 
 > Le HTTP en clair vers une IP locale fonctionne sur Android (`usesCleartextTraffic`
 > est activé) et sur iOS (ATS ne s'applique pas aux adresses IP). Dès que l'app sort
@@ -129,7 +140,7 @@ ssh ubuntu@<IP_DU_VPS>
 ```
 
 **b. Nom de domaine gratuit** : sur [duckdns.org](https://www.duckdns.org), créer
-`notitia-ai` et y mettre l'IPv4 du VPS → `notitia-ai.duckdns.org`.
+`notitia-tunnels` et y mettre l'IPv4 du VPS → `notitia-tunnels.duckdns.org`.
 
 **c. Préparer le serveur**
 
@@ -144,14 +155,14 @@ sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp && sudo ufw --force enable
 **d. Installer la passerelle**
 
 ```bash
-git clone -b feat/ai-gateway https://github.com/NotitiaEIP/MVP_Notitia.git
+git clone https://github.com/NotitiaEIP/MVP_Notitia.git
 cd MVP_Notitia/infra/ai-gateway
 cp .env.example .env
 echo "sk-$(openssl rand -hex 24)"   # → LITELLM_MASTER_KEY
 openssl rand -hex 24                # → POSTGRES_PASSWORD
 openssl rand -hex 32                # → SEARXNG_SECRET
 nano .env   # + DEEPINFRA_API_KEY, UI_PASSWORD,
-            #   DOMAIN=notitia-ai.duckdns.org, LITELLM_BIND=127.0.0.1
+            #   DOMAIN=notitia-tunnels.duckdns.org, LITELLM_BIND=127.0.0.1
 docker compose --profile https up -d
 docker compose ps                   # litellm et db « healthy » après ~1 min
 ```
@@ -161,22 +172,29 @@ docker compose ps                   # litellm et db « healthy » après ~1 min
 **e. Vérifier et créer les clés**
 
 ```bash
-./scripts/smoke-test.sh https://notitia-ai.duckdns.org
-./scripts/create-key.sh app-demo 3 30        # clé de l'app
+./scripts/smoke-test.sh https://notitia-tunnels.duckdns.org
+./scripts/create-key.sh app-demo 3 60        # clé de l'app
 ./scripts/create-key.sh dev-<prénom> 2 60    # une par membre
+AI_API_KEY=sk-... ./scripts/smoke-test.sh https://notitia-tunnels.duckdns.org  # vérifie la clé de l'app
 ```
 
-Admin et coûts : `https://notitia-ai.duckdns.org/ui`.
+> 60 req/min pour l'app : en transcription Whisper, chaque pause envoie un morceau
+> (≈ 1 requête toutes les 3–5 s par téléphone), plus la correction et les embeddings.
+
+Admin et coûts : `https://notitia-tunnels.duckdns.org/ui`.
 
 **f. Surveillance** : [UptimeRobot](https://uptimerobot.com) (gratuit) sur
-`https://notitia-ai.duckdns.org/health/liveliness`, alerte par e-mail.
+`https://notitia-tunnels.duckdns.org/health/liveliness`, alerte par e-mail.
 
 **g. Mettre à jour plus tard**
 
 ```bash
 cd ~/MVP_Notitia && git pull && cd infra/ai-gateway
-docker compose --profile https pull && docker compose --profile https up -d
+docker compose --profile https pull && docker compose --profile https up -d --build
 ```
+
+> Serveur installé avant la fusion de la PR (clone de `feat/ai-gateway`) : passer
+> une fois sur `main` avec `git checkout main && git pull`.
 
 ## 6. Variante : Azure for Students (100 $ de crédits)
 
