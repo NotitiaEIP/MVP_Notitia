@@ -303,7 +303,7 @@ ICONS POSSIBLES pour les figures : trending_up, trending_down, schedule, people,
         jsonMode: true,
         timeout: const Duration(seconds: 90),
       );
-      return _parseRichSummary(
+      return await _parseRichSummary(
         AiClient.extractJsonObject(rawText),
         transcriptionId,
         safeContent,
