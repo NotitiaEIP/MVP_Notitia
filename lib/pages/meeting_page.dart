@@ -12,9 +12,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/meeting.dart';
 import '../models/transcription.dart';
-import '../services/deepgram_service.dart';
+import '../services/live_transcriber.dart';
 import '../services/meeting_service.dart';
-import '../services/mistral_service.dart';
+import '../services/correction_service.dart';
 import '../services/storage_service.dart';
 import '../services/auth_service.dart';
 import '../services/live_activity_service.dart';
@@ -27,7 +27,8 @@ import '../widgets/page_header.dart';
 class MeetingPage extends StatefulWidget {
   final ValueNotifier<int> refreshNotifier;
   final void Function(MeduzaState state, {String? message, BubbleStyle style})?
-      onMeduzaStateChanged;
+  onMeduzaStateChanged;
+
   /// Callback pour naviguer vers l'onglet historique filtré sur les réunions.
   final VoidCallback? onNavigateToHistory;
 
@@ -68,8 +69,8 @@ class _MeetingPageState extends State<MeetingPage> {
   bool _isRecording = false;
   bool _isStopping = false;
 
-  // Deepgram pour l'enregistrement
-  late DeepgramService _deepgram;
+  // Transcription de la réunion (Whisper open source par défaut)
+  late LiveTranscriber _transcriber;
   String _liveText = '';
   String _fullTranscript = '';
 
@@ -87,9 +88,11 @@ class _MeetingPageState extends State<MeetingPage> {
   @override
   void initState() {
     super.initState();
-    _deepgram = DeepgramService();
-    _deepgram.onTranscript = _onDeepgramTranscript;
-    _deepgram.onError = (err) => debugPrint('Deepgram erreur: $err');
+    _transcriber = LiveTranscriber.createDefault(
+      language: _languageService.currentLanguage,
+    );
+    _transcriber.onTranscript = _onTranscript;
+    _transcriber.onError = (err) => debugPrint('Transcription erreur: $err');
 
     // Live Activity : si l'utilisateur appuie Stop depuis Dynamic Island
     LiveActivityService.instance.onStopRequested = () {
@@ -102,16 +105,16 @@ class _MeetingPageState extends State<MeetingPage> {
     _durationTimer?.cancel();
     _hostService.stopServer();
     _clientService.disconnect();
-    _deepgram.stopListening();
+    _transcriber.dispose();
     LiveActivityService.instance.onStopRequested = null;
     LiveActivityService.instance.stop();
     super.dispose();
   }
 
   // ---------------------------------------------------------------------------
-  // Deepgram callbacks
+  // Callbacks de transcription
   // ---------------------------------------------------------------------------
-  void _onDeepgramTranscript(String text, bool isFinal) {
+  void _onTranscript(String text, bool isFinal) {
     if (!mounted) return;
     setState(() {
       if (isFinal && text.isNotEmpty) {
@@ -168,11 +171,14 @@ class _MeetingPageState extends State<MeetingPage> {
     _fullTranscript = '';
     _liveText = '';
 
-    // Démarrer la Live Activity AVANT Deepgram (pour s'assurer qu'elle se lance)
+    // Démarrer la Live Activity AVANT la transcription (pour s'assurer qu'elle se lance)
     try {
       final hostName = await _getUserName();
-      final participantNames = _hostService.participants.map((p) => p.name).join(', ');
-      final laTitle = 'Réunion — $hostName${participantNames.isNotEmpty ? ' + $participantNames' : ''}';
+      final participantNames = _hostService.participants
+          .map((p) => p.name)
+          .join(', ');
+      final laTitle =
+          'Réunion — $hostName${participantNames.isNotEmpty ? ' + $participantNames' : ''}';
       debugPrint('[Meeting] Démarrage Live Activity: $laTitle');
       await LiveActivityService.instance.start(laTitle);
       debugPrint('[Meeting] ✓ LiveActivity démarrée');
@@ -180,7 +186,7 @@ class _MeetingPageState extends State<MeetingPage> {
       debugPrint('[Meeting] ✗ LiveActivity erreur: $e\n$st');
     }
 
-    await _deepgram.startListening();
+    await _transcriber.startListening();
 
     _hostService.startRecording();
 
@@ -192,8 +198,14 @@ class _MeetingPageState extends State<MeetingPage> {
           _meetingDuration = DateTime.now().difference(_meetingStartedAt!);
         });
         // Mettre à jour la durée sur la Live Activity
-        final m = _meetingDuration.inMinutes.remainder(60).toString().padLeft(2, '0');
-        final s = _meetingDuration.inSeconds.remainder(60).toString().padLeft(2, '0');
+        final m = _meetingDuration.inMinutes
+            .remainder(60)
+            .toString()
+            .padLeft(2, '0');
+        final s = _meetingDuration.inSeconds
+            .remainder(60)
+            .toString()
+            .padLeft(2, '0');
         LiveActivityService.instance.updateDuration('$m:$s');
       }
     });
@@ -273,14 +285,20 @@ class _MeetingPageState extends State<MeetingPage> {
     );
 
     _durationTimer?.cancel();
-    await _deepgram.stopListening();
+    await _transcriber.stopListening();
+    // Texte complet, y compris les derniers segments transcrits après l'arrêt
+    if (_transcriber.fullTranscript.isNotEmpty) {
+      _fullTranscript = _transcriber.fullTranscript;
+    }
     await LiveActivityService.instance.stop();
 
     // Correction Mistral du transcript
     String finalContent = _fullTranscript;
     if (finalContent.isNotEmpty) {
       try {
-        finalContent = await MistralService.instance.correctTranscription(finalContent);
+        finalContent = await CorrectionService.instance.correctTranscription(
+          finalContent,
+        );
       } catch (e) {
         debugPrint('Erreur Mistral: $e');
       }
@@ -303,7 +321,7 @@ class _MeetingPageState extends State<MeetingPage> {
     await StorageService.save(transcription);
 
     // Générer un titre IA en arrière-plan
-    MistralService.updateTitleInBackground(transcription);
+    CorrectionService.updateTitleInBackground(transcription);
 
     // Rendre la transcription disponible aux participants via le serveur
     _hostService.endMeeting(transcription);
@@ -356,21 +374,30 @@ class _MeetingPageState extends State<MeetingPage> {
     );
 
     _durationTimer?.cancel();
-    await _deepgram.stopListening();
+    await _transcriber.stopListening();
+    // Texte complet, y compris les derniers segments transcrits après l'arrêt
+    if (_transcriber.fullTranscript.isNotEmpty) {
+      _fullTranscript = _transcriber.fullTranscript;
+    }
     await LiveActivityService.instance.stop();
 
     String finalContent = _fullTranscript;
     if (finalContent.isNotEmpty) {
       try {
-        finalContent = await MistralService.instance.correctTranscription(finalContent);
+        finalContent = await CorrectionService.instance.correctTranscription(
+          finalContent,
+        );
       } catch (e) {
         debugPrint('Erreur Mistral: $e');
       }
     }
 
-    final participantNames = _hostService.participants.map((p) => p.name).join(', ');
+    final participantNames = _hostService.participants
+        .map((p) => p.name)
+        .join(', ');
     final hostName = await _getUserName();
-    final title = 'Réunion — $hostName${participantNames.isNotEmpty ? ' + $participantNames' : ''}';
+    final title =
+        'Réunion — $hostName${participantNames.isNotEmpty ? ' + $participantNames' : ''}';
 
     final transcription = Transcription.create(
       content: finalContent.isEmpty

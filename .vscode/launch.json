@@ -1,0 +1,22 @@
+{
+  // Clés et URL de la passerelle IA lues dans env/ai.json (jamais commité,
+  // voir env/ai.example.json et infra/ai-gateway/README.md).
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Notitia (debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["--dart-define-from-file=env/ai.json"]
+    },
+    {
+      "name": "Notitia (release)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "release",
+      "args": ["--dart-define-from-file=env/ai.json"]
+    }
+  ]
+}

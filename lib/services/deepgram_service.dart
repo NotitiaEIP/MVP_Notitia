@@ -7,6 +7,9 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:record/record.dart';
 
+import '../config/ai_config.dart';
+import 'live_transcriber.dart';
+
 /// 🎙️ Service Deepgram Nova-3 pour Flutter
 /// Transcription en temps réel via WebSocket - Sans serveur Python
 /// 
@@ -18,13 +21,13 @@ import 'package:record/record.dart';
 /// // ...
 /// await deepgram.stopListening();
 /// ```
-class DeepgramService {
+class DeepgramService implements LiveTranscriber {
   // ---------------------------------------------------------------------------
   // Configuration
   // ---------------------------------------------------------------------------
   
-  /// Clé API Deepgram (à mettre en variable d'environnement en production)
-  static const String _apiKey = 'f7a04f3710a4b823fc325c44cae2c39b52a007e7';
+  /// Clé API Deepgram, injectée au build (DEEPGRAM_API_KEY dans env/ai.json)
+  static const String _apiKey = ServiceKeys.deepgram;
   
   /// URL WebSocket Deepgram
   static const String _wsBaseUrl = 'wss://api.deepgram.com/v1/listen';
@@ -57,15 +60,19 @@ class DeepgramService {
   /// Appelé pour chaque transcription reçue
   /// - text: Le texte transcrit
   /// - isFinal: true si c'est un résultat final, false si partiel
+  @override
   void Function(String text, bool isFinal)? onTranscript;
   
   /// Appelé en cas d'erreur
+  @override
   void Function(String error)? onError;
   
   /// Appelé quand la connexion est établie
+  @override
   void Function()? onConnected;
   
   /// Appelé quand la connexion est fermée
+  @override
   void Function()? onDisconnected;
   
   // ---------------------------------------------------------------------------
@@ -85,9 +92,12 @@ class DeepgramService {
   // Getters
   // ---------------------------------------------------------------------------
   
+  @override
   bool get isListening => _isListening;
+  @override
   String get fullTranscript => _fullTranscript;
   String get currentPartial => _currentPartial;
+  @override
   double get confidence => _confidence;
   
   /// Texte complet incluant le partiel en cours
@@ -102,6 +112,7 @@ class DeepgramService {
   // ---------------------------------------------------------------------------
   
   /// Démarre l'écoute et la transcription
+  @override
   Future<bool> startListening() async {
     if (_isListening) return true;
     
@@ -136,6 +147,7 @@ class DeepgramService {
   }
   
   /// Arrête l'écoute et la transcription
+  @override
   Future<void> stopListening() async {
     if (!_isListening && _channel == null) return;
     
@@ -173,6 +185,7 @@ class DeepgramService {
   }
   
   /// Réinitialise la transcription
+  @override
   void reset() {
     _fullTranscript = '';
     _currentPartial = '';
@@ -180,6 +193,7 @@ class DeepgramService {
   }
   
   /// Libère les ressources
+  @override
   Future<void> dispose() async {
     await stopListening();
     _recorder.dispose();

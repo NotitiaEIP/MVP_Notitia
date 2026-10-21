@@ -1,0 +1,6 @@
+{
+  "AI_BASE_URL": "https://notitia-tunnels.duckdns.org",
+  "AI_API_KEY": "sk-cle-virtuelle-de-la-passerelle",
+  "AI_STT_ENGINE": "notitia",
+  "DEEPGRAM_API_KEY": ""
+}

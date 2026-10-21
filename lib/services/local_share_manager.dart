@@ -19,7 +19,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/transcription.dart';
-import 'mistral_service.dart';
+import 'correction_service.dart';
 import 'nfc_share_service.dart';
 import 'notitia_file_service.dart';
 import 'storage_service.dart';
@@ -248,7 +248,7 @@ class LocalShareManager extends ChangeNotifier {
         await StorageService.save(imported);
 
         // Générer un titre IA en arrière-plan
-        unawaited(MistralService.updateTitleInBackground(imported));
+        unawaited(CorrectionService.updateTitleInBackground(imported));
 
         debugPrint('[LocalShareManager] NFC import: ${imported.title}');
 

@@ -123,7 +123,7 @@
                 android:resource="@xml/notitia_widget_large_info" />
         </receiver>
 
-        <!-- Service d'enregistrement natif (Deepgram, pas de Flutter requis) -->
+        <!-- Service d'enregistrement natif du widget (fichier WAV, transcrit par l'app) -->
         <service
             android:name=".NotitiaRecordingService"
             android:foregroundServiceType="microphone"

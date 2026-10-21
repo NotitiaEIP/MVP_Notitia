@@ -1,32 +1,24 @@
 // =============================================================================
-// NOTITIA — Service Mistral AI (appel direct à l'API cloud)
-// Correction et amélioration des transcriptions vocales
-// Aucun serveur Python nécessaire — appel HTTPS direct
+// NOTITIA — Service de correction des transcriptions
+// Correction, amélioration et titres via le modèle "fast" de la passerelle IA
+// (Mistral Small, open source)
 // =============================================================================
 
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 
+import '../config/ai_config.dart';
 import '../models/transcription.dart';
+import 'ai_client.dart';
 import 'storage_service.dart';
 
-/// Service Mistral AI pour améliorer les transcriptions
-class MistralService {
-  static MistralService? _instance;
-  static MistralService get instance => _instance ??= MistralService._();
+/// Service IA pour améliorer les transcriptions
+class CorrectionService {
+  static CorrectionService? _instance;
+  static CorrectionService get instance => _instance ??= CorrectionService._();
 
-  MistralService._();
+  CorrectionService._();
 
-  // ---------------------------------------------------------------------------
-  // Configuration
-  // ---------------------------------------------------------------------------
-  static const String _apiKey = 'Y2ZuTtCH0vJHlkZL2Y0MRoTmGpRsfZmT';
-  static const String _model = 'mistral-small-latest';
-  static const String _apiUrl = 'https://api.mistral.ai/v1/chat/completions';
-
-  final http.Client _client = http.Client();
+  final AiClient _ai = AiClient.instance;
 
   // ---------------------------------------------------------------------------
   // Prompts système pour chaque niveau de correction
@@ -84,28 +76,10 @@ INDICES COURANTS D'ERREURS DE TRANSCRIPTION:
   // API publique
   // ---------------------------------------------------------------------------
 
-  /// Vérifie que l'API Mistral est accessible
-  Future<bool> isAvailable() async {
-    try {
-      // Un petit appel rapide pour vérifier la clé
-      final response = await _client
-          .get(
-            Uri.parse('https://api.mistral.ai/v1/models'),
-            headers: {
-              'Authorization': 'Bearer $_apiKey',
-              'Accept': 'application/json',
-            },
-          )
-          .timeout(const Duration(seconds: 8));
+  /// Vérifie que la passerelle IA est accessible
+  Future<bool> isAvailable() => _ai.isAvailable();
 
-      return response.statusCode == 200;
-    } catch (e) {
-      debugPrint('[Mistral] API non accessible: $e');
-      return false;
-    }
-  }
-
-  /// Corrige/améliore un texte transcrit via Mistral AI
+  /// Corrige/améliore un texte transcrit
   ///
   /// [text] — le texte brut de la transcription
   /// [level] — niveau de correction (medium par défaut)
@@ -117,51 +91,22 @@ INDICES COURANTS D'ERREURS DE TRANSCRIPTION:
   }) async {
     if (text.trim().isEmpty) return text;
 
-    // Pas la peine d'appeler Mistral pour moins de 3 mots
+    // Pas la peine d'appeler l'IA pour moins de 3 mots
     if (text.trim().split(' ').length < 3) return text;
 
     try {
-      final response = await _client
-          .post(
-            Uri.parse(_apiUrl),
-            headers: {
-              'Authorization': 'Bearer $_apiKey',
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: json.encode({
-              'model': _model,
-              'messages': [
-                {'role': 'system', 'content': _getSystemPrompt(level)},
-                {
-                  'role': 'user',
-                  'content': 'Corrige cette transcription audio:\n\n$text',
-                },
-              ],
-              'temperature': 0.1,
-              'max_tokens': 2048,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        final choices = data['choices'] as List<dynamic>?;
-        if (choices != null && choices.isNotEmpty) {
-          final message = choices[0]['message'] as Map<String, dynamic>?;
-          final corrected = message?['content'] as String?;
-          if (corrected != null && corrected.trim().isNotEmpty) {
-            debugPrint('[Mistral] Correction appliquée');
-            return corrected.trim();
-          }
-        }
-      } else {
-        debugPrint(
-          '[Mistral] Erreur API ${response.statusCode}: ${response.body}',
-        );
-      }
+      final corrected = await _ai.complete(
+        model: AiConfig.fastModel,
+        system: _getSystemPrompt(level),
+        prompt: 'Corrige cette transcription audio:\n\n$text',
+        temperature: 0.1,
+        maxTokens: 2048,
+        timeout: const Duration(seconds: 30),
+      );
+      debugPrint('[Correction] Correction appliquée');
+      return corrected;
     } catch (e) {
-      debugPrint('[Mistral] Erreur: $e');
+      debugPrint('[Correction] Erreur: $e');
     }
 
     // En cas d'erreur, on retourne l'original — pas de perte de données
@@ -195,44 +140,21 @@ RÈGLES:
     final excerpt = content.length > 500 ? content.substring(0, 500) : content;
 
     try {
-      final response = await _client
-          .post(
-            Uri.parse(_apiUrl),
-            headers: {
-              'Authorization': 'Bearer $_apiKey',
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: json.encode({
-              'model': _model,
-              'messages': [
-                {'role': 'system', 'content': _titleSystemPrompt},
-                {
-                  'role': 'user',
-                  'content':
-                      'Génère un titre pour cette transcription:\n\n$excerpt',
-                },
-              ],
-              'temperature': 0.3,
-              'max_tokens': 30,
-            }),
-          )
-          .timeout(const Duration(seconds: 8));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        final choices = data['choices'] as List<dynamic>?;
-        if (choices != null && choices.isNotEmpty) {
-          final message = choices[0]['message'] as Map<String, dynamic>?;
-          final title = message?['content'] as String?;
-          if (title != null && title.trim().isNotEmpty) {
-            debugPrint('[Mistral] Titre généré: ${title.trim()}');
-            return title.trim();
-          }
-        }
+      final title = await _ai.complete(
+        model: AiConfig.fastModel,
+        system: _titleSystemPrompt,
+        prompt: 'Génère un titre pour cette transcription:\n\n$excerpt',
+        temperature: 0.3,
+        maxTokens: 30,
+        timeout: const Duration(seconds: 10),
+      );
+      final cleaned = title.replaceAll(RegExp(r'''^["'«\s]+|["'»\s.]+$'''), '');
+      if (cleaned.isNotEmpty) {
+        debugPrint('[Correction] Titre généré: $cleaned');
+        return cleaned;
       }
     } catch (e) {
-      debugPrint('[Mistral] Erreur génération titre: $e');
+      debugPrint('[Correction] Erreur génération titre: $e');
     }
 
     return null;
@@ -258,20 +180,16 @@ RÈGLES:
           );
           await StorageService.save(updated);
           StorageService.invalidateCache();
-          debugPrint('[Mistral] Titre mis à jour en arrière-plan: $aiTitle');
+          debugPrint('[Correction] Titre mis à jour en arrière-plan: $aiTitle');
         }
       }
     } catch (e) {
-      debugPrint('[Mistral] Erreur mise à jour titre: $e');
+      debugPrint('[Correction] Erreur mise à jour titre: $e');
     }
-  }
-
-  void dispose() {
-    _client.close();
   }
 }
 
-/// Niveau de correction Mistral
+/// Niveau de correction
 enum CorrectionLevel {
   /// Orthographe + ponctuation + grammaire
   medium,

@@ -334,29 +334,29 @@ class _MindMapPageState extends State<MindMapPage>
           ),
           const SizedBox(height: 20),
 
-          // Option Gemini — Gratuit
+          // Option Standard — Gratuit
           _buildEngineOption(
             ctx: ctx,
-            engine: MindMapEngine.gemini,
+            engine: MindMapEngine.standard,
             icon: Icons.auto_awesome,
             color: Colors.blueAccent,
-            title: _languageService.translate('engine_gemini_label'),
+            title: _languageService.translate('engine_standard_label'),
             subtitle: _languageService.translate('free_label'),
-            description: _languageService.translate('gemini_description'),
+            description: _languageService.translate('standard_description'),
             badge: _languageService.translate('free_badge'),
             badgeColor: Colors.green,
           ),
           const SizedBox(height: 12),
 
-          // Option Claude — Premium
+          // Option Premium
           _buildEngineOption(
             ctx: ctx,
-            engine: MindMapEngine.claude,
+            engine: MindMapEngine.premium,
             icon: Icons.diamond,
             color: NotitiaTheme.neonPink,
-            title: _languageService.translate('engine_claude_sonnet_label'),
+            title: _languageService.translate('engine_premium_label'),
             subtitle: _languageService.translate('premium_label'),
-            description: _languageService.translate('claude_description'),
+            description: _languageService.translate('premium_description'),
             badge: _languageService.translate('premium_badge'),
             badgeColor: NotitiaTheme.neonPink,
           ),
@@ -1227,6 +1227,8 @@ class _MindMapPageState extends State<MindMapPage>
       itemBuilder: (context, index) {
         final mindMap = _savedMindMaps[index];
         final engine = mindMap.metadata['engine'] as String? ?? 'unknown';
+        // 'claude' = anciennes mind maps premium
+        final isPremium = engine == 'premium' || engine == 'claude';
         final sourceCount = mindMap.sourceTranscriptionIds.length;
         final dateStr =
             '${mindMap.createdAt.day.toString().padLeft(2, '0')}/${mindMap.createdAt.month.toString().padLeft(2, '0')}/${mindMap.createdAt.year}';
@@ -1293,15 +1295,19 @@ class _MindMapPageState extends State<MindMapPage>
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: engine == 'claude'
+                        color: isPremium
                             ? NotitiaTheme.neonPink.withValues(alpha: 0.2)
                             : Colors.green.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        engine == 'claude' ? 'Claude' : 'Gemini',
+                        _languageService.translate(
+                          isPremium
+                              ? 'engine_premium_badge'
+                              : 'engine_standard_badge',
+                        ),
                         style: TextStyle(
-                          color: engine == 'claude'
+                          color: isPremium
                               ? NotitiaTheme.neonPink
                               : Colors.greenAccent,
                           fontSize: 10,

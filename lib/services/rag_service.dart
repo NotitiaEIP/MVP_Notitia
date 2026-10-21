@@ -6,7 +6,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/transcription.dart';
-import 'gemini_service.dart';
+import 'ai_service.dart';
 import 'storage_service.dart';
 import 'vector_store_service.dart';
 
@@ -62,7 +62,7 @@ class RAGService {
 
   RAGService._();
 
-  final GeminiService _gemini = GeminiService.instance;
+  final AiService _ai = AiService.instance;
   final VectorStoreService _vectorStore = VectorStoreService.instance;
 
   /// Historique de conversation en cours
@@ -194,7 +194,7 @@ class RAGService {
     try {
       // 1. Embedding de la question
       debugPrint('[RAG] Embedding de la question...');
-      final queryEmbedding = await _gemini.embed(question);
+      final queryEmbedding = await _ai.embed(question, isQuery: true);
 
       List<VectorSearchResult> results = [];
       List<String> contextTexts = [];
@@ -238,7 +238,7 @@ class RAGService {
 
       // 4. Génération de la réponse
       debugPrint('[RAG] Génération de la réponse...');
-      final response = await _gemini.generateRAGResponse(
+      final response = await _ai.generateRAGResponse(
         context: contextTexts,
         question: question,
         conversationHistory: recentHistory.isNotEmpty ? recentHistory : null,
